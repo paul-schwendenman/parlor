@@ -58,6 +58,20 @@ export function setupLobbyHandlers(
     io.to(normalizedCode).emit('lobby:state', players, roomManager.canStartGame(normalizedCode));
   });
 
+  socket.on('lobby:spectate', (roomCode, callback) => {
+    const result = roomManager.addSpectator(roomCode, socket.id);
+    if (!result.success) {
+      callback(false, result.error);
+      return;
+    }
+
+    const normalizedCode = roomCode.toUpperCase();
+    socket.join(normalizedCode);
+    socket.data.roomCode = normalizedCode;
+    socket.data.playerId = socket.id;
+    callback(true);
+  });
+
   socket.on('lobby:ready', (isReady) => {
     const roomCode = socket.data.roomCode;
     if (!roomCode) return;

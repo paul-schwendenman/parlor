@@ -48,6 +48,11 @@ export function getSocket(): GameSocket {
 
     // Lobby events
     socket.on('lobby:state', (players, canStart) => {
+      // If we had an active game and receive lobby state, the game was reset
+      if (gameState.view && lobbyState.gameStarting) {
+        gameState.reset();
+        lobbyState.gameStarting = false;
+      }
       lobbyState.setLobbyState(players, canStart);
     });
 

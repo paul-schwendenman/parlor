@@ -5,6 +5,7 @@ export interface GameRoom {
   code: string;
   hostId: string;
   players: Map<string, LobbyPlayer>;
+  spectators: Set<string>;
   gameData: unknown;
   maxPlayers: number;
   status: 'waiting' | 'playing' | 'finished';
@@ -38,6 +39,7 @@ export class RoomManager {
       code,
       hostId: hostSocketId,
       players: new Map([[hostSocketId, host]]),
+      spectators: new Set(),
       gameData: null,
       maxPlayers,
       status: 'waiting',
@@ -118,6 +120,33 @@ export class RoomManager {
     return code ? this.rooms.get(code) : undefined;
   }
 
+  addSpectator(code: string, socketId: string): { success: boolean; error?: string } {
+    const room = this.rooms.get(code.toUpperCase());
+    if (!room) return { success: false, error: 'Room not found' };
+
+    room.spectators.add(socketId);
+    this.playerToRoom.set(socketId, code.toUpperCase());
+    return { success: true };
+  }
+
+  removeSpectator(socketId: string): void {
+    const room = this.getRoomByPlayer(socketId);
+    if (room) {
+      room.spectators.delete(socketId);
+      this.playerToRoom.delete(socketId);
+    }
+  }
+
+  isSpectator(socketId: string): boolean {
+    const room = this.getRoomByPlayer(socketId);
+    return room?.spectators.has(socketId) ?? false;
+  }
+
+  getSpectatorsInRoom(roomCode: string): string[] {
+    const room = this.rooms.get(roomCode);
+    return room ? [...room.spectators] : [];
+  }
+
   getPlayersInRoom(roomCode: string): LobbyPlayer[] {
     const room = this.rooms.get(roomCode);
     return room ? [...room.players.values()] : [];
@@ -143,6 +172,13 @@ export class RoomManager {
   handleDisconnect(socketId: string): DisconnectResult | null {
     const room = this.getRoomByPlayer(socketId);
     if (!room) return null;
+
+    // Handle spectator disconnect
+    if (room.spectators.has(socketId)) {
+      room.spectators.delete(socketId);
+      this.playerToRoom.delete(socketId);
+      return { roomCode: room.code, wasHost: false, wasInGame: false };
+    }
 
     const player = room.players.get(socketId);
     const wasHost = room.hostId === socketId;

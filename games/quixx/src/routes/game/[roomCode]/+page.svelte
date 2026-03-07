@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { gameState } from '$lib/stores/gameStore.svelte.js';
   import { playerState } from '$lib/stores/playerStore.svelte.js';
   import { lobbyState } from '$lib/stores/lobbyStore.svelte.js';
@@ -22,6 +23,17 @@
   });
 
   let view = $derived(gameState.view);
+  let hadView = false;
+
+  $effect(() => {
+    if (view) {
+      hadView = true;
+    } else if (hadView) {
+      // Game was reset, navigate back to lobby
+      const roomCode = $page.params.roomCode;
+      goto(`/lobby/${roomCode}`);
+    }
+  });
 
   let myScore = $derived.by(() => {
     if (!view) return 0;
@@ -64,12 +76,6 @@
     getSocket().emit('game:action', { type: 'roll-dice' });
   }
 
-  // If game resets, go back to lobby
-  $effect(() => {
-    if (!gameState.view && !lobbyState.gameStarting) {
-      // Game was reset
-    }
-  });
 </script>
 
 {#if !view}

@@ -155,15 +155,25 @@ export class QuixxEngine {
       }
     }
 
+    // Check game end (2+ locked rows can happen from simultaneous locks)
+    if (this.lockedRows.length >= 2) {
+      this.gameOver = true;
+      this.phase = 'game-over';
+      return;
+    }
+
     this.phase = 'phase2';
   }
 
-  submitPhase2(action: QuixxAction): void {
+  submitPhase2(playerId: string, action: QuixxAction): void {
     if (this.phase !== 'phase2') {
       throw new Error('Not in phase2');
     }
 
     const activePlayer = this.players[this.activePlayerIndex];
+    if (activePlayer.id !== playerId) {
+      throw new Error('Only the active player can act in phase2');
+    }
 
     if (action.type === 'phase2-pass') {
       // Check if active player passed both phases → penalty
@@ -231,6 +241,14 @@ export class QuixxEngine {
     return this.gameOver;
   }
 
+  shouldAutoRoll(): boolean {
+    return this.config.diceRolling === 'auto';
+  }
+
+  getConfig(): QuixxConfig {
+    return { ...this.config };
+  }
+
   getScores(): PlayerScore[] | null {
     if (!this.gameOver) return null;
     return computeAllScores(this.players);
@@ -279,6 +297,31 @@ export class QuixxEngine {
       myIndex,
       isActivePlayer,
       availableMoves,
+    };
+  }
+
+  getSpectatorView(): QuixxPlayerView {
+    return {
+      players: this.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        connected: p.connected,
+        sheet: p.sheet,
+        penalties: p.penalties,
+        phase1Submitted: p.phase1Decision !== null,
+        lockedRows: [...p.lockedRows],
+      })),
+      activePlayerIndex: this.activePlayerIndex,
+      dice: { ...this.dice },
+      lockedRows: [...this.lockedRows],
+      removedDice: [...this.removedDice],
+      phase: this.phase,
+      round: this.round,
+      gameOver: this.gameOver,
+      scores: this.gameOver ? computeAllScores(this.players) : null,
+      myIndex: -1,
+      isActivePlayer: false,
+      availableMoves: [],
     };
   }
 

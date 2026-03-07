@@ -71,6 +71,7 @@ export type ClientToServerEvents = {
 
   'lobby:create': (playerName: string, callback: (roomCode: string) => void) => void;
   'lobby:join': (roomCode: string, playerName: string, callback: (success: boolean, error?: string) => void) => void;
+  'lobby:spectate': (roomCode: string, callback: (success: boolean, error?: string) => void) => void;
   'lobby:ready': (isReady: boolean) => void;
   'lobby:startGame': () => void;
   'lobby:resetGame': () => void;

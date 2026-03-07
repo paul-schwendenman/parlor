@@ -87,7 +87,7 @@ describe('QuixxEngine', () => {
     });
 
     it('accepts phase2 pass from active player', () => {
-      engine.submitPhase2({ type: 'phase2-pass' });
+      engine.submitPhase2('player1', { type: 'phase2-pass' });
       // Both phases passed by active player → penalty
       const players = engine.getPlayers();
       const activePlayer = players[engine.getActivePlayerIndex()];
@@ -109,7 +109,7 @@ describe('QuixxEngine', () => {
       engine.submitPhase1('player1', { type: 'phase1-pass' });
       engine.submitPhase1('player2', { type: 'phase1-pass' });
       engine.resolvePhase1();
-      engine.submitPhase2({ type: 'phase2-pass' });
+      engine.submitPhase2('player1', { type: 'phase2-pass' });
       engine.advanceTurn();
 
       expect(engine.getActivePlayerIndex()).toBe(1);
@@ -122,15 +122,15 @@ describe('QuixxEngine', () => {
       engine.submitPhase1('player1', { type: 'phase1-pass' });
       engine.submitPhase1('player2', { type: 'phase1-pass' });
       engine.resolvePhase1();
-      engine.submitPhase2({ type: 'phase2-pass' });
+      engine.submitPhase2('player1', { type: 'phase2-pass' });
       engine.advanceTurn();
 
-      // Turn 2
+      // Turn 2 (player2 is active)
       engine.rollDice();
       engine.submitPhase1('player1', { type: 'phase1-pass' });
       engine.submitPhase1('player2', { type: 'phase1-pass' });
       engine.resolvePhase1();
-      engine.submitPhase2({ type: 'phase2-pass' });
+      engine.submitPhase2('player2', { type: 'phase2-pass' });
       engine.advanceTurn();
 
       expect(engine.getActivePlayerIndex()).toBe(0);
@@ -144,7 +144,7 @@ describe('QuixxEngine', () => {
       engine.submitPhase1('player1', { type: 'phase1-pass' });
       engine.submitPhase1('player2', { type: 'phase1-pass' });
       engine.resolvePhase1();
-      engine.submitPhase2({ type: 'phase2-pass' });
+      engine.submitPhase2('player1', { type: 'phase2-pass' });
 
       const activePlayer = engine.getPlayers()[0];
       expect(activePlayer.penalties).toBe(1);
@@ -167,7 +167,7 @@ describe('QuixxEngine', () => {
       engine.submitPhase1('player1', { type: 'phase1-mark', row: 'red', cellIndex: 5 });
       engine.submitPhase1('player2', { type: 'phase1-pass' });
       engine.resolvePhase1();
-      engine.submitPhase2({ type: 'phase2-pass' });
+      engine.submitPhase2('player1', { type: 'phase2-pass' });
 
       const activePlayer = engine.getPlayers()[0];
       expect(activePlayer.penalties).toBe(0); // marked in phase1, so no penalty
@@ -211,7 +211,7 @@ describe('QuixxEngine', () => {
       engine.submitPhase1('player1', { type: 'phase1-pass' });
       engine.submitPhase1('player2', { type: 'phase1-pass' });
       engine.resolvePhase1();
-      engine.submitPhase2({ type: 'phase2-pass' }); // 4th penalty
+      engine.submitPhase2('player1', { type: 'phase2-pass' }); // 4th penalty
 
       expect(engine.isGameOver()).toBe(true);
       expect(engine.getPhase()).toBe('game-over');
@@ -225,11 +225,50 @@ describe('QuixxEngine', () => {
       engine.submitPhase1('player1', { type: 'phase1-pass' });
       engine.submitPhase1('player2', { type: 'phase1-pass' });
       engine.resolvePhase1();
-      engine.submitPhase2({ type: 'phase2-pass' });
+      engine.submitPhase2('player1', { type: 'phase2-pass' });
 
       const scores = engine.getScores();
       expect(scores).not.toBeNull();
       expect(scores).toHaveLength(2);
+    });
+
+    it('ends when 2 rows are locked simultaneously in phase1', () => {
+      const players = engine.getPlayers();
+      // Pre-fill 5 marks in red for player1, 5 marks in yellow for player2
+      for (let i = 0; i < 5; i++) players[0].sheet.red[i] = true;
+      for (let i = 0; i < 5; i++) players[1].sheet.yellow[i] = true;
+
+      // Dice: white1=6, white2=6 → sum=12
+      const mockRandom = vi.spyOn(Math, 'random');
+      mockRandom
+        .mockReturnValueOnce(5 / 6) // white1 = 6
+        .mockReturnValueOnce(5 / 6) // white2 = 6
+        .mockReturnValueOnce(0).mockReturnValueOnce(0)
+        .mockReturnValueOnce(0).mockReturnValueOnce(0);
+
+      engine.rollDice();
+      mockRandom.mockRestore();
+
+      // player1 locks red (12 = cell 10), player2 locks yellow (12 = cell 10)
+      engine.submitPhase1('player1', { type: 'phase1-mark', row: 'red', cellIndex: 10 });
+      engine.submitPhase1('player2', { type: 'phase1-mark', row: 'yellow', cellIndex: 10 });
+      engine.resolvePhase1();
+
+      expect(engine.isGameOver()).toBe(true);
+      expect(engine.getPhase()).toBe('game-over');
+    });
+  });
+
+  describe('phase2 validation', () => {
+    it('rejects phase2 action from non-active player', () => {
+      engine.rollDice();
+      engine.submitPhase1('player1', { type: 'phase1-pass' });
+      engine.submitPhase1('player2', { type: 'phase1-pass' });
+      engine.resolvePhase1();
+
+      expect(() => engine.submitPhase2('player2', { type: 'phase2-pass' })).toThrow(
+        'Only the active player can act in phase2',
+      );
     });
   });
 

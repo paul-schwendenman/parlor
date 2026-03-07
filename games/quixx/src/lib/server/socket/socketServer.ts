@@ -6,7 +6,7 @@ import type {
   SocketData,
 } from '@parlor/game-types';
 import { RoomManager, setupLobbyHandlers } from '@parlor/multiplayer';
-import { setupGameHandlers } from './gameHandlers.js';
+import { setupGameHandlers, cleanupRoomTimers } from './gameHandlers.js';
 import { QuixxEngine } from '../game/QuixxEngine.js';
 import { DEFAULT_CONFIG } from '../../types/game.js';
 
@@ -31,6 +31,15 @@ export function setupQuixxSocketHandlers(io: AppServer): void {
           io.to(player.id).emit('game:state', view as never);
         }
 
+        // Send initial view to spectators
+        const spectators = roomManager.getSpectatorsInRoom(roomCode);
+        if (spectators.length > 0) {
+          const spectatorView = engine.getSpectatorView();
+          for (const spectatorId of spectators) {
+            io.to(spectatorId).emit('game:state', spectatorView as never);
+          }
+        }
+
         // Auto-roll if configured
         if (DEFAULT_CONFIG.diceRolling === 'auto') {
           setTimeout(() => {
@@ -41,6 +50,13 @@ export function setupQuixxSocketHandlers(io: AppServer): void {
                   const view = engine.getPlayerView(player.id);
                   io.to(player.id).emit('game:state', view as never);
                 }
+                const specs = roomManager.getSpectatorsInRoom(roomCode);
+                if (specs.length > 0) {
+                  const specView = engine.getSpectatorView();
+                  for (const specId of specs) {
+                    io.to(specId).emit('game:state', specView as never);
+                  }
+                }
               } catch {
                 // Ignore
               }
@@ -50,6 +66,7 @@ export function setupQuixxSocketHandlers(io: AppServer): void {
       },
 
       onGameReset: (roomCode) => {
+        cleanupRoomTimers(roomCode);
         roomManager.setGameData(roomCode, null);
       },
 
@@ -73,7 +90,7 @@ export function setupQuixxSocketHandlers(io: AppServer): void {
         const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
         if (activePlayer.id === playerId && engine.getPhase() === 'phase2') {
           try {
-            engine.submitPhase2({ type: 'phase2-pass' });
+            engine.submitPhase2(playerId, { type: 'phase2-pass' });
             if (!engine.isGameOver()) {
               engine.advanceTurn();
             }
