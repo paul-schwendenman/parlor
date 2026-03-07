@@ -4,6 +4,10 @@ export interface Player {
   connected: boolean;
 }
 
+export interface LobbyPlayer extends Player {
+  isReady: boolean;
+}
+
 export interface Room {
   id: string;
   code: string;
@@ -30,6 +34,18 @@ export interface ChatMessage {
   timestamp: number;
 }
 
+export interface SessionData {
+  playerId: string;
+  playerName: string;
+  roomCode: string;
+}
+
+export interface SocketData {
+  playerId: string;
+  playerName: string;
+  roomCode: string;
+}
+
 export type ServerToClientEvents = {
   'room:updated': (room: Room) => void;
   'game:state': (state: BaseGameState) => void;
@@ -37,6 +53,12 @@ export type ServerToClientEvents = {
   'player:left': (playerId: string) => void;
   'chat:message': (message: ChatMessage) => void;
   'error': (message: string) => void;
+
+  'lobby:state': (players: LobbyPlayer[], canStart: boolean) => void;
+  'lobby:playerJoined': (player: LobbyPlayer) => void;
+  'lobby:playerLeft': (playerId: string) => void;
+  'lobby:hostChanged': (newHostId: string) => void;
+  'lobby:gameStarting': () => void;
 };
 
 export type ClientToServerEvents = {
@@ -46,4 +68,15 @@ export type ClientToServerEvents = {
   'game:start': () => void;
   'game:action': (action: Record<string, unknown>) => void;
   'chat:send': (text: string) => void;
+
+  'lobby:create': (playerName: string, callback: (roomCode: string) => void) => void;
+  'lobby:join': (roomCode: string, playerName: string, callback: (success: boolean, error?: string) => void) => void;
+  'lobby:ready': (isReady: boolean) => void;
+  'lobby:startGame': () => void;
+  'lobby:resetGame': () => void;
+  'player:reconnect': (roomCode: string, playerId: string) => void;
+};
+
+export type InterServerEvents = {
+  ping: () => void;
 };
