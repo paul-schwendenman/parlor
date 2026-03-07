@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
-import { createGameClient, saveSession, loadSession, clearSession } from '@parlor/multiplayer';
-import type { GameSocket } from '@parlor/multiplayer';
+import { createGameClient, saveSession, loadSession, clearSession } from '@parlor/multiplayer/client';
+import type { GameSocket } from '@parlor/multiplayer/client';
 import { connectionState } from './connectionStore.svelte.js';
 import { lobbyState } from './lobbyStore.svelte.js';
 import { gameState } from './gameStore.svelte.js';

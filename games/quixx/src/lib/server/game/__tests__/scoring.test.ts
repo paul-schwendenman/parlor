@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scoreRow, totalScore, computeAllScores } from '../scoring.js';
+import { scoreRow, totalScore, computeAllScores } from '../../../game/scoring.js';
 import { createTestPlayer } from './factories.js';
 
 describe('scoreRow', () => {

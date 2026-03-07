@@ -1,5 +1,5 @@
-import type { QuixxPlayer, PlayerScore, RowColor } from '../../types/game.js';
-import { ROW_COLORS } from '../../types/game.js';
+import type { QuixxPlayer, PlayerScore, RowColor } from '../types/game.js';
+import { ROW_COLORS } from '../types/game.js';
 
 export function scoreRow(marks: boolean[], hasLock = false): number {
   let count = marks.filter(Boolean).length;

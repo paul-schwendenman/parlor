@@ -14,7 +14,7 @@ import type {
 import { DEFAULT_CONFIG, ROW_COLORS } from '../../types/game.js';
 import { rollAllDice } from './dice.js';
 import { canMark, getAvailablePhase1Moves, getAvailablePhase2Moves, numberAtCell, cellForNumber } from './validation.js';
-import { computeAllScores } from './scoring.js';
+import { computeAllScores } from '../../game/scoring.js';
 
 function createScoresheet(): Scoresheet {
   return {

@@ -12,7 +12,7 @@
   import PlayerList from '$lib/components/game/PlayerList.svelte';
   import GameOverScreen from '$lib/components/game/GameOverScreen.svelte';
   import type { RowColor } from '$lib/types/game.js';
-  import { scoreRow } from '$lib/server/game/scoring.js';
+  import { scoreRow } from '$lib/game/scoring.js';
   import { ROW_COLORS } from '$lib/types/game.js';
 
   onMount(() => {
