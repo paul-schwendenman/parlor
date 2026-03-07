@@ -10,14 +10,16 @@
     score,
     lockedRows,
     availableMoves,
-    onmark,
+    selectedMove = null,
+    onselect,
   }: {
     sheet: ScoresheetType;
     penalties: number;
     score: number;
     lockedRows: RowColor[];
     availableMoves: AvailableMove[];
-    onmark?: (row: RowColor, cellIndex: number) => void;
+    selectedMove?: { row: RowColor; cellIndex: number } | null;
+    onselect?: (row: RowColor, cellIndex: number) => void;
   } = $props();
 </script>
 
@@ -28,7 +30,8 @@
       marks={sheet[color]}
       locked={lockedRows.includes(color)}
       availableMoves={availableMoves.filter((m) => m.row === color)}
-      onmark={(cellIndex) => onmark?.(color, cellIndex)}
+      selectedCellIndex={selectedMove?.row === color ? selectedMove.cellIndex : null}
+      onselect={(cellIndex) => onselect?.(color, cellIndex)}
     />
   {/each}
   <PenaltyTracker {penalties} {score} />

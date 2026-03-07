@@ -8,13 +8,15 @@
     marks,
     locked,
     availableMoves,
-    onmark,
+    selectedCellIndex = null,
+    onselect,
   }: {
     color: RowColor;
     marks: boolean[];
     locked: boolean;
     availableMoves: AvailableMove[];
-    onmark?: (cellIndex: number) => void;
+    selectedCellIndex?: number | null;
+    onselect?: (cellIndex: number) => void;
   } = $props();
 
   let numbers = $derived(ROW_NUMBERS[color]);
@@ -29,8 +31,9 @@
         {color}
         marked={marks[i]}
         available={availableMoves.some((m) => m.cellIndex === i)}
+        selected={selectedCellIndex === i}
         {locked}
-        onmark={() => onmark?.(i)}
+        onselect={() => onselect?.(i)}
       />
     {/each}
     <ScoreCell

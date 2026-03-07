@@ -8,8 +8,10 @@
     phase1Submitted,
     submittedCount,
     totalPlayers,
+    hasSelection = false,
     onpass,
     onroll,
+    onconfirm,
   }: {
     phase: QuixxPhase;
     isActivePlayer: boolean;
@@ -17,8 +19,10 @@
     phase1Submitted: boolean;
     submittedCount: number;
     totalPlayers: number;
+    hasSelection?: boolean;
     onpass?: () => void;
     onroll?: () => void;
+    onconfirm?: () => void;
   } = $props();
 </script>
 
@@ -35,14 +39,24 @@
     {#if phase1Submitted}
       <p>Choice submitted. Waiting for others... ({submittedCount}/{totalPlayers})</p>
     {:else}
-      <p>Tap a highlighted cell to mark the white sum, or pass.</p>
-      <button class="pass-btn" onclick={onpass}>Pass</button>
+      <p>Tap a cell to preview, then confirm.</p>
+      <div class="button-group">
+        {#if hasSelection}
+          <button class="confirm-btn" onclick={onconfirm}>Confirm</button>
+        {/if}
+        <button class="pass-btn" onclick={onpass}>Pass</button>
+      </div>
     {/if}
 
   {:else if phase === 'phase2'}
     {#if isActivePlayer}
-      <p>Choose a colored combo to mark, or pass.</p>
-      <button class="pass-btn" onclick={onpass}>Pass</button>
+      <p>Tap a colored combo to preview, then confirm.</p>
+      <div class="button-group">
+        {#if hasSelection}
+          <button class="confirm-btn" onclick={onconfirm}>Confirm</button>
+        {/if}
+        <button class="pass-btn" onclick={onpass}>Pass</button>
+      </div>
     {:else}
       <p>Waiting for <strong>{activePlayerName}</strong> to choose...</p>
     {/if}
@@ -66,6 +80,11 @@
     font-size: 16px;
     color: #374151;
   }
+  .button-group {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
   button {
     padding: 10px 24px;
     border: none;
@@ -80,6 +99,13 @@
   }
   .roll-btn:hover {
     background: #2563eb;
+  }
+  .confirm-btn {
+    background: #16a34a;
+    color: white;
+  }
+  .confirm-btn:hover {
+    background: #15803d;
   }
   .pass-btn {
     background: #e5e7eb;

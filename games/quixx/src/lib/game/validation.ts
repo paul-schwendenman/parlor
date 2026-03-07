@@ -1,5 +1,5 @@
-import type { Scoresheet, RowColor, DiceState, AvailableMove } from '../../types/game.js';
-import { ROW_NUMBERS, ROW_COLORS } from '../../types/game.js';
+import type { Scoresheet, RowColor, DiceState, AvailableMove } from '../types/game.js';
+import { ROW_NUMBERS, ROW_COLORS } from '../types/game.js';
 
 export function numberAtCell(row: RowColor, cellIndex: number): number {
   return ROW_NUMBERS[row][cellIndex];

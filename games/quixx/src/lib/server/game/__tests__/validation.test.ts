@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canMark, getAvailablePhase1Moves, getAvailablePhase2Moves, numberAtCell, cellForNumber } from '../validation.js';
+import { canMark, getAvailablePhase1Moves, getAvailablePhase2Moves, numberAtCell, cellForNumber } from '../../../game/validation.js';
 import { createTestSheet } from './factories.js';
 import type { DiceState } from '../../../types/game.js';
 

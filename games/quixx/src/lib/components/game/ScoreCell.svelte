@@ -5,23 +5,25 @@
     number,
     marked,
     available,
+    selected = false,
     locked,
     color,
     isLockCell = false,
-    onmark,
+    onselect,
   }: {
     number: number;
     marked: boolean;
     available: boolean;
+    selected?: boolean;
     locked: boolean;
     color: RowColor;
     isLockCell?: boolean;
-    onmark?: () => void;
+    onselect?: () => void;
   } = $props();
 
   function handleClick() {
-    if (available && !marked && !locked && onmark) {
-      onmark();
+    if (available && !marked && !locked && onselect) {
+      onselect();
     }
   }
 </script>
@@ -30,6 +32,7 @@
   class="cell {color}"
   class:marked
   class:available
+  class:selected
   class:locked
   class:lock-cell={isLockCell}
   disabled={!available || marked || locked}
@@ -77,6 +80,14 @@
   }
   .cell.available:hover {
     transform: scale(1.1);
+  }
+  .cell.selected {
+    cursor: pointer;
+    border-color: currentColor;
+    border-width: 3px;
+    transform: scale(1.15);
+    animation: none;
+    box-shadow: 0 0 8px currentColor;
   }
   .cell.marked {
     opacity: 1;
