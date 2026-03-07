@@ -54,6 +54,11 @@ export class RoomManager {
     if (room.players.size >= room.maxPlayers) return { success: false, error: 'Room is full' };
     if (room.status !== 'waiting') return { success: false, error: 'Game already in progress' };
 
+    const nameTaken = [...room.players.values()].some(
+      (p) => p.name.toLowerCase() === name.trim().toLowerCase()
+    );
+    if (nameTaken) return { success: false, error: 'Name already taken in this room' };
+
     const player: LobbyPlayer = {
       id: socketId,
       name,
