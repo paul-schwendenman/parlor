@@ -11,6 +11,7 @@
     lockedRows,
     availableMoves,
     selectedMove = null,
+    phase2Preview = [],
     onselect,
   }: {
     sheet: ScoresheetType;
@@ -19,6 +20,7 @@
     lockedRows: RowColor[];
     availableMoves: AvailableMove[];
     selectedMove?: { row: RowColor; cellIndex: number } | null;
+    phase2Preview?: AvailableMove[];
     onselect?: (row: RowColor, cellIndex: number) => void;
   } = $props();
 </script>
@@ -31,6 +33,7 @@
       locked={lockedRows.includes(color)}
       availableMoves={availableMoves.filter((m) => m.row === color)}
       selectedCellIndex={selectedMove?.row === color ? selectedMove.cellIndex : null}
+      previewMoves={phase2Preview.filter((m) => m.row === color)}
       onselect={(cellIndex) => onselect?.(color, cellIndex)}
     />
   {/each}

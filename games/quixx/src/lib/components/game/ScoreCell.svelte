@@ -6,6 +6,7 @@
     marked,
     available,
     selected = false,
+    preview = false,
     locked,
     color,
     isLockCell = false,
@@ -15,6 +16,7 @@
     marked: boolean;
     available: boolean;
     selected?: boolean;
+    preview?: boolean;
     locked: boolean;
     color: RowColor;
     isLockCell?: boolean;
@@ -34,6 +36,7 @@
   class:available
   class:selected
   class:locked
+  class:preview
   class:lock-cell={isLockCell}
   disabled={!available || marked || locked}
   onclick={handleClick}
@@ -80,6 +83,10 @@
   }
   .cell.available:hover {
     transform: scale(1.1);
+  }
+  .cell.preview {
+    border: 2px dashed currentColor;
+    opacity: 0.55;
   }
   .cell.selected {
     cursor: pointer;

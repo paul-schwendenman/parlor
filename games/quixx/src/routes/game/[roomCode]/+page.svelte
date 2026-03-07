@@ -134,6 +134,7 @@
       lockedRows={view.players[view.myIndex].lockedRows}
       availableMoves={view.availableMoves}
       selectedMove={gameState.selectedMove}
+      phase2Preview={gameState.phase2Preview}
       onselect={handleSelect}
     />
 

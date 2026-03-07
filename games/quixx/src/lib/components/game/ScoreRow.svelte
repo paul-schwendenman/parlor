@@ -9,6 +9,7 @@
     locked,
     availableMoves,
     selectedCellIndex = null,
+    previewMoves = [],
     onselect,
   }: {
     color: RowColor;
@@ -16,6 +17,7 @@
     locked: boolean;
     availableMoves: AvailableMove[];
     selectedCellIndex?: number | null;
+    previewMoves?: AvailableMove[];
     onselect?: (cellIndex: number) => void;
   } = $props();
 
@@ -32,6 +34,7 @@
         marked={marks[i]}
         available={availableMoves.some((m) => m.cellIndex === i)}
         selected={selectedCellIndex === i}
+        preview={previewMoves.some((m) => m.cellIndex === i)}
         {locked}
         onselect={() => onselect?.(i)}
       />
