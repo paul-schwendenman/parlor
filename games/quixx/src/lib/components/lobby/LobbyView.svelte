@@ -6,9 +6,10 @@
   let { roomCode }: { roomCode: string } = $props();
 
   let isHost = $derived(lobbyState.hostId === playerState.id);
+  let me = $derived(lobbyState.players.find((p) => p.id === playerState.id));
+  let copied = $state(false);
 
   function toggleReady() {
-    const me = lobbyState.players.find((p) => p.id === playerState.id);
     if (me) {
       getSocket().emit('lobby:ready', !me.isReady);
     }
@@ -17,40 +18,69 @@
   function startGame() {
     getSocket().emit('lobby:startGame');
   }
+
+  async function copyCode() {
+    try {
+      const url = window.location.origin + '?join=' + roomCode;
+      await navigator.clipboard.writeText(url);
+      copied = true;
+      setTimeout(() => (copied = false), 2000);
+    } catch {
+      // fallback: copy just the code
+      await navigator.clipboard.writeText(roomCode);
+      copied = true;
+      setTimeout(() => (copied = false), 2000);
+    }
+  }
 </script>
 
 <div class="lobby">
-  <h2>Room: <span class="code">{roomCode}</span></h2>
+  <div class="room-header">
+    <p class="room-label">Room Code</p>
+    <button class="code-display" onclick={copyCode} title="Copy invite link">
+      <span class="code-text">{roomCode}</span>
+      <span class="copy-hint">{copied ? 'Copied!' : 'Copy link'}</span>
+    </button>
+  </div>
 
-  <div class="players">
-    <h3>Players ({lobbyState.players.length})</h3>
-    {#each lobbyState.players as player}
-      <div class="player" class:ready={player.isReady} class:me={player.id === playerState.id}>
-        <span class="name">
-          {player.name}
-          {#if player.id === lobbyState.hostId}
-            <span class="host-badge">Host</span>
-          {/if}
-          {#if player.id === playerState.id}
-            <span class="you-badge">You</span>
-          {/if}
-        </span>
-        <span class="status">{player.isReady ? 'Ready' : 'Not Ready'}</span>
-      </div>
-    {/each}
+  <div class="players-section">
+    <h3 class="players-heading">Players <span class="count">{lobbyState.players.length}</span></h3>
+    <div class="player-list">
+      {#each lobbyState.players as player}
+        <div class="player" class:ready={player.isReady} class:me={player.id === playerState.id}>
+          <div class="player-info">
+            <span class="player-name">{player.name}</span>
+            <div class="badges">
+              {#if player.id === lobbyState.hostId}
+                <span class="badge badge-host">Host</span>
+              {/if}
+              {#if player.id === playerState.id}
+                <span class="badge badge-you">You</span>
+              {/if}
+            </div>
+          </div>
+          <span class="ready-status" class:is-ready={player.isReady}>
+            {player.isReady ? 'Ready' : 'Waiting'}
+          </span>
+        </div>
+      {/each}
+    </div>
   </div>
 
   <div class="actions">
-    <button class="ready-btn" onclick={toggleReady}>
-      {lobbyState.players.find((p) => p.id === playerState.id)?.isReady ? 'Not Ready' : 'Ready'}
+    <button class="btn btn-ready" class:is-ready={me?.isReady} onclick={toggleReady}>
+      {me?.isReady ? 'Not Ready' : 'Ready Up'}
     </button>
 
     {#if isHost}
-      <button class="start-btn" onclick={startGame} disabled={!lobbyState.canStart}>
+      <button class="btn btn-start" onclick={startGame} disabled={!lobbyState.canStart}>
         Start Game
       </button>
+      {#if !lobbyState.canStart}
+        <p class="hint">Need at least 2 players, all ready</p>
+      {/if}
     {:else}
-      <p class="waiting">Waiting for host to start...</p>
+      <p class="hint">Waiting for host to start...</p>
     {/if}
   </div>
 
@@ -60,113 +90,242 @@
 </div>
 
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
+
   .lobby {
-    max-width: 500px;
+    max-width: 480px;
     margin: 0 auto;
-    padding: 24px 16px;
+    padding: 2rem 1rem;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
-  h2 {
+
+  .room-header {
     text-align: center;
-    margin-bottom: 24px;
+    margin-bottom: 2rem;
   }
-  .code {
-    font-family: monospace;
-    font-size: 28px;
-    letter-spacing: 6px;
-    color: #3b82f6;
+
+  .room-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #a8a29e;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin: 0 0 0.5rem;
   }
-  .players {
-    margin-bottom: 24px;
+
+  .code-display {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    background: white;
+    border: 1.5px solid #e7e5e4;
+    border-radius: 12px;
+    padding: 1rem 2rem;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
-  h3 {
-    font-size: 16px;
-    color: #666;
-    margin-bottom: 8px;
+
+  .code-display:hover {
+    border-color: #d97706;
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.1);
   }
+
+  .code-text {
+    font-family: 'Crimson Pro', Georgia, serif;
+    font-size: 2.25rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: #292524;
+  }
+
+  .copy-hint {
+    font-size: 0.75rem;
+    color: #a8a29e;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+
+  .code-display:hover .copy-hint {
+    color: #d97706;
+  }
+
+  .players-section {
+    width: 100%;
+    margin-bottom: 1.5rem;
+  }
+
+  .players-heading {
+    font-family: 'Crimson Pro', Georgia, serif;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #292524;
+    margin: 0 0 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .count {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #a8a29e;
+    background: #f5f5f4;
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+  }
+
+  .player-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
   .player {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 8px;
-    background: #f3f4f6;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    background: white;
+    border: 1.5px solid #f0efed;
+    transition: border-color 0.2s, background 0.2s;
   }
+
   .player.ready {
-    background: #dcfce7;
+    background: #fefce8;
+    border-color: #fde68a;
   }
+
   .player.me {
-    border: 2px solid #3b82f6;
+    border-color: #d97706;
   }
-  .name {
-    font-weight: 600;
+
+  .player-info {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0.5rem;
   }
-  .host-badge, .you-badge {
-    font-size: 11px;
-    padding: 2px 6px;
+
+  .player-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #292524;
+  }
+
+  .badges {
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  .badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.15rem 0.45rem;
     border-radius: 4px;
-    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
-  .host-badge {
+
+  .badge-host {
     background: #fef3c7;
     color: #92400e;
   }
-  .you-badge {
-    background: #dbeafe;
-    color: #1e40af;
+
+  .badge-you {
+    background: #fed7aa;
+    color: #9a3412;
   }
-  .status {
-    font-size: 14px;
-    color: #666;
+
+  .ready-status {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #a8a29e;
   }
-  .player.ready .status {
+
+  .ready-status.is-ready {
     color: #16a34a;
     font-weight: 600;
   }
+
   .actions {
+    width: 100%;
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
   }
-  button {
-    padding: 12px 32px;
+
+  .btn {
+    padding: 0.75rem 2rem;
     border: none;
     border-radius: 8px;
-    font-size: 16px;
+    font-size: 0.95rem;
     font-weight: 600;
+    font-family: 'DM Sans', system-ui, sans-serif;
     cursor: pointer;
-    margin: 4px;
+    transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+    width: 100%;
+    max-width: 280px;
   }
-  .ready-btn {
-    background: #e5e7eb;
-    color: #374151;
+
+  .btn:active:not(:disabled) {
+    transform: scale(0.98);
   }
-  .ready-btn:hover {
-    background: #d1d5db;
-  }
-  .start-btn {
-    background: #16a34a;
-    color: white;
-  }
-  .start-btn:disabled {
+
+  .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
-  .start-btn:hover:not(:disabled) {
-    background: #15803d;
+
+  .btn-ready {
+    background: #292524;
+    color: white;
   }
-  .waiting {
-    color: #666;
+
+  .btn-ready:hover:not(:disabled) {
+    background: #1c1917;
+  }
+
+  .btn-ready.is-ready {
+    background: #e7e5e4;
+    color: #57534e;
+  }
+
+  .btn-ready.is-ready:hover:not(:disabled) {
+    background: #d6d3d1;
+  }
+
+  .btn-start {
+    background: #d97706;
+    color: white;
+  }
+
+  .btn-start:hover:not(:disabled) {
+    background: #b45309;
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.25);
+  }
+
+  .hint {
+    font-size: 0.8rem;
+    color: #a8a29e;
     font-style: italic;
+    margin: 0;
   }
+
   .starting {
-    text-align: center;
-    margin-top: 16px;
-    padding: 12px;
-    background: #dbeafe;
+    margin-top: 1rem;
+    padding: 0.75rem 1.5rem;
+    background: #fef3c7;
     border-radius: 8px;
     font-weight: 600;
-    color: #1e40af;
+    color: #92400e;
+    font-size: 0.9rem;
   }
 </style>
