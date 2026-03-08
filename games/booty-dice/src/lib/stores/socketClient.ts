@@ -27,7 +27,9 @@ export function getSocket(): GameSocket {
       const session = loadSession();
       if (session && session.roomCode && session.playerId) {
         socket?.emit('player:reconnect', session.roomCode, session.playerId, (success) => {
-          if (!success) {
+          if (success) {
+            playerState.set({ id: socket!.id!, name: session.playerName!, roomCode: session.roomCode! });
+          } else {
             clearSession();
             playerState.reset();
           }

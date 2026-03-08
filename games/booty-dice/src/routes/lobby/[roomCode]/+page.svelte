@@ -21,10 +21,12 @@
 
   $effect(() => {
     if (connectionState.status !== 'connected') return;
-    if (lobbyState.players.length > 0) return;
-    if (playerState.id) return;
-
-    roomNotFound = true;
+    if (lobbyState.players.length > 0 || playerState.id) {
+      roomNotFound = false;
+      return;
+    }
+    const timeout = setTimeout(() => { roomNotFound = true; }, 1000);
+    return () => clearTimeout(timeout);
   });
 
   $effect(() => {

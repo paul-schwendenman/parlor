@@ -229,7 +229,10 @@ export class RoomManager {
         this.playerToRoom.delete(socketId);
 
         if (wasHost && room.players.size > 0) {
-          room.hostId = [...room.players.values()][0].id;
+          const humanPlayer = [...room.players.values()].find(p => !p.isBot);
+          if (humanPlayer) {
+            room.hostId = humanPlayer.id;
+          }
         }
       }
     }
