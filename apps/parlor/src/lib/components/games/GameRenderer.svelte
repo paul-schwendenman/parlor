@@ -3,6 +3,7 @@
   import QuixxGame from '@parlor/quixx/game-view';
   import CrazyEightsGame from '@parlor/crazy-eights/game-view';
   import BootyDiceGame from '@parlor/booty-dice/game-view';
+  import LiarsDiceGame from '@parlor/liars-dice/game-view';
 
   interface Props {
     gameId: string | null;
@@ -21,6 +22,8 @@
   <CrazyEightsGame view={view as any} {socket} {playerId} />
 {:else if gameId === 'booty-dice'}
   <BootyDiceGame view={view as any} {socket} {playerId} {onBackToLobby} />
+{:else if gameId === 'liars-dice'}
+  <LiarsDiceGame view={view as any} {socket} {playerId} {onBackToLobby} />
 {:else}
   <div style="text-align: center; padding: 4rem 1rem; color: #a8a29e;">
     <p>Unknown game type</p>
