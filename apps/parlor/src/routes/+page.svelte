@@ -5,6 +5,7 @@
   import { browser } from '$app/environment';
   import { getSocket, createRoomAction, joinRoomAction } from '$lib/stores/socketClient.js';
   import type { GameMeta } from '@parlor/game-types';
+  import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
   // Game metadata - static list matching server registry
   const games: GameMeta[] = [
@@ -104,6 +105,25 @@
     error = '';
   }
 
+  let rulesGameId = $state<string | null>(null);
+  let rulesOpen = $derived(rulesGameId !== null);
+  let rulesGame = $derived(games.find((g) => g.id === rulesGameId));
+
+  function openRules(gameId: string) {
+    rulesGameId = gameId;
+  }
+
+  function closeRules() {
+    rulesGameId = null;
+  }
+
+  function playFromRules() {
+    if (rulesGameId) {
+      handleGameClick(rulesGameId);
+      rulesGameId = null;
+    }
+  }
+
   function handleJoinKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') handleJoin();
   }
@@ -156,7 +176,7 @@
     <h2 class="section-title">Choose a Game</h2>
     <div class="game-grid">
       {#each games as game (game.id)}
-        <button class="game-card" onclick={() => handleGameClick(game.id)}>
+        <div class="game-card">
           <h3 class="game-name">{game.name}</h3>
           <p class="game-desc">{game.description}</p>
           <div class="game-meta">
@@ -168,7 +188,11 @@
               <span class="tag">{tag}</span>
             {/each}
           </div>
-        </button>
+          <div class="game-actions">
+            <button class="btn-learn" onclick={() => openRules(game.id)}>Learn More</button>
+            <button class="btn-start-game" onclick={() => handleGameClick(game.id)}>Start Game</button>
+          </div>
+        </div>
       {/each}
     </div>
   </div>
@@ -176,6 +200,14 @@
   {#if error}
     <p class="error">{error}</p>
   {/if}
+
+  <RulesModal
+    open={rulesOpen}
+    gameId={rulesGameId}
+    gameName={rulesGame?.name ?? ''}
+    onclose={closeRules}
+    onplay={playFromRules}
+  />
 
   <!-- Create room modal overlay -->
   {#if selectedGameForCreate}
@@ -393,7 +425,6 @@
     border-radius: 16px;
     padding: 1.25rem;
     text-align: left;
-    cursor: pointer;
     transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
     display: flex;
     flex-direction: column;
@@ -404,6 +435,53 @@
     border-color: var(--color-terracotta);
     box-shadow: 0 4px 16px rgba(196, 102, 58, 0.12);
     transform: translateY(-2px);
+  }
+
+  .game-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .game-card:hover .game-actions {
+    opacity: 1;
+  }
+
+  @media (hover: none) {
+    .game-actions {
+      opacity: 1;
+    }
+  }
+
+  .btn-learn, .btn-start-game {
+    padding: 0.45rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: background 0.2s;
+    border: none;
+  }
+
+  .btn-learn {
+    background: var(--color-linen);
+    color: #78716c;
+  }
+
+  .btn-learn:hover {
+    background: #e7e5e4;
+  }
+
+  .btn-start-game {
+    background: var(--color-terracotta);
+    color: white;
+  }
+
+  .btn-start-game:hover {
+    background: #a8552f;
   }
 
   .game-name {
