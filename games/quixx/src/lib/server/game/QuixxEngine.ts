@@ -39,7 +39,7 @@ export class QuixxEngine {
   private activePlayerPhase1Passed = false;
 
   constructor(
-    playerInfos: { id: string; name: string }[],
+    playerInfos: { id: string; name: string; isBot: boolean }[],
     roomCode: string,
     config: QuixxConfig = DEFAULT_CONFIG,
   ) {
@@ -49,11 +49,16 @@ export class QuixxEngine {
       id: p.id,
       name: p.name,
       connected: true,
+      isBot: p.isBot,
       sheet: createScoresheet(),
       penalties: 0,
       phase1Decision: null,
       lockedRows: [],
     }));
+  }
+
+  getBotPlayerIds(): string[] {
+    return this.players.filter((p) => p.isBot).map((p) => p.id);
   }
 
   getPhase(): QuixxPhase {
@@ -281,6 +286,7 @@ export class QuixxEngine {
         id: p.id,
         name: p.name,
         connected: p.connected,
+        isBot: p.isBot,
         sheet: p.sheet,
         penalties: p.penalties,
         phase1Submitted: p.phase1Decision !== null,
@@ -307,6 +313,7 @@ export class QuixxEngine {
         id: p.id,
         name: p.name,
         connected: p.connected,
+        isBot: p.isBot,
         sheet: p.sheet,
         penalties: p.penalties,
         phase1Submitted: p.phase1Decision !== null,

@@ -44,6 +44,7 @@ export interface QuixxPlayer {
   id: string;
   name: string;
   connected: boolean;
+  isBot: boolean;
   sheet: Scoresheet;
   penalties: number;
   phase1Decision: Phase1Decision | null;
@@ -75,6 +76,7 @@ export interface QuixxPlayerView {
     id: string;
     name: string;
     connected: boolean;
+    isBot: boolean;
     sheet: Scoresheet;
     penalties: number;
     phase1Submitted: boolean;

@@ -5,9 +5,10 @@ import type {
   InterServerEvents,
   SocketData,
 } from '@parlor/game-types';
-import type { RoomManager } from '@parlor/multiplayer';
+import { RoomManager } from '@parlor/multiplayer';
 import type { QuixxAction } from '../../types/game.js';
 import type { QuixxEngine } from '../game/QuixxEngine.js';
+import { scheduleBotActions } from '../game/botController.js';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -55,6 +56,7 @@ function startPhase1Timer(
         broadcastViews(io, roomCode, engine, roomManager);
         if (!engine.isGameOver()) {
           startPhase2Timer(io, roomCode, engine, roomManager);
+          scheduleBotActions(io, roomCode, engine, roomManager);
         }
       }
     }, config.phase1Timer * 1000),
@@ -93,6 +95,7 @@ function startPhase2Timer(
         if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) {
           autoRollIfNeeded(io, roomCode, engine, roomManager);
         }
+        scheduleBotActions(io, roomCode, engine, roomManager);
       }
     }, config.turnTimer * 1000),
   );
@@ -124,6 +127,7 @@ export function setupGameHandlers(
           engine.rollDice();
           broadcastViews(io, roomCode, engine, roomManager);
           startPhase1Timer(io, roomCode, engine, roomManager);
+          scheduleBotActions(io, roomCode, engine, roomManager);
           break;
         }
 
@@ -139,7 +143,10 @@ export function setupGameHandlers(
 
             if (!engine.isGameOver()) {
               startPhase2Timer(io, roomCode, engine, roomManager);
+              scheduleBotActions(io, roomCode, engine, roomManager);
             }
+          } else {
+            scheduleBotActions(io, roomCode, engine, roomManager);
           }
           break;
         }
@@ -159,6 +166,7 @@ export function setupGameHandlers(
             if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) {
               autoRollIfNeeded(io, roomCode, engine, roomManager);
             }
+            scheduleBotActions(io, roomCode, engine, roomManager);
           }
           break;
         }
@@ -182,6 +190,7 @@ function autoRollIfNeeded(
         engine.rollDice();
         broadcastViews(io, roomCode, engine, roomManager);
         startPhase1Timer(io, roomCode, engine, roomManager);
+        scheduleBotActions(io, roomCode, engine, roomManager);
       } catch {
         // Ignore if phase changed
       }
@@ -197,6 +206,7 @@ function broadcastViews(
 ): void {
   const players = roomManager.getPlayersInRoom(roomCode);
   for (const player of players) {
+    if (RoomManager.isBotPlayer(player.id)) continue;
     const view = engine.getPlayerView(player.id);
     io.to(player.id).emit('game:state', view as never);
   }

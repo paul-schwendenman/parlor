@@ -13,6 +13,9 @@
         {#if i === view.myIndex}
           <span class="you">(You)</span>
         {/if}
+        {#if player.isBot}
+          <span class="bot-badge">Bot</span>
+        {/if}
       </span>
       <span class="info">
         {#if view.phase === 'phase1'}
@@ -86,5 +89,15 @@
   .penalty-count {
     font-size: 12px;
     color: #ef4444;
+  }
+  .bot-badge {
+    font-size: 10px;
+    font-weight: 600;
+    background: #e0e7ff;
+    color: #3730a3;
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 </style>

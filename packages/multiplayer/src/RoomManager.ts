@@ -21,6 +21,11 @@ export interface DisconnectResult {
 export class RoomManager {
   private rooms = new Map<string, GameRoom>();
   private playerToRoom = new Map<string, string>();
+  private botCounter = 0;
+
+  static isBotPlayer(id: string): boolean {
+    return id.startsWith('bot-');
+  }
 
   createRoom(hostSocketId: string, hostName: string, maxPlayers = 8): string {
     let code = generateRoomCode();
@@ -33,6 +38,7 @@ export class RoomManager {
       name: hostName,
       connected: true,
       isReady: false,
+      isBot: false,
     };
 
     this.rooms.set(code, {
@@ -66,9 +72,40 @@ export class RoomManager {
       name,
       connected: true,
       isReady: false,
+      isBot: false,
     };
     room.players.set(socketId, player);
     this.playerToRoom.set(socketId, code.toUpperCase());
+    return { success: true };
+  }
+
+  addBot(code: string, botName: string): { success: boolean; error?: string; botId?: string } {
+    const room = this.rooms.get(code.toUpperCase());
+    if (!room) return { success: false, error: 'Room not found' };
+    if (room.players.size >= room.maxPlayers) return { success: false, error: 'Room is full' };
+    if (room.status !== 'waiting') return { success: false, error: 'Game already in progress' };
+
+    const botId = `bot-${++this.botCounter}`;
+    const bot: LobbyPlayer = {
+      id: botId,
+      name: botName,
+      connected: true,
+      isReady: true,
+      isBot: true,
+    };
+    room.players.set(botId, bot);
+    return { success: true, botId };
+  }
+
+  removeBot(code: string, botId: string): { success: boolean; error?: string } {
+    const room = this.rooms.get(code.toUpperCase());
+    if (!room) return { success: false, error: 'Room not found' };
+
+    const player = room.players.get(botId);
+    if (!player) return { success: false, error: 'Bot not found' };
+    if (!player.isBot) return { success: false, error: 'Player is not a bot' };
+
+    room.players.delete(botId);
     return { success: true };
   }
 
@@ -105,7 +142,7 @@ export class RoomManager {
     room.status = 'waiting';
 
     for (const player of room.players.values()) {
-      player.isReady = false;
+      player.isReady = player.isBot;
     }
 
     return true;

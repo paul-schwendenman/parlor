@@ -19,6 +19,18 @@
     getSocket().emit('lobby:startGame');
   }
 
+  function addBot() {
+    getSocket().emit('lobby:addBot', (success, error) => {
+      if (!success) console.error('Failed to add bot:', error);
+    });
+  }
+
+  function removeBot(botId: string) {
+    getSocket().emit('lobby:removeBot', botId, (success, error) => {
+      if (!success) console.error('Failed to remove bot:', error);
+    });
+  }
+
   async function copyCode() {
     try {
       const url = window.location.origin + '?join=' + roomCode;
@@ -57,11 +69,19 @@
               {#if player.id === playerState.id}
                 <span class="badge badge-you">You</span>
               {/if}
+              {#if player.isBot}
+                <span class="badge badge-bot">Bot</span>
+              {/if}
             </div>
           </div>
-          <span class="ready-status" class:is-ready={player.isReady}>
-            {player.isReady ? 'Ready' : 'Waiting'}
-          </span>
+          <div class="player-actions">
+            <span class="ready-status" class:is-ready={player.isReady}>
+              {player.isReady ? 'Ready' : 'Waiting'}
+            </span>
+            {#if isHost && player.isBot}
+              <button class="btn-remove-bot" onclick={() => removeBot(player.id)} title="Remove bot">✕</button>
+            {/if}
+          </div>
         </div>
       {/each}
     </div>
@@ -73,6 +93,11 @@
     </button>
 
     {#if isHost}
+      {#if lobbyState.players.length < 5}
+        <button class="btn btn-add-bot" onclick={addBot}>
+          Add Bot
+        </button>
+      {/if}
       <button class="btn btn-start" onclick={startGame} disabled={!lobbyState.canStart}>
         Start Game
       </button>
@@ -242,6 +267,38 @@
     color: #9a3412;
   }
 
+  .badge-bot {
+    background: #e0e7ff;
+    color: #3730a3;
+  }
+
+  .player-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .btn-remove-bot {
+    background: none;
+    border: 1.5px solid #e7e5e4;
+    border-radius: 6px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #a8a29e;
+    font-size: 0.75rem;
+    padding: 0;
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  .btn-remove-bot:hover {
+    color: #ef4444;
+    border-color: #ef4444;
+  }
+
   .ready-status {
     font-size: 0.8rem;
     font-weight: 500;
@@ -300,6 +357,15 @@
 
   .btn-ready.is-ready:hover:not(:disabled) {
     background: #d6d3d1;
+  }
+
+  .btn-add-bot {
+    background: #e0e7ff;
+    color: #3730a3;
+  }
+
+  .btn-add-bot:hover:not(:disabled) {
+    background: #c7d2fe;
   }
 
   .btn-start {

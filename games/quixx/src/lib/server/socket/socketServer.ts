@@ -9,6 +9,7 @@ import { RoomManager, setupLobbyHandlers } from '@parlor/multiplayer';
 import { setupGameHandlers, cleanupRoomTimers } from './gameHandlers.js';
 import { QuixxEngine } from '../game/QuixxEngine.js';
 import { DEFAULT_CONFIG } from '../../types/game.js';
+import { scheduleBotActions, clearBotTimers } from '../game/botController.js';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
@@ -19,14 +20,15 @@ export function setupQuixxSocketHandlers(io: AppServer): void {
     setupLobbyHandlers(io, socket, roomManager, {
       onGameStart: (roomCode, players, io) => {
         const engine = new QuixxEngine(
-          players.map((p) => ({ id: p.id, name: p.name })),
+          players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot })),
           roomCode,
           DEFAULT_CONFIG,
         );
         roomManager.setGameData(roomCode, engine);
 
-        // Send initial views to each player
+        // Send initial views to each player (skip bots)
         for (const player of players) {
+          if (RoomManager.isBotPlayer(player.id)) continue;
           const view = engine.getPlayerView(player.id);
           io.to(player.id).emit('game:state', view as never);
         }
@@ -47,6 +49,7 @@ export function setupQuixxSocketHandlers(io: AppServer): void {
               try {
                 engine.rollDice();
                 for (const player of players) {
+                  if (RoomManager.isBotPlayer(player.id)) continue;
                   const view = engine.getPlayerView(player.id);
                   io.to(player.id).emit('game:state', view as never);
                 }
@@ -61,12 +64,16 @@ export function setupQuixxSocketHandlers(io: AppServer): void {
                 // Ignore
               }
             }
+            scheduleBotActions(io, roomCode, engine, roomManager);
           }, 500);
+        } else {
+          scheduleBotActions(io, roomCode, engine, roomManager);
         }
       },
 
       onGameReset: (roomCode) => {
         cleanupRoomTimers(roomCode);
+        clearBotTimers(roomCode);
         roomManager.setGameData(roomCode, null);
       },
 
@@ -102,6 +109,7 @@ export function setupQuixxSocketHandlers(io: AppServer): void {
         // Broadcast updated state
         const players = roomManager.getPlayersInRoom(roomCode);
         for (const player of players) {
+          if (RoomManager.isBotPlayer(player.id)) continue;
           const view = engine.getPlayerView(player.id);
           io.to(player.id).emit('game:state', view as never);
         }

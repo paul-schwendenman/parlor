@@ -6,6 +6,7 @@ export interface Player {
 
 export interface LobbyPlayer extends Player {
   isReady: boolean;
+  isBot: boolean;
 }
 
 export interface Room {
@@ -75,6 +76,8 @@ export type ClientToServerEvents = {
   'lobby:ready': (isReady: boolean) => void;
   'lobby:startGame': () => void;
   'lobby:resetGame': () => void;
+  'lobby:addBot': (callback: (success: boolean, error?: string) => void) => void;
+  'lobby:removeBot': (botId: string, callback: (success: boolean, error?: string) => void) => void;
   'player:reconnect': (roomCode: string, playerId: string, callback: (success: boolean) => void) => void;
 };
 

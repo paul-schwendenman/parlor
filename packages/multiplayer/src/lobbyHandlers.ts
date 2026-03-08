@@ -81,6 +81,56 @@ export function setupLobbyHandlers(
     io.to(roomCode).emit('lobby:state', players, roomManager.canStartGame(roomCode));
   });
 
+  const BOT_NAMES = ['Bot Alice', 'Bot Bob', 'Bot Carol', 'Bot Dave'];
+
+  socket.on('lobby:addBot', (callback) => {
+    const roomCode = socket.data.roomCode;
+    if (!roomCode) {
+      callback(false, 'Not in a room');
+      return;
+    }
+    if (!roomManager.isHost(roomCode, socket.id)) {
+      callback(false, 'Only the host can add bots');
+      return;
+    }
+
+    const players = roomManager.getPlayersInRoom(roomCode);
+    const existingBotCount = players.filter((p) => p.isBot).length;
+    const botName = BOT_NAMES[existingBotCount % BOT_NAMES.length];
+
+    const result = roomManager.addBot(roomCode, botName);
+    if (!result.success) {
+      callback(false, result.error);
+      return;
+    }
+
+    callback(true);
+    const updatedPlayers = roomManager.getPlayersInRoom(roomCode);
+    io.to(roomCode).emit('lobby:state', updatedPlayers, roomManager.canStartGame(roomCode));
+  });
+
+  socket.on('lobby:removeBot', (botId, callback) => {
+    const roomCode = socket.data.roomCode;
+    if (!roomCode) {
+      callback(false, 'Not in a room');
+      return;
+    }
+    if (!roomManager.isHost(roomCode, socket.id)) {
+      callback(false, 'Only the host can remove bots');
+      return;
+    }
+
+    const result = roomManager.removeBot(roomCode, botId);
+    if (!result.success) {
+      callback(false, result.error);
+      return;
+    }
+
+    callback(true);
+    const updatedPlayers = roomManager.getPlayersInRoom(roomCode);
+    io.to(roomCode).emit('lobby:state', updatedPlayers, roomManager.canStartGame(roomCode));
+  });
+
   socket.on('lobby:startGame', () => {
     const roomCode = socket.data.roomCode;
     if (!roomCode) return;

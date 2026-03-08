@@ -16,6 +16,7 @@ export function createTestPlayer(id: string, name: string): QuixxPlayer {
     id,
     name,
     connected: true,
+    isBot: false,
     sheet: createTestSheet(),
     penalties: 0,
     phase1Decision: null,
@@ -30,6 +31,7 @@ export function createTestEngine(
   const players = Array.from({ length: playerCount }, (_, i) => ({
     id: `player${i + 1}`,
     name: `Player ${i + 1}`,
+    isBot: false,
   }));
   return new QuixxEngine(players, 'TEST', { ...DEFAULT_CONFIG, ...config });
 }
