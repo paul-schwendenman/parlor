@@ -161,6 +161,7 @@ const meta: GameMeta = {
   estimatedMinutes: '15-20',
   tags: ['dice', 'strategy', 'quick'],
   displayModes: ['peer'],
+  supportsBots: true,
 };
 
 export const quixxDefinition: ServerGameDefinition = {

@@ -11,9 +11,9 @@
   import type { GameMeta } from '@parlor/game-types';
 
   const games: GameMeta[] = [
-    { id: 'quixx', name: 'Quixx', description: 'Fast-paced dice game', minPlayers: 2, maxPlayers: 5, estimatedMinutes: '15-20', tags: ['dice', 'strategy'], displayModes: ['peer'] },
+    { id: 'quixx', name: 'Quixx', description: 'Fast-paced dice game', minPlayers: 2, maxPlayers: 5, estimatedMinutes: '15-20', tags: ['dice', 'strategy'], displayModes: ['peer'], supportsBots: true },
     { id: 'crazy-eights', name: 'Crazy Eights', description: 'Classic card game', minPlayers: 2, maxPlayers: 5, estimatedMinutes: '10-15', tags: ['cards', 'classic'], displayModes: ['peer'] },
-    { id: 'booty-dice', name: 'Booty Dice', description: 'Pirate dice game', minPlayers: 2, maxPlayers: 6, estimatedMinutes: '15-30', tags: ['dice', 'pirates'], displayModes: ['peer'] },
+    { id: 'booty-dice', name: 'Booty Dice', description: 'Pirate dice game', minPlayers: 2, maxPlayers: 6, estimatedMinutes: '15-30', tags: ['dice', 'pirates'], displayModes: ['peer'], supportsBots: true },
   ];
 
   let roomCode = $derived($page.params.roomCode ?? '');
@@ -40,7 +40,10 @@
   let isHost = $derived(lobbyState.hostId === playerState.id);
   let me = $derived(lobbyState.players.find(p => p.id === playerState.id));
   let selectedGame = $derived(games.find(g => g.id === lobbyState.selectedGameId));
-  let canStart = $derived(lobbyState.canStart && !!lobbyState.selectedGameId);
+  let gameSupportsAI = $derived(selectedGame?.supportsBots ?? false);
+  let hasBots = $derived(lobbyState.players.some(p => p.isBot));
+  let botsBlockStart = $derived(hasBots && !gameSupportsAI);
+  let canStart = $derived(lobbyState.canStart && !!lobbyState.selectedGameId && !botsBlockStart);
 
   function toggleReady() {
     if (me) getSocket().emit('lobby:ready', !me.isReady);
@@ -167,9 +170,11 @@
       </button>
 
       {#if isHost}
-        <button class="btn btn-add-bot" onclick={addBot}>
-          Add Bot
-        </button>
+        {#if gameSupportsAI}
+          <button class="btn btn-add-bot" onclick={addBot}>
+            Add Bot
+          </button>
+        {/if}
         <button class="btn btn-start" onclick={startGame} disabled={!canStart}>
           Start Game
         </button>
@@ -177,6 +182,8 @@
           <p class="hint">
             {#if !lobbyState.selectedGameId}
               Select a game first
+            {:else if botsBlockStart}
+              Remove bots — {selectedGame?.name} doesn't support AI players
             {:else if lobbyState.players.length < 2}
               Need at least 2 players
             {:else}

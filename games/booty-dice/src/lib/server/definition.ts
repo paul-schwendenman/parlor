@@ -155,6 +155,7 @@ export const bootyDiceDefinition: ServerGameDefinition = {
     estimatedMinutes: '15-30',
     tags: ['dice', 'pirates', 'competitive'],
     displayModes: ['peer'],
+    supportsBots: true,
   },
 
   createLobbyCallbacks: (roomManager: RoomManager, io: AppServer) => ({

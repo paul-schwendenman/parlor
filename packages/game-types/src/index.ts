@@ -56,6 +56,7 @@ export interface GameMeta {
   estimatedMinutes: string;
   tags: string[];
   displayModes: ('peer' | 'jackbox')[];
+  supportsBots?: boolean;
 }
 
 export type ServerToClientEvents = {
