@@ -92,7 +92,7 @@
     <p>Loading game...</p>
   </div>
 {:else if view.gameOver && view.scores}
-  <GameOverScreen scores={view.scores} myPlayerId={playerState.id} />
+  <GameOverScreen scores={view.scores} players={view.players} myPlayerId={playerState.id} />
 {:else}
   <div class="game-page">
     <TurnBanner
