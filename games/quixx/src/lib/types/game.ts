@@ -91,6 +91,7 @@ export interface QuixxPlayerView {
   myIndex: number;
   isActivePlayer: boolean;
   availableMoves: AvailableMove[];
+  activePlayerPhase1Passed: boolean;
 }
 
 export interface PlayerScore {

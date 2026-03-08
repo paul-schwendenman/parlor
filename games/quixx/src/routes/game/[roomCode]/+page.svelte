@@ -136,6 +136,7 @@
       {submittedCount}
       totalPlayers={view.players.length}
       hasSelection={gameState.selectedMove !== null}
+      activePlayerPhase1Passed={view.activePlayerPhase1Passed}
       onpass={handlePass}
       onroll={handleRoll}
       onconfirm={handleConfirm}

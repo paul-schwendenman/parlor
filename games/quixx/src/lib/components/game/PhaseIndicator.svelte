@@ -9,6 +9,7 @@
     submittedCount,
     totalPlayers,
     hasSelection = false,
+    activePlayerPhase1Passed = false,
     onpass,
     onroll,
     onconfirm,
@@ -20,6 +21,7 @@
     submittedCount: number;
     totalPlayers: number;
     hasSelection?: boolean;
+    activePlayerPhase1Passed?: boolean;
     onpass?: () => void;
     onroll?: () => void;
     onconfirm?: () => void;
@@ -55,7 +57,9 @@
         {#if hasSelection}
           <button class="confirm-btn" onclick={onconfirm}>Confirm</button>
         {/if}
-        <button class="pass-btn" onclick={onpass}>Pass</button>
+        <button class={activePlayerPhase1Passed ? 'penalty-btn' : 'pass-btn'} onclick={onpass}>
+          {activePlayerPhase1Passed ? 'Take Penalty' : 'Pass'}
+        </button>
       </div>
     {:else}
       <p>Waiting for <strong>{activePlayerName}</strong> to choose...</p>
@@ -113,5 +117,12 @@
   }
   .pass-btn:hover {
     background: #d1d5db;
+  }
+  .penalty-btn {
+    background: #dc2626;
+    color: white;
+  }
+  .penalty-btn:hover {
+    background: #b91c1c;
   }
 </style>

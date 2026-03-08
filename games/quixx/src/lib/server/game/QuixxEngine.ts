@@ -297,6 +297,7 @@ export class QuixxEngine {
       myIndex,
       isActivePlayer,
       availableMoves,
+      activePlayerPhase1Passed: isActivePlayer ? this.activePlayerPhase1Passed : false,
     };
   }
 
@@ -322,6 +323,7 @@ export class QuixxEngine {
       myIndex: -1,
       isActivePlayer: false,
       availableMoves: [],
+      activePlayerPhase1Passed: false,
     };
   }
 
