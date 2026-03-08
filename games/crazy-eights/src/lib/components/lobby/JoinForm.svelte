@@ -9,6 +9,7 @@
   let error = $state('');
   let errorSide = $state<'join' | 'create' | null>(null);
   let loading = $state(false);
+  let hasJoinCode = $derived(!!prefillCode);
 
   $effect(() => {
     roomCode = prefillCode;
@@ -116,7 +117,7 @@
       {/if}
 
       <button
-        class="btn btn-join"
+        class="btn {hasJoinCode ? 'btn-create' : 'btn-join'}"
         onclick={handleJoin}
         disabled={loading}
       >
@@ -152,7 +153,7 @@
       {/if}
 
       <button
-        class="btn btn-create"
+        class="btn {hasJoinCode ? 'btn-join' : 'btn-create'}"
         onclick={handleCreate}
         disabled={loading}
       >
