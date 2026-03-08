@@ -106,7 +106,7 @@ export function setupLobbyHandlers(
     }
   });
 
-  socket.on('player:reconnect', (roomCode, oldPlayerId) => {
+  socket.on('player:reconnect', (roomCode, oldPlayerId, callback) => {
     const success = roomManager.handleReconnect(roomCode, oldPlayerId, socket.id);
     if (success) {
       const normalizedCode = roomCode.toUpperCase();
@@ -118,6 +118,7 @@ export function setupLobbyHandlers(
       io.to(normalizedCode).emit('lobby:state', players, roomManager.canStartGame(normalizedCode));
       callbacks?.onPlayerReconnect?.(normalizedCode, socket.id, io);
     }
+    callback(success);
   });
 
   socket.on('disconnect', () => {

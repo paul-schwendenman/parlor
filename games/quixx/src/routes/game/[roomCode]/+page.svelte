@@ -6,6 +6,7 @@
   import { gameState } from '$lib/stores/gameStore.svelte.js';
   import { playerState } from '$lib/stores/playerStore.svelte.js';
   import { lobbyState } from '$lib/stores/lobbyStore.svelte.js';
+  import { connectionState } from '$lib/stores/connectionStore.svelte.js';
   import { getSocket } from '$lib/stores/socketClient.js';
   import DiceDisplay from '$lib/components/game/DiceDisplay.svelte';
   import Scoresheet from '$lib/components/game/Scoresheet.svelte';
@@ -18,10 +19,22 @@
   import { scoreRow } from '$lib/game/scoring.js';
   import { ROW_COLORS } from '$lib/types/game.js';
 
+  let roomNotFound = $state(false);
+
   onMount(() => {
     if (browser) {
       getSocket();
     }
+  });
+
+  // Detect when we're connected but have no game state and no player session
+  $effect(() => {
+    if (connectionState.status !== 'connected') return;
+    if (gameState.view) return;
+    if (playerState.id) return;
+
+    // Connected but no session and no game — room doesn't exist or session expired
+    roomNotFound = true;
   });
 
   let view = $derived(gameState.view);
@@ -94,7 +107,12 @@
       <span class="separator">/</span>
       <span class="game-name">Quixx</span>
     </a>
-    <p>Loading game...</p>
+    {#if roomNotFound}
+      <p class="error-message">This game doesn't exist or has ended.</p>
+      <a href="/" class="back-link">Back to home</a>
+    {:else}
+      <p>Loading game...</p>
+    {/if}
   </div>
 {:else if view.gameOver && view.scores}
   <GameOverScreen scores={view.scores} players={view.players} myPlayerId={playerState.id} />
@@ -181,5 +199,22 @@
   }
   .header:hover .parlor {
     color: #3b82f6;
+  }
+  .error-message {
+    color: #991b1b;
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+  .back-link {
+    display: inline-block;
+    padding: 10px 24px;
+    background: #3b82f6;
+    color: white;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .back-link:hover {
+    background: #2563eb;
   }
 </style>

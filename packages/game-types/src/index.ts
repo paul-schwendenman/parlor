@@ -75,7 +75,7 @@ export type ClientToServerEvents = {
   'lobby:ready': (isReady: boolean) => void;
   'lobby:startGame': () => void;
   'lobby:resetGame': () => void;
-  'player:reconnect': (roomCode: string, playerId: string) => void;
+  'player:reconnect': (roomCode: string, playerId: string, callback: (success: boolean) => void) => void;
 };
 
 export type InterServerEvents = {
