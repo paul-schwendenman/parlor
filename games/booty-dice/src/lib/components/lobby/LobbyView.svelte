@@ -112,8 +112,6 @@
 </div>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
-
   .lobby {
     max-width: 480px;
     margin: 0 auto;
@@ -130,7 +128,7 @@
   .room-label {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #a8a29e;
+    color: #888;
     text-transform: uppercase;
     letter-spacing: 0.15em;
     margin: 0 0 0.5rem;
@@ -141,8 +139,8 @@
     flex-direction: column;
     align-items: center;
     gap: 0.35rem;
-    background: white;
-    border: 1.5px solid #e7e5e4;
+    background: #2a2a2a;
+    border: 1.5px solid #444;
     border-radius: 12px;
     padding: 1rem 2rem;
     cursor: pointer;
@@ -159,12 +157,12 @@
     font-size: 2.25rem;
     font-weight: 700;
     letter-spacing: 0.3em;
-    color: #292524;
+    color: #d4a574;
   }
 
   .copy-hint {
     font-size: 0.75rem;
-    color: #a8a29e;
+    color: #888;
     font-weight: 500;
     transition: color 0.2s;
   }
@@ -177,7 +175,7 @@
     font-family: 'Crimson Pro', Georgia, serif;
     font-size: 1.15rem;
     font-weight: 600;
-    color: #292524;
+    color: #eee;
     margin: 0 0 0.75rem;
     display: flex;
     align-items: center;
@@ -188,8 +186,8 @@
     font-family: 'DM Sans', system-ui, sans-serif;
     font-size: 0.8rem;
     font-weight: 600;
-    color: #a8a29e;
-    background: #f5f5f4;
+    color: #888;
+    background: #333;
     border-radius: 999px;
     padding: 0.1rem 0.55rem;
   }
@@ -202,16 +200,16 @@
     align-items: center;
     padding: 0.75rem 1rem;
     border-radius: 10px;
-    background: white;
-    border: 1.5px solid #f0efed;
+    background: #2a2a2a;
+    border: 1.5px solid #333;
     transition: border-color 0.2s, background 0.2s;
   }
 
-  .player.ready { background: #fefce8; border-color: #fde68a; }
+  .player.ready { background: #2d3a2d; border-color: #5a9a5a; }
   .player.me { border-color: #d97706; }
 
   .player-info { display: flex; align-items: center; gap: 0.5rem; }
-  .player-name { font-weight: 600; font-size: 0.95rem; color: #292524; }
+  .player-name { font-weight: 600; font-size: 0.95rem; color: #eee; }
   .badges { display: flex; gap: 0.35rem; }
 
   .badge {
@@ -223,15 +221,15 @@
     letter-spacing: 0.04em;
   }
 
-  .badge-host { background: #fef3c7; color: #92400e; }
-  .badge-you { background: #fed7aa; color: #9a3412; }
-  .badge-bot { background: #e0e7ff; color: #3730a3; }
+  .badge-host { background: #3d2a1a; color: #d4a574; }
+  .badge-you { background: #4a3a2a; color: #d4a574; }
+  .badge-bot { background: #2a2a3d; color: #7a7aff; }
 
   .player-actions { display: flex; align-items: center; gap: 0.5rem; }
 
   .btn-remove-bot {
     background: none;
-    border: 1.5px solid #e7e5e4;
+    border: 1.5px solid #444;
     border-radius: 6px;
     width: 24px;
     height: 24px;
@@ -239,7 +237,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: #a8a29e;
+    color: #888;
     font-size: 0.75rem;
     padding: 0;
     transition: color 0.2s, border-color 0.2s;
@@ -247,7 +245,7 @@
 
   .btn-remove-bot:hover { color: #ef4444; border-color: #ef4444; }
 
-  .ready-status { font-size: 0.8rem; font-weight: 500; color: #a8a29e; }
+  .ready-status { font-size: 0.8rem; font-weight: 500; color: #888; }
   .ready-status.is-ready { color: #16a34a; font-weight: 600; }
 
   .actions {
@@ -275,26 +273,26 @@
   .btn:active:not(:disabled) { transform: scale(0.98); }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  .btn-ready { background: #292524; color: white; }
-  .btn-ready:hover:not(:disabled) { background: #1c1917; }
-  .btn-ready.is-ready { background: #e7e5e4; color: #57534e; }
-  .btn-ready.is-ready:hover:not(:disabled) { background: #d6d3d1; }
+  .btn-ready { background: #444; color: white; }
+  .btn-ready:hover:not(:disabled) { background: #555; }
+  .btn-ready.is-ready { background: #333; color: #888; }
+  .btn-ready.is-ready:hover:not(:disabled) { background: #3a3a3a; }
 
-  .btn-add-bot { background: #e0e7ff; color: #3730a3; }
-  .btn-add-bot:hover:not(:disabled) { background: #c7d2fe; }
+  .btn-add-bot { background: #2a2a3d; color: #7a7aff; }
+  .btn-add-bot:hover:not(:disabled) { background: #33335a; }
 
   .btn-start { background: #d97706; color: white; }
   .btn-start:hover:not(:disabled) { background: #b45309; box-shadow: 0 2px 8px rgba(217, 119, 6, 0.25); }
 
-  .hint { font-size: 0.8rem; color: #a8a29e; font-style: italic; margin: 0; }
+  .hint { font-size: 0.8rem; color: #888; font-style: italic; margin: 0; }
 
   .starting {
     margin-top: 1rem;
     padding: 0.75rem 1.5rem;
-    background: #fef3c7;
+    background: #3d2a1a;
     border-radius: 8px;
     font-weight: 600;
-    color: #92400e;
+    color: #d4a574;
     font-size: 0.9rem;
   }
 </style>

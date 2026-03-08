@@ -163,8 +163,6 @@
 </div>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
-
   .lobby-page {
     min-height: 100vh;
     display: flex;
@@ -176,7 +174,7 @@
     background:
       radial-gradient(ellipse at 20% 50%, rgba(212, 165, 116, 0.06) 0%, transparent 50%),
       radial-gradient(ellipse at 80% 50%, rgba(180, 83, 9, 0.05) 0%, transparent 50%),
-      #f3f4f6;
+      #1a1a1a;
   }
 
   .brand { text-align: center; margin-bottom: 2.5rem; }
@@ -185,7 +183,7 @@
     font-family: 'Crimson Pro', Georgia, serif;
     font-size: 3.5rem;
     font-weight: 700;
-    color: #292524;
+    color: #eee;
     letter-spacing: 0.08em;
     margin: 0;
     line-height: 1;
@@ -194,7 +192,7 @@
   .subtitle {
     font-size: 0.95rem;
     font-weight: 500;
-    color: #a8a29e;
+    color: #888;
     text-transform: uppercase;
     letter-spacing: 0.25em;
     margin: 0.5rem 0 0;
@@ -206,9 +204,9 @@
     gap: 0;
     width: 100%;
     max-width: 720px;
-    background: white;
+    background: #2a2a2a;
     border-radius: 16px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.3);
     overflow: hidden;
   }
 
@@ -223,13 +221,13 @@
     font-family: 'Crimson Pro', Georgia, serif;
     font-size: 1.5rem;
     font-weight: 600;
-    color: #292524;
+    color: #eee;
     margin: 0 0 0.25rem;
   }
 
   .panel-desc {
     font-size: 0.85rem;
-    color: #a8a29e;
+    color: #888;
     margin: 0 0 1.5rem;
     line-height: 1.4;
   }
@@ -241,7 +239,7 @@
   label {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #78716c;
+    color: #888;
     text-transform: uppercase;
     letter-spacing: 0.06em;
   }
@@ -249,23 +247,23 @@
   .input {
     width: 100%;
     padding: 0.7rem 0.85rem;
-    border: 1.5px solid #e7e5e4;
+    border: 1.5px solid #444;
     border-radius: 8px;
     font-size: 0.95rem;
     font-family: 'DM Sans', system-ui, sans-serif;
-    color: #292524;
-    background: #fafaf9;
+    color: #eee;
+    background: #333;
     box-sizing: border-box;
     transition: border-color 0.2s, box-shadow 0.2s;
   }
 
-  .input::placeholder { color: #c7c2be; }
+  .input::placeholder { color: #666; }
 
   .input:focus {
     outline: none;
     border-color: #d97706;
     box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
-    background: white;
+    background: #2a2a2a;
   }
 
   .input-code {
@@ -283,15 +281,15 @@
     align-items: center;
     justify-content: center;
     width: 1px;
-    background: #e7e5e4;
+    background: #444;
     position: relative;
     flex-shrink: 0;
   }
 
   .divider-text {
     position: absolute;
-    background: white;
-    color: #c7c2be;
+    background: #2a2a2a;
+    color: #666;
     font-size: 0.8rem;
     font-weight: 500;
     padding: 0.75rem 0;
@@ -315,13 +313,13 @@
   .btn:active:not(:disabled) { transform: scale(0.98); }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  .btn-join { background: #292524; color: white; }
-  .btn-join:hover:not(:disabled) { background: #1c1917; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
+  .btn-join { background: #444; color: #eee; }
+  .btn-join:hover:not(:disabled) { background: #555; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
 
   .btn-create { background: #d97706; color: white; }
   .btn-create:hover:not(:disabled) { background: #b45309; box-shadow: 0 2px 8px rgba(217, 119, 6, 0.25); }
 
-  .error { color: #dc2626; font-size: 0.85rem; margin: 0.75rem 0 0; }
+  .error { color: #e77; font-size: 0.85rem; margin: 0.75rem 0 0; }
 
   @media (max-width: 600px) {
     .lobby-page { justify-content: flex-start; padding-top: 3rem; }

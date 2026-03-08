@@ -33,8 +33,8 @@
     width: 70px;
     height: 70px;
     border-radius: 10px;
-    background: #f5f5f5;
-    border: 3px solid #333;
+    background: #2a2a2a;
+    border: 3px solid #444;
     font-size: 2.2rem;
     cursor: default;
     position: relative;
@@ -55,7 +55,7 @@
 
   .die.locked {
     border-color: #d4a574;
-    background: #fff8e7;
+    background: #3d2a1a;
     box-shadow: 0 0 12px rgba(212, 165, 116, 0.5);
   }
 

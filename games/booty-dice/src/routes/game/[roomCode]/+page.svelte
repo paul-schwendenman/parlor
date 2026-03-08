@@ -524,6 +524,11 @@
     color: #888;
   }
 
+  :global(.modal) {
+    background: #2a2a2a !important;
+    color: #eee !important;
+  }
+
   .winner-content {
     text-align: center;
   }
