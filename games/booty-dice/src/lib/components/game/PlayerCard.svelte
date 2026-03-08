@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { BootyDicePlayer } from '$lib/types/game.js';
+  import type { BootyDicePlayer } from '../../types/game.js';
 
   interface Props {
     player: BootyDicePlayer;

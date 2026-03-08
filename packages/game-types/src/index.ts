@@ -47,6 +47,17 @@ export interface SocketData {
   roomCode: string;
 }
 
+export interface GameMeta {
+  id: string;
+  name: string;
+  description: string;
+  minPlayers: number;
+  maxPlayers: number;
+  estimatedMinutes: string;
+  tags: string[];
+  displayModes: ('peer' | 'jackbox')[];
+}
+
 export type ServerToClientEvents = {
   'room:updated': (room: Room) => void;
   'game:state': (state: BaseGameState) => void;
@@ -60,6 +71,7 @@ export type ServerToClientEvents = {
   'lobby:playerLeft': (playerId: string) => void;
   'lobby:hostChanged': (newHostId: string) => void;
   'lobby:gameStarting': () => void;
+  'lobby:gameSelected': (gameId: string) => void;
 };
 
 export type ClientToServerEvents = {
@@ -70,7 +82,8 @@ export type ClientToServerEvents = {
   'game:action': (action: Record<string, unknown>) => void;
   'chat:send': (text: string) => void;
 
-  'lobby:create': (playerName: string, callback: (roomCode: string) => void) => void;
+  'lobby:create': (playerName: string, callback: (roomCode: string) => void, gameId?: string) => void;
+  'lobby:selectGame': (gameId: string) => void;
   'lobby:join': (roomCode: string, playerName: string, callback: (success: boolean, error?: string) => void) => void;
   'lobby:spectate': (roomCode: string, callback: (success: boolean, error?: string) => void) => void;
   'lobby:ready': (isReady: boolean) => void;

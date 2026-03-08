@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { Die } from '$lib/types/game.js';
-  import { FACE_EMOJI, FACE_NAMES } from '$lib/types/game.js';
+  import type { Die } from '../../types/game.js';
+  import { FACE_EMOJI, FACE_NAMES } from '../../types/game.js';
 
   interface Props {
     die: Die;

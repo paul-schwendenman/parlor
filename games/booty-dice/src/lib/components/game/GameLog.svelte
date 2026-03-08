@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { LogEntry } from '$lib/types/game.js';
+  import type { LogEntry } from '../../types/game.js';
   import { tick } from 'svelte';
 
   interface Props {

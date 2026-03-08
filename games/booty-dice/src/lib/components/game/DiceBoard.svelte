@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Die } from '$lib/types/game.js';
+  import type { Die } from '../../types/game.js';
   import Dice from './Dice.svelte';
 
   interface Props {

@@ -1,0 +1,21 @@
+@import 'tailwindcss';
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+
+:root {
+  --color-cream: #FDF6EC;
+  --color-linen: #F5EDE0;
+  --color-terracotta: #C4663A;
+  --color-forest: #4A7C59;
+  --color-mustard: #D4A843;
+  --color-espresso: #3B2F2F;
+  --font-heading: 'Nunito', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-cream);
+  color: var(--color-espresso);
+}

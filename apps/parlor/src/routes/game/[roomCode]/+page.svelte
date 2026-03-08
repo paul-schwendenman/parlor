@@ -5,25 +5,22 @@
   import { page } from '$app/stores';
   import { gameState } from '$lib/stores/gameStore.svelte.js';
   import { playerState } from '$lib/stores/playerStore.svelte.js';
+  import { lobbyState } from '$lib/stores/lobbyStore.svelte.js';
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
   import { getSocket } from '$lib/stores/socketClient.js';
-  import GameView from '$lib/components/game/GameView.svelte';
+  import GameRenderer from '$lib/components/games/GameRenderer.svelte';
 
+  let roomCode = $derived($page.params.roomCode ?? '');
   let roomNotFound = $state(false);
 
   onMount(() => {
-    if (browser) {
-      getSocket();
-    }
+    if (browser) getSocket();
   });
 
-  // Detect when we're connected but have no game state and no player session
   $effect(() => {
     if (connectionState.status !== 'connected') return;
     if (gameState.view) return;
     if (playerState.id) return;
-
-    // Connected but no session and no game — room doesn't exist or session expired
     roomNotFound = true;
   });
 
@@ -34,22 +31,23 @@
     if (view) {
       hadView = true;
     } else if (hadView) {
-      // Game was reset, navigate back to lobby
-      const roomCode = $page.params.roomCode;
       goto(`/lobby/${roomCode}`);
     }
   });
+
+  function handleBackToLobby() {
+    getSocket().emit('lobby:resetGame');
+    gameState.reset();
+    lobbyState.gameStarting = false;
+    goto(`/lobby/${roomCode}`);
+  }
 </script>
 
-<svelte:head><title>Quixx - Parlor</title></svelte:head>
+<svelte:head><title>Playing - Parlor</title></svelte:head>
 
 {#if !view}
   <div class="loading">
-    <a href="/" class="header">
-      <span class="parlor">Parlor</span>
-      <span class="separator">/</span>
-      <span class="game-name">Quixx</span>
-    </a>
+    <a href="/" class="logo">Parlor</a>
     {#if roomNotFound}
       <p class="error-message">This game doesn't exist or has ended.</p>
       <a href="/" class="back-link">Back to home</a>
@@ -58,54 +56,45 @@
     {/if}
   </div>
 {:else}
-  <GameView {view} socket={getSocket()} playerId={playerState.id} />
+  <GameRenderer
+    gameId={gameState.gameId}
+    {view}
+    socket={getSocket()}
+    playerId={playerState.id}
+    onBackToLobby={handleBackToLobby}
+  />
 {/if}
 
 <style>
   .loading {
     text-align: center;
     padding: 64px 16px;
-    color: #6b7280;
+    color: #a8a29e;
   }
-  .header {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 6px;
+  .logo {
+    display: block;
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--color-espresso);
     text-decoration: none;
-    margin-bottom: 24px;
+    margin-bottom: 1.5rem;
   }
-  .parlor {
-    font-size: 24px;
-    font-weight: 700;
-    color: #111827;
-  }
-  .separator {
-    font-size: 20px;
-    color: #d1d5db;
-  }
-  .game-name {
-    font-size: 20px;
-    font-weight: 600;
-    color: #6b7280;
-  }
-  .header:hover .parlor {
-    color: #3b82f6;
+  .logo:hover {
+    color: var(--color-terracotta);
   }
   .error-message {
     color: #991b1b;
-    font-size: 18px;
-    margin-bottom: 16px;
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
   }
   .back-link {
     display: inline-block;
-    padding: 10px 24px;
-    background: #3b82f6;
+    padding: 0.7rem 1.5rem;
+    background: var(--color-terracotta);
     color: white;
     border-radius: 8px;
     text-decoration: none;
-    font-weight: 500;
-  }
-  .back-link:hover {
-    background: #2563eb;
+    font-weight: 600;
   }
 </style>

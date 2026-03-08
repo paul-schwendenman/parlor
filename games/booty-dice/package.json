@@ -3,6 +3,10 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "exports": {
+    "./server-definition": "./src/lib/server/definition.ts",
+    "./game-view": "./src/lib/components/game/GameView.svelte"
+  },
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",

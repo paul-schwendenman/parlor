@@ -7,6 +7,7 @@ export interface GameRoom {
   players: Map<string, LobbyPlayer>;
   spectators: Set<string>;
   gameData: unknown;
+  gameId: string | null;
   maxPlayers: number;
   status: 'waiting' | 'playing' | 'finished';
   createdAt: number;
@@ -47,6 +48,7 @@ export class RoomManager {
       players: new Map([[hostSocketId, host]]),
       spectators: new Set(),
       gameData: null,
+      gameId: null,
       maxPlayers,
       status: 'waiting',
       createdAt: Date.now(),
@@ -192,6 +194,18 @@ export class RoomManager {
   isHost(roomCode: string, socketId: string): boolean {
     const room = this.rooms.get(roomCode);
     return room?.hostId === socketId;
+  }
+
+  setGameId(roomCode: string, gameId: string): void {
+    const room = this.rooms.get(roomCode.toUpperCase());
+    if (room) {
+      room.gameId = gameId;
+    }
+  }
+
+  getGameId(roomCode: string): string | null {
+    const room = this.rooms.get(roomCode.toUpperCase());
+    return room?.gameId ?? null;
   }
 
   setGameData<T>(roomCode: string, data: T): void {

@@ -5,17 +5,9 @@
   import { page } from '$app/stores';
   import { gameState } from '$lib/stores/gameStore.svelte.js';
   import { playerState } from '$lib/stores/playerStore.svelte.js';
-  import { lobbyState } from '$lib/stores/lobbyStore.svelte.js';
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
   import { getSocket } from '$lib/stores/socketClient.js';
-  import Hand from '$lib/components/game/Hand.svelte';
-  import DiscardPile from '$lib/components/game/DiscardPile.svelte';
-  import DrawPile from '$lib/components/game/DrawPile.svelte';
-  import OpponentBar from '$lib/components/game/OpponentBar.svelte';
-  import SuitPicker from '$lib/components/game/SuitPicker.svelte';
-  import TurnBanner from '$lib/components/game/TurnBanner.svelte';
-  import GameOverScreen from '$lib/components/game/GameOverScreen.svelte';
-  import type { Card, Suit } from '$lib/types/game.js';
+  import GameView from '$lib/components/game/GameView.svelte';
 
   let roomNotFound = $state(false);
 
@@ -43,28 +35,6 @@
       goto(`/lobby/${roomCode}`);
     }
   });
-
-  function handlePlayCard(card: Card) {
-    if (gameState.isCardSelected(card)) {
-      // Second tap = confirm play
-      getSocket().emit('game:action', { type: 'play-card', card });
-      gameState.clearSelection();
-    } else {
-      gameState.selectCard(card);
-    }
-  }
-
-  function handleDraw() {
-    getSocket().emit('game:action', { type: 'draw-card' });
-  }
-
-  function handlePass() {
-    getSocket().emit('game:action', { type: 'pass' });
-  }
-
-  function handleChooseSuit(suit: Suit) {
-    getSocket().emit('game:action', { type: 'choose-suit', suit });
-  }
 </script>
 
 <svelte:head><title>Crazy Eights - Parlor</title></svelte:head>
@@ -83,80 +53,11 @@
       <p>Loading game...</p>
     {/if}
   </div>
-{:else if view.gameOver}
-  <GameOverScreen winner={view.winner} players={view.players} myPlayerId={playerState.id} />
 {:else}
-  <div class="game-page">
-    <TurnBanner
-      isActivePlayer={view.isActivePlayer}
-      activePlayerName={gameState.activePlayerName}
-      phase={view.phase}
-      drewCard={view.drewCard !== null}
-    />
-
-    <OpponentBar
-      players={view.players}
-      activePlayerIndex={view.activePlayerIndex}
-      myIndex={view.myIndex}
-    />
-
-    <div class="table-area">
-      <DrawPile
-        count={view.drawPileCount}
-        canDraw={view.canDraw}
-        ondraw={handleDraw}
-      />
-      <DiscardPile
-        topCard={view.topDiscard}
-        declaredSuit={view.declaredSuit}
-      />
-    </div>
-
-    {#if view.canPass}
-      <div class="pass-area">
-        <button class="btn-pass" onclick={handlePass}>Pass</button>
-      </div>
-    {/if}
-
-    <Hand cards={view.myHand} onplaycard={handlePlayCard} />
-
-    {#if view.phase === 'choosing-suit' && view.isActivePlayer}
-      <SuitPicker onchoose={handleChooseSuit} />
-    {/if}
-  </div>
+  <GameView {view} socket={getSocket()} playerId={playerState.id} />
 {/if}
 
 <style>
-  .game-page {
-    max-width: 600px;
-    margin: 0 auto;
-    padding: 16px;
-  }
-  .table-area {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 32px;
-    padding: 16px 0;
-  }
-  .pass-area {
-    text-align: center;
-    margin: 8px 0;
-  }
-  .btn-pass {
-    padding: 8px 24px;
-    border: none;
-    border-radius: 8px;
-    background: #6b7280;
-    color: white;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn-pass:hover {
-    background: #4b5563;
-  }
   .loading {
     text-align: center;
     padding: 64px 16px;
