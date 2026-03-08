@@ -5,10 +5,14 @@
 
   let joinName = $state('');
   let createName = $state('');
-  let roomCode = $state(prefillCode);
+  let roomCode = $state('');
   let error = $state('');
   let errorSide = $state<'join' | 'create' | null>(null);
   let loading = $state(false);
+
+  $effect(() => {
+    roomCode = prefillCode;
+  });
 
   async function handleCreate() {
     if (!createName.trim()) {
