@@ -7,12 +7,14 @@
     whiteSum,
     availableMoves,
     phase2Preview,
+    phase1Submitted,
   }: {
     phase: string;
     isActivePlayer: boolean;
     whiteSum: number | null;
     availableMoves: AvailableMove[];
     phase2Preview: AvailableMove[];
+    phase1Submitted: boolean;
   } = $props();
 
   let whiteSumRows = $derived(
@@ -33,13 +35,13 @@
     ),
   );
 
-  let showWhiteSum = $derived(phase === 'phase1' && whiteSum !== null);
+  let showWhiteSum = $derived(phase === 'phase1' && whiteSum !== null && !phase1Submitted);
   let showCombos = $derived(
-    (phase === 'phase1' && isActivePlayer && coloredCombos.length > 0) ||
+    (phase === 'phase1' && isActivePlayer && coloredCombos.length > 0 && !phase1Submitted) ||
       (phase === 'phase2' && availableMoves.length > 0),
   );
   let noMoves = $derived(
-    (phase === 'phase1' && availableMoves.length === 0) ||
+    (phase === 'phase1' && availableMoves.length === 0 && !phase1Submitted) ||
       (phase === 'phase2' && isActivePlayer && availableMoves.length === 0),
   );
 </script>

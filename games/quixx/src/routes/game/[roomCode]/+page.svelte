@@ -80,7 +80,6 @@
     } else if (view.phase === 'phase2') {
       socket.emit('game:action', { type: 'phase2-mark', row, cellIndex });
     }
-    gameState.clearSelection();
   }
 
   function handlePass() {
@@ -148,6 +147,7 @@
       whiteSum={gameState.whiteSum}
       availableMoves={view.availableMoves}
       phase2Preview={gameState.phase2Preview}
+      phase1Submitted={gameState.phase1Submitted}
     />
 
     <Scoresheet
