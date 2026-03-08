@@ -46,7 +46,7 @@
         {#if hasSelection}
           <button class="confirm-btn" onclick={onconfirm}>Confirm</button>
         {/if}
-        <button class="pass-btn" onclick={onpass}>Pass</button>
+        <button class={hasSelection ? 'pass-btn-outline' : 'pass-btn'} onclick={onpass}>Pass</button>
       </div>
     {/if}
 
@@ -57,7 +57,7 @@
         {#if hasSelection}
           <button class="confirm-btn" onclick={onconfirm}>Confirm</button>
         {/if}
-        <button class={activePlayerPhase1Passed ? 'penalty-btn' : 'pass-btn'} onclick={onpass}>
+        <button class={activePlayerPhase1Passed ? (hasSelection ? 'penalty-btn-outline' : 'penalty-btn') : (hasSelection ? 'pass-btn-outline' : 'pass-btn')} onclick={onpass}>
           {activePlayerPhase1Passed ? 'Take Penalty' : 'Pass'}
         </button>
       </div>
@@ -124,5 +124,21 @@
   }
   .penalty-btn:hover {
     background: #b91c1c;
+  }
+  .pass-btn-outline {
+    background: transparent;
+    color: #374151;
+    border: 2px solid #d1d5db;
+  }
+  .pass-btn-outline:hover {
+    background: #f3f4f6;
+  }
+  .penalty-btn-outline {
+    background: transparent;
+    color: #dc2626;
+    border: 2px solid #dc2626;
+  }
+  .penalty-btn-outline:hover {
+    background: #fef2f2;
   }
 </style>
