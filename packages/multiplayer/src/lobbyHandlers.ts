@@ -156,6 +156,22 @@ export function setupLobbyHandlers(
     }
   });
 
+  socket.on('lobby:restartGame', () => {
+    const roomCode = socket.data.roomCode;
+    if (!roomCode) return;
+
+    if (roomManager.resetGame(roomCode)) {
+      callbacks?.onGameReset?.(roomCode, io);
+
+      io.to(roomCode).emit('lobby:gameStarting');
+
+      const players = roomManager.startGame(roomCode);
+      if (players) {
+        callbacks?.onGameStart?.(roomCode, players, io);
+      }
+    }
+  });
+
   socket.on('player:reconnect', (roomCode, oldPlayerId, callback) => {
     const success = roomManager.handleReconnect(roomCode, oldPlayerId, socket.id);
     if (success) {

@@ -25,6 +25,10 @@
   let viewerInitialPlayer = $state(myPlayerId);
 
   function playAgain() {
+    getSocket().emit('lobby:restartGame');
+  }
+
+  function backToLobby() {
     getSocket().emit('lobby:resetGame');
   }
 
@@ -50,6 +54,7 @@
 
   <div class="actions">
     <button class="primary" onclick={playAgain}>Play Again</button>
+    <button class="secondary" onclick={backToLobby}>Back to Lobby</button>
     <button class="secondary" onclick={() => openViewer(myPlayerId)}>View Scoresheets</button>
   </div>
 </div>

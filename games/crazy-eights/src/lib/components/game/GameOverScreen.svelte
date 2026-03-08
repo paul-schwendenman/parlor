@@ -17,6 +17,10 @@
   );
 
   function playAgain() {
+    getSocket().emit('lobby:restartGame');
+  }
+
+  function backToLobby() {
     getSocket().emit('lobby:resetGame');
   }
 </script>
@@ -42,6 +46,7 @@
 
   <div class="actions">
     <button class="primary" onclick={playAgain}>Play Again</button>
+    <button class="secondary" onclick={backToLobby}>Back to Lobby</button>
   </div>
 </div>
 
@@ -118,5 +123,12 @@
   }
   .primary:hover {
     background: #2563eb;
+  }
+  .secondary {
+    background: #f3f4f6;
+    color: #374151;
+  }
+  .secondary:hover {
+    background: #e5e7eb;
   }
 </style>
