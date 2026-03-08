@@ -19,4 +19,6 @@
   }
 </script>
 
+<svelte:head><title>Parlor - Quixx</title></svelte:head>
+
 <JoinForm ongameready={handleGameReady} {prefillCode} />

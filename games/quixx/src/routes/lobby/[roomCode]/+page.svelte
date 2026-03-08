@@ -36,6 +36,8 @@
   });
 </script>
 
+<svelte:head><title>Lobby {roomCode} - Parlor Quixx</title></svelte:head>
+
 {#if roomNotFound}
   <div class="loading">
     <a href="/" class="header">
@@ -47,7 +49,14 @@
     <a href="/" class="back-link">Back to home</a>
   </div>
 {:else}
-  <LobbyView {roomCode} />
+  <div class="lobby-page">
+    <a href="/" class="header">
+      <span class="parlor">Parlor</span>
+      <span class="separator">/</span>
+      <span class="game-name">Quixx</span>
+    </a>
+    <LobbyView {roomCode} />
+  </div>
 {/if}
 
 <style>
@@ -79,6 +88,15 @@
   }
   .header:hover .parlor {
     color: #3b82f6;
+  }
+  .lobby-page {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 16px;
+    text-align: center;
+  }
+  .lobby-page .header {
+    margin-bottom: 16px;
   }
   .error-message {
     color: #991b1b;

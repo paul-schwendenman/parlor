@@ -99,6 +99,8 @@
 
 </script>
 
+<svelte:head><title>Quixx - Parlor</title></svelte:head>
+
 {#if !view}
   <div class="loading">
     <a href="/" class="header">
