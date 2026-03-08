@@ -9,6 +9,7 @@
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
   import { getSocket, selectGameAction } from '$lib/stores/socketClient.js';
   import type { GameMeta } from '@parlor/game-types';
+  import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
   const games: GameMeta[] = [
     { id: 'quixx', name: 'Quixx', description: 'Fast-paced dice game', minPlayers: 2, maxPlayers: 5, estimatedMinutes: '15-20', tags: ['dice', 'strategy'], displayModes: ['peer'], supportsBots: true },
@@ -52,6 +53,10 @@
   function startGame() {
     getSocket().emit('lobby:startGame');
   }
+
+  let rulesGameId = $state<string | null>(null);
+  let rulesOpen = $derived(rulesGameId !== null);
+  let rulesGame = $derived(games.find((g) => g.id === rulesGameId));
 
   function selectGame(gameId: string) {
     selectGameAction(gameId);
@@ -118,10 +123,13 @@
           <p class="picker-label">Choose a game</p>
           <div class="picker-options">
             {#each games as game (game.id)}
-              <button class="picker-card" onclick={() => selectGame(game.id)}>
-                <span class="picker-name">{game.name}</span>
-                <span class="picker-info">{game.minPlayers}-{game.maxPlayers}p</span>
-              </button>
+              <div class="picker-card-wrap">
+                <button class="picker-card" onclick={() => selectGame(game.id)}>
+                  <span class="picker-name">{game.name}</span>
+                  <span class="picker-info">{game.minPlayers}-{game.maxPlayers}p</span>
+                </button>
+                <button class="picker-help" onclick={() => (rulesGameId = game.id)} title="How to play {game.name}">?</button>
+              </div>
             {/each}
           </div>
         </div>
@@ -200,6 +208,14 @@
       <div class="starting">Game starting...</div>
     {/if}
   </div>
+
+  <RulesModal
+    open={rulesOpen}
+    gameId={rulesGameId}
+    gameName={rulesGame?.name ?? ''}
+    onclose={() => (rulesGameId = null)}
+    onplay={() => { if (rulesGameId) { selectGame(rulesGameId); rulesGameId = null; } }}
+  />
 {/if}
 
 <style>
@@ -371,6 +387,10 @@
     justify-content: center;
   }
 
+  .picker-card-wrap {
+    position: relative;
+  }
+
   .picker-card {
     display: flex;
     flex-direction: column;
@@ -387,6 +407,33 @@
   .picker-card:hover {
     border-color: var(--color-terracotta);
     box-shadow: 0 2px 8px rgba(196, 102, 58, 0.1);
+  }
+
+  .picker-help {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-linen);
+    border: 1.5px solid #e7e5e4;
+    color: #a8a29e;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+  }
+
+  .picker-help:hover {
+    background: var(--color-terracotta);
+    border-color: var(--color-terracotta);
+    color: white;
   }
 
   .picker-name {
