@@ -89,6 +89,11 @@
 
 {#if !view}
   <div class="loading">
+    <a href="/" class="header">
+      <span class="parlor">Parlor</span>
+      <span class="separator">/</span>
+      <span class="game-name">Quixx</span>
+    </a>
     <p>Loading game...</p>
   </div>
 {:else if view.gameOver && view.scores}
@@ -152,5 +157,29 @@
     text-align: center;
     padding: 64px 16px;
     color: #6b7280;
+  }
+  .header {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    text-decoration: none;
+    margin-bottom: 24px;
+  }
+  .parlor {
+    font-size: 24px;
+    font-weight: 700;
+    color: #111827;
+  }
+  .separator {
+    font-size: 20px;
+    color: #d1d5db;
+  }
+  .game-name {
+    font-size: 20px;
+    font-weight: 600;
+    color: #6b7280;
+  }
+  .header:hover .parlor {
+    color: #3b82f6;
   }
 </style>
