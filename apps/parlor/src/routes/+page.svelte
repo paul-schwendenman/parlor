@@ -149,6 +149,8 @@
     </div>
   </div>
 
+  <div class="divider"><span>or</span></div>
+
   <!-- Game Browser -->
   <div class="games-section">
     <h2 class="section-title">Choose a Game</h2>
@@ -348,6 +350,30 @@
 
   .btn-secondary:hover:not(:disabled) {
     background: #ebe3d6;
+  }
+
+  /* Divider */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .divider::before,
+  .divider::after {
+    content: '';
+    flex: 1;
+    height: 1.5px;
+    background: var(--color-linen);
+  }
+
+  .divider span {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #c7c2be;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
   }
 
   /* Game Grid */
