@@ -6,9 +6,10 @@ export interface LiarsDicePlayer {
   dice: number[];
   diceCount: number;
   eliminated: boolean;
+  isAI: boolean;
 }
 
-export function createPlayer(id: string, name: string): LiarsDicePlayer {
+export function createPlayer(id: string, name: string, isAI: boolean = false): LiarsDicePlayer {
   return {
     id,
     name,
@@ -16,6 +17,7 @@ export function createPlayer(id: string, name: string): LiarsDicePlayer {
     dice: [],
     diceCount: 5,
     eliminated: false,
+    isAI,
   };
 }
 

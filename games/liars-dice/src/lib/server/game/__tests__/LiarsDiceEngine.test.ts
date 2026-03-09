@@ -10,6 +10,7 @@ function makePlayers(count: number): LiarsDicePlayer[] {
     dice: [],
     diceCount: 5,
     eliminated: false,
+    isAI: false,
   }));
 }
 

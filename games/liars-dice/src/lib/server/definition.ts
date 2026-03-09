@@ -10,8 +10,12 @@ import { RoomManager } from '@parlor/multiplayer';
 import { LiarsDiceEngine } from './game/LiarsDiceEngine.js';
 import { createPlayer } from '../types/game.js';
 import type { LiarsDiceAction } from '../types/game.js';
+import { AIPlayer } from './ai/AIPlayer.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
+
+const aiPlayer = new AIPlayer();
+const AI_TURN_TIMEOUT = 30_000;
 
 function broadcastViews(
   io: AppServer,
@@ -36,6 +40,118 @@ function broadcastViews(
   }
 }
 
+function scheduleAITurnIfNeeded(
+  io: AppServer,
+  roomCode: string,
+  engine: LiarsDiceEngine,
+  roomManager: RoomManager,
+): void {
+  const state = engine.getState();
+  if (state.gameOver || state.phase !== 'bidding') return;
+
+  const activePlayer = state.players[state.activePlayerIndex];
+  if (!activePlayer.isAI || activePlayer.eliminated) return;
+
+  setImmediate(() => {
+    handleAITurn(io, roomCode, engine, roomManager).catch((err) => {
+      console.error('[AI Turn] Error:', err);
+    });
+  });
+}
+
+async function handleAITurn(
+  io: AppServer,
+  roomCode: string,
+  engine: LiarsDiceEngine,
+  roomManager: RoomManager,
+): Promise<void> {
+  const state = engine.getState();
+  if (state.gameOver || state.phase !== 'bidding') return;
+
+  const activePlayer = state.players[state.activePlayerIndex];
+  if (!activePlayer.isAI || activePlayer.eliminated) return;
+
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('AI turn timed out')), AI_TURN_TIMEOUT),
+  );
+
+  try {
+    await Promise.race([
+      aiPlayer.takeTurn(state, {
+        onBid: (quantity, faceValue) => {
+          if (engine.getState().gameOver) return;
+          try {
+            engine.placeBid(activePlayer.id, quantity, faceValue);
+            broadcastViews(io, roomCode, engine, roomManager);
+            // Next player might also be AI
+            scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
+          } catch (err) {
+            console.error('[AI Bid] Error:', err);
+          }
+        },
+        onChallenge: () => {
+          if (engine.getState().gameOver) return;
+          try {
+            engine.challenge(activePlayer.id);
+            broadcastViews(io, roomCode, engine, roomManager);
+            // Auto-advance to next round after reveal delay
+            if (!engine.getState().gameOver) {
+              setTimeout(() => {
+                try {
+                  engine.startNextRound();
+                  broadcastViews(io, roomCode, engine, roomManager);
+                  scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
+                } catch {
+                  // game may have ended
+                }
+              }, 3000);
+            }
+          } catch (err) {
+            console.error('[AI Challenge] Error:', err);
+          }
+        },
+        onSpotOn: () => {
+          if (engine.getState().gameOver) return;
+          try {
+            engine.spotOn(activePlayer.id);
+            broadcastViews(io, roomCode, engine, roomManager);
+            if (!engine.getState().gameOver) {
+              setTimeout(() => {
+                try {
+                  engine.startNextRound();
+                  broadcastViews(io, roomCode, engine, roomManager);
+                  scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
+                } catch {
+                  // game may have ended
+                }
+              }, 3000);
+            }
+          } catch (err) {
+            console.error('[AI Spot On] Error:', err);
+          }
+        },
+      }),
+      timeoutPromise,
+    ]);
+  } catch (err) {
+    console.error('[AI Turn] Error/timeout:', err);
+    // Fallback: if AI timed out during bidding, auto-challenge or bid minimally
+    const currentState = engine.getState();
+    if (currentState.phase === 'bidding' && !currentState.gameOver) {
+      try {
+        if (currentState.currentBid) {
+          engine.challenge(activePlayer.id);
+        } else {
+          engine.placeBid(activePlayer.id, 1, 2);
+        }
+        broadcastViews(io, roomCode, engine, roomManager);
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
 export const liarsDiceDefinition: ServerGameDefinition = {
   meta: {
     id: 'liars-dice',
@@ -46,11 +162,12 @@ export const liarsDiceDefinition: ServerGameDefinition = {
     estimatedMinutes: '15-30',
     tags: ['dice', 'bluffing', 'competitive'],
     displayModes: ['peer'],
+    supportsBots: true,
   },
 
   createLobbyCallbacks: (roomManager: RoomManager, io: AppServer) => ({
     onGameStart: (roomCode, players) => {
-      const gamePlayers = players.map((p) => createPlayer(p.id, p.name));
+      const gamePlayers = players.map((p) => createPlayer(p.id, p.name, p.isBot));
       const engine = new LiarsDiceEngine(gamePlayers, roomCode);
       roomManager.setGameData(roomCode, engine);
 
@@ -67,6 +184,9 @@ export const liarsDiceDefinition: ServerGameDefinition = {
           io.to(spectatorId).emit('game:state', spectatorView as never);
         }
       }
+
+      // If first player is AI, schedule their turn
+      scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
     },
 
     onGameReset: (roomCode) => {
@@ -86,12 +206,12 @@ export const liarsDiceDefinition: ServerGameDefinition = {
           engine.challenge(playerId);
           broadcastViews(io, roomCode, engine, roomManager);
 
-          // Auto-advance to next round after a delay
-          if (!state.gameOver) {
+          if (!engine.getState().gameOver) {
             setTimeout(() => {
               try {
                 engine.startNextRound();
                 broadcastViews(io, roomCode, engine, roomManager);
+                scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
               } catch {
                 // game may have ended
               }
@@ -133,6 +253,7 @@ export const liarsDiceDefinition: ServerGameDefinition = {
           }
           engine.placeBid(socket.id, action.quantity, action.faceValue);
           broadcastViews(io, roomCode, engine, roomManager);
+          scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
           break;
         }
 
@@ -151,6 +272,7 @@ export const liarsDiceDefinition: ServerGameDefinition = {
         case 'nextRound': {
           engine.startNextRound();
           broadcastViews(io, roomCode, engine, roomManager);
+          scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
           break;
         }
       }

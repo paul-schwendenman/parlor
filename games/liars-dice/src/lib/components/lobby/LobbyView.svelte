@@ -19,6 +19,18 @@
     getSocket().emit('lobby:startGame');
   }
 
+  function addBot() {
+    getSocket().emit('lobby:addBot', (success, error) => {
+      if (!success) console.error('Failed to add bot:', error);
+    });
+  }
+
+  function removeBot(botId: string) {
+    getSocket().emit('lobby:removeBot', botId, (success, error) => {
+      if (!success) console.error('Failed to remove bot:', error);
+    });
+  }
+
   async function copyCode() {
     try {
       const url = window.location.origin + '?join=' + roomCode;
@@ -56,11 +68,19 @@
               {#if player.id === playerState.id}
                 <span class="badge badge-you">You</span>
               {/if}
+              {#if player.isBot}
+                <span class="badge badge-bot">Bot</span>
+              {/if}
             </div>
           </div>
-          <span class="ready-status" class:is-ready={player.isReady}>
-            {player.isReady ? 'Ready' : 'Waiting'}
-          </span>
+          <div class="player-actions">
+            <span class="ready-status" class:is-ready={player.isReady}>
+              {player.isReady ? 'Ready' : 'Waiting'}
+            </span>
+            {#if isHost && player.isBot}
+              <button class="btn-remove-bot" onclick={() => removeBot(player.id)} title="Remove bot">{'\u2715'}</button>
+            {/if}
+          </div>
         </div>
       {/each}
     </div>
@@ -72,6 +92,9 @@
     </button>
 
     {#if isHost}
+      <button class="btn btn-add-bot" onclick={addBot}>
+        Add Bot
+      </button>
       <button class="btn btn-start" onclick={startGame} disabled={!lobbyState.canStart}>
         Start Game
       </button>
@@ -200,6 +223,27 @@
 
   .badge-host { background: #3d2a1a; color: #d4a574; }
   .badge-you { background: #4a3a2a; color: #d4a574; }
+  .badge-bot { background: #2a2a3d; color: #7a7aff; }
+
+  .player-actions { display: flex; align-items: center; gap: 0.5rem; }
+
+  .btn-remove-bot {
+    background: none;
+    border: 1.5px solid #444;
+    border-radius: 6px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #888;
+    font-size: 0.75rem;
+    padding: 0;
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  .btn-remove-bot:hover { color: #ef4444; border-color: #ef4444; }
 
   .ready-status { font-size: 0.8rem; font-weight: 500; color: #888; }
   .ready-status.is-ready { color: #16a34a; font-weight: 600; }
@@ -233,6 +277,9 @@
   .btn-ready:hover:not(:disabled) { background: #555; }
   .btn-ready.is-ready { background: #333; color: #888; }
   .btn-ready.is-ready:hover:not(:disabled) { background: #3a3a3a; }
+
+  .btn-add-bot { background: #2a2a3d; color: #7a7aff; }
+  .btn-add-bot:hover:not(:disabled) { background: #33335a; }
 
   .btn-start { background: #d97706; color: white; }
   .btn-start:hover:not(:disabled) { background: #b45309; box-shadow: 0 2px 8px rgba(217, 119, 6, 0.25); }
