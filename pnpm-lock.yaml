@@ -26,6 +26,9 @@ importers:
       '@parlor/game-types':
         specifier: workspace:*
         version: link:../../packages/game-types
+      '@parlor/kings-corner':
+        specifier: workspace:*
+        version: link:../../games/kings-corner
       '@parlor/liars-dice':
         specifier: workspace:*
         version: link:../../games/liars-dice
@@ -141,6 +144,64 @@ importers:
         version: 4.0.18(@types/node@22.19.15)(tsx@4.21.0)
 
   games/crazy-eights:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      express:
+        specifier: ^4.21.0
+        version: 4.22.1
+      socket.io:
+        specifier: ^4.8.1
+        version: 4.8.3
+      socket.io-client:
+        specifier: ^4.8.1
+        version: 4.8.3
+    devDependencies:
+      '@sveltejs/adapter-node':
+        specifier: ^5.2.0
+        version: 5.5.4(@sveltejs/kit@2.53.4(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.7)(vite@6.4.1(@types/node@22.19.15)(tsx@4.21.0)))(svelte@5.53.7)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.15)(tsx@4.21.0)))
+      '@sveltejs/kit':
+        specifier: ^2.0.0
+        version: 2.53.4(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.7)(vite@6.4.1(@types/node@22.19.15)(tsx@4.21.0)))(svelte@5.53.7)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.15)(tsx@4.21.0))
+      '@sveltejs/vite-plugin-svelte':
+        specifier: ^5.0.0
+        version: 5.1.1(svelte@5.53.7)(vite@6.4.1(@types/node@22.19.15)(tsx@4.21.0))
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.19.15
+      svelte:
+        specifier: ^5.16.0
+        version: 5.53.7
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.2.1
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.1(@types/node@22.19.15)(tsx@4.21.0)
+      vitest:
+        specifier: ^4.0.0
+        version: 4.0.18(@types/node@22.19.15)(tsx@4.21.0)
+
+  games/kings-corner:
     dependencies:
       '@parlor/game-types':
         specifier: workspace:*
