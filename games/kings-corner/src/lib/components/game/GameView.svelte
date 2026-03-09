@@ -24,6 +24,11 @@
     view.players[view.activePlayerIndex]?.name ?? null,
   );
 
+  // Sync view prop into gameState so child components can access playableCards, movablePiles, etc.
+  $effect(() => {
+    gameState.setView(view);
+  });
+
   let canDraw = $derived(view.isActivePlayer && view.phase === 'drawing' && view.drawPileCount > 0);
 
   function handleDraw() {

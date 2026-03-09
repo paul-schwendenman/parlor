@@ -108,6 +108,7 @@
 
   .card-stack {
     position: relative;
+    pointer-events: none;
   }
 
   .stack-indicator {
