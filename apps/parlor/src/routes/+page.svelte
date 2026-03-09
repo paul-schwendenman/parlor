@@ -39,6 +39,26 @@
       tags: ['dice', 'pirates', 'competitive'],
       displayModes: ['peer'],
     },
+    {
+      id: 'liars-dice',
+      name: "Liar's Dice",
+      description: 'Bluff, bid, and call out liars in this classic dice game.',
+      minPlayers: 2,
+      maxPlayers: 6,
+      estimatedMinutes: '15-25',
+      tags: ['dice', 'bluffing', 'classic'],
+      displayModes: ['peer'],
+    },
+    {
+      id: 'kings-corner',
+      name: 'Kings Corner',
+      description: 'Build descending sequences of alternating colors — be first to empty your hand.',
+      minPlayers: 2,
+      maxPlayers: 4,
+      estimatedMinutes: '15-25',
+      tags: ['cards', 'classic', 'strategy'],
+      displayModes: ['peer'],
+    },
   ];
 
   let prefillCode = $derived($page.url.searchParams.get('join') ?? '');
