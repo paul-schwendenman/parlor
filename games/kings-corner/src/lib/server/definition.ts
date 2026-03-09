@@ -214,6 +214,12 @@ export const kingsCornerDefinition: ServerGameDefinition = {
 
     try {
       switch (action.type) {
+        case 'draw-card': {
+          engine.drawCard(socket.id);
+          broadcastViews(io, roomCode, engine, roomManager);
+          break;
+        }
+
         case 'play-card': {
           engine.playCard(socket.id, action.card, action.target);
           broadcastViews(io, roomCode, engine, roomManager);
