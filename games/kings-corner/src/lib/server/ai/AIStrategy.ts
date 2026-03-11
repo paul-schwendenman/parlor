@@ -7,23 +7,25 @@ export type AIDecision =
   | { action: 'end-turn' };
 
 export class AIStrategy {
-  decide(view: KingsCornerPlayerView): AIDecision {
+  decide(view: KingsCornerPlayerView, allowPileMove = true): AIDecision {
     // Priority 1: Play Kings to corners (mandatory)
     const kingPlay = this.findKingPlay(view.playableCards);
     if (kingPlay) {
       return { action: 'play-card', card: kingPlay.card, target: kingPlay.validTargets[0] };
     }
 
-    // Priority 2: Move piles to free up cardinal positions
-    const pileMove = this.findBestPileMove(view.movablePiles, view);
-    if (pileMove) {
-      return { action: 'move-pile', from: pileMove.from, to: pileMove.validTargets[0] };
-    }
-
-    // Priority 3: Play cards from hand (prefer higher rank cards first)
+    // Priority 2: Play cards from hand (prefer higher rank cards first)
     const cardPlay = this.findBestCardPlay(view.playableCards);
     if (cardPlay) {
       return { action: 'play-card', card: cardPlay.card, target: cardPlay.target };
+    }
+
+    // Priority 3: Move piles to free up cardinal positions (only if no direct card play)
+    if (allowPileMove) {
+      const pileMove = this.findBestPileMove(view.movablePiles, view);
+      if (pileMove) {
+        return { action: 'move-pile', from: pileMove.from, to: pileMove.validTargets[0] };
+      }
     }
 
     // Nothing to play

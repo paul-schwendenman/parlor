@@ -33,21 +33,26 @@ export class AIPlayer {
 
     // Play phase: keep making moves until we can't or choose to stop
     let moveMade = true;
+    let consecutivePileMoves = 0;
     while (moveMade && !view.gameOver && view.phase === 'playing') {
       await delay(ACTION_DELAY);
-      const decision = this.strategy.decide(view);
+      // Disable pile moves if we've done one without a card play following
+      const allowPileMove = consecutivePileMoves === 0;
+      const decision = this.strategy.decide(view, allowPileMove);
 
       switch (decision.action) {
         case 'play-card':
           callbacks.onPlayCard(decision.card, decision.target);
           view = callbacks.getView();
           moveMade = true;
+          consecutivePileMoves = 0;
           break;
 
         case 'move-pile':
           callbacks.onMovePile(decision.from, decision.to);
           view = callbacks.getView();
           moveMade = true;
+          consecutivePileMoves++;
           break;
 
         case 'end-turn':
