@@ -1,0 +1,12 @@
+**/.git
+**/.turbo
+**/.svelte-kit
+**/node_modules
+**/build
+**/dist
+**/test-results
+**/playwright-report
+**/blob-report
+**/.env
+**/.env.*
+!**/.env.example
