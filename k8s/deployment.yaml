@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: parlor
+  namespace: parlor
+spec:
+  # Single replica — RoomManager is in-memory, no horizontal scaling yet
+  replicas: 1
+  selector:
+    matchLabels:
+      app: parlor
+  template:
+    metadata:
+      labels:
+        app: parlor
+    spec:
+      containers:
+        - name: parlor
+          image: ghcr.io/paul-schwendenman/parlor:main
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3010
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3010"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3010
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3010
+            initialDelaySeconds: 5
+            periodSeconds: 10
