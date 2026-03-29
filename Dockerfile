@@ -11,7 +11,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm turbo build --filter=@parlor/app...
 
 # Produce a self-contained deployment directory (prod deps only)
-RUN pnpm --filter @parlor/app deploy --prod /standalone
+RUN pnpm --filter @parlor/app deploy --prod --legacy /standalone
 
 # ── runner: minimal production image ─────────────────────────────────────────
 FROM base AS runner
