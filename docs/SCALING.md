@@ -91,3 +91,7 @@ spec:
 Then set `REDIS_URL=redis://redis:6379` in the parlor deployment env.
 
 > Note: this Redis has no persistence configured. Add a PersistentVolumeClaim and `appendonly yes` if you want rooms to survive Redis restarts too.
+
+## Infrastructure iteration
+
+The current setup uses plain k8s manifests (`k8s/`). Converting to a Helm chart is a potential future exercise — useful for experimenting with multi-environment deploys, versioned releases, and `helm rollback`.
