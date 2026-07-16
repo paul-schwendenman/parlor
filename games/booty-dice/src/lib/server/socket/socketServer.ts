@@ -15,7 +15,7 @@ const roomManager = new RoomManager();
 export function setupBootyDiceSocketHandlers(io: AppServer): void {
   const callbacks = bootyDiceDefinition.createLobbyCallbacks(roomManager, io);
   io.on('connection', (socket) => {
-    setupLobbyHandlers(io, socket, roomManager, callbacks);
+    setupLobbyHandlers(io, socket, roomManager, callbacks, { defaultMaxPlayers: bootyDiceDefinition.meta.maxPlayers });
     socket.on('game:action', (action) => {
       bootyDiceDefinition.handleGameAction(io, socket, roomManager, action);
     });

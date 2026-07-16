@@ -270,7 +270,7 @@ export const bootyDiceDefinition: ServerGameDefinition = {
       switch (action.type) {
         case 'roll': {
           const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.id) return;
+          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
           if (state.turnPhase !== 'rolling') return;
 
           engine.roll();
@@ -286,7 +286,7 @@ export const bootyDiceDefinition: ServerGameDefinition = {
           }
 
           const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.id) return;
+          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
           if (state.turnPhase !== 'rolling') return;
 
           engine.lockDice(diceResult.indices);
@@ -296,7 +296,7 @@ export const bootyDiceDefinition: ServerGameDefinition = {
 
         case 'finishRolling': {
           const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.id) return;
+          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
           if (state.turnPhase !== 'rolling') return;
 
           engine.finishRolling();
@@ -306,7 +306,7 @@ export const bootyDiceDefinition: ServerGameDefinition = {
 
         case 'selectTarget': {
           const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.id) return;
+          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
           if (state.turnPhase !== 'selecting_targets') return;
 
           engine.selectTarget(action.dieIndex, action.targetPlayerId);
@@ -316,7 +316,7 @@ export const bootyDiceDefinition: ServerGameDefinition = {
 
         case 'endTurn': {
           const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.id) return;
+          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
           if (state.phase !== 'playing') return;
 
           if (engine.hasUnresolvedTargets()) {

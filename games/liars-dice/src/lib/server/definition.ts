@@ -251,20 +251,20 @@ export const liarsDiceDefinition: ServerGameDefinition = {
             socket.emit('error', 'Invalid bid');
             return;
           }
-          engine.placeBid(socket.id, action.quantity, action.faceValue);
+          engine.placeBid(socket.data.playerId, action.quantity, action.faceValue);
           broadcastViews(io, roomCode, engine, roomManager);
           scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
           break;
         }
 
         case 'challenge': {
-          engine.challenge(socket.id);
+          engine.challenge(socket.data.playerId);
           broadcastViews(io, roomCode, engine, roomManager);
           break;
         }
 
         case 'spot-on': {
-          engine.spotOn(socket.id);
+          engine.spotOn(socket.data.playerId);
           broadcastViews(io, roomCode, engine, roomManager);
           break;
         }

@@ -177,13 +177,13 @@ describe('createParlorRuntime', () => {
     const socket = latestSocket();
     socket.trigger('connect');
 
-    const cb = socket.emit.mock.calls.find((c) => c[0] === 'player:reconnect')![3] as (
+    const cb = socket.emit.mock.calls.find((c) => c[0] === 'player:reconnect')![4] as (
       s: boolean,
     ) => void;
     cb(true);
 
     expect(adapter.playerState.set).toHaveBeenCalledWith({
-      id: 'socket-id-1',
+      id: 'p1',
       name: 'Ann',
       roomCode: 'ABCD',
     });
@@ -201,7 +201,7 @@ describe('createParlorRuntime', () => {
     const socket = latestSocket();
     socket.trigger('connect');
 
-    const cb = socket.emit.mock.calls.find((c) => c[0] === 'player:reconnect')![3] as (
+    const cb = socket.emit.mock.calls.find((c) => c[0] === 'player:reconnect')![4] as (
       s: boolean,
     ) => void;
     cb(true);
@@ -220,7 +220,7 @@ describe('createParlorRuntime', () => {
     const socket = latestSocket();
     socket.trigger('connect');
 
-    const cb = socket.emit.mock.calls.find((c) => c[0] === 'player:reconnect')![3] as (
+    const cb = socket.emit.mock.calls.find((c) => c[0] === 'player:reconnect')![4] as (
       s: boolean,
     ) => void;
     cb(false);
@@ -277,18 +277,24 @@ describe('createParlorRuntime', () => {
     })();
     socket.emit.mockImplementation((event: string, ...rest: unknown[]) => {
       if (event === 'lobby:create') {
-        (rest[rest.length - 1] as (code: string) => void)('WXYZ');
+        (
+          rest.find((r) => typeof r === 'function') as (result: {
+            roomCode: string;
+            playerId: string;
+            reconnectToken: string;
+          }) => void
+        )({ roomCode: 'WXYZ', playerId: 'server-pid', reconnectToken: 'tok-1' });
       }
     });
 
     const code = await runtime.createRoomAction('Ann', 'crazy-eights');
     expect(code).toBe('WXYZ');
     expect(adapter.playerState.set).toHaveBeenCalledWith({
-      id: 'socket-id-1',
+      id: 'server-pid',
       name: 'Ann',
       roomCode: 'WXYZ',
     });
-    expect(adapter.lobbyState.setHost).toHaveBeenCalledWith('socket-id-1');
+    expect(adapter.lobbyState.setHost).toHaveBeenCalledWith('server-pid');
     expect(socket.emit).toHaveBeenCalledWith('lobby:selectGame', 'crazy-eights');
     expect(adapter.gameState.setGameId).toHaveBeenCalledWith('crazy-eights');
     expect(localStorage.getItem(SESSION_KEY)).toContain('WXYZ');
@@ -301,14 +307,22 @@ describe('createParlorRuntime', () => {
     const socket = latestSocket();
     socket.emit.mockImplementation((event: string, ...rest: unknown[]) => {
       if (event === 'lobby:join') {
-        (rest[rest.length - 1] as (ok: boolean, err?: string) => void)(true);
+        (
+          rest[rest.length - 1] as (result: {
+            success: boolean;
+            error?: string;
+            roomCode?: string;
+            playerId?: string;
+            reconnectToken?: string;
+          }) => void
+        )({ success: true, roomCode: 'ABCD', playerId: 'server-pid', reconnectToken: 'tok-2' });
       }
     });
 
     const result = await runtime.joinRoomAction('abcd', 'Bob');
     expect(result).toEqual({ success: true, error: undefined });
     expect(adapter.playerState.set).toHaveBeenCalledWith({
-      id: 'socket-id-1',
+      id: 'server-pid',
       name: 'Bob',
       roomCode: 'ABCD',
     });

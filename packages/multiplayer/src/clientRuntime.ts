@@ -96,20 +96,27 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
 
         const session = loadSession();
         if (session && session.roomCode && session.playerId) {
-          socket?.emit('player:reconnect', session.roomCode, session.playerId, (success) => {
-            if (success) {
-              if (adapter.restorePlayerOnReconnect) {
-                playerState.set({
-                  id: socket!.id!,
-                  name: session.playerName!,
-                  roomCode: session.roomCode!,
-                });
+          socket?.emit(
+            'player:reconnect',
+            session.roomCode,
+            session.playerId,
+            session.reconnectToken ?? '',
+            (success) => {
+              if (success) {
+                if (adapter.restorePlayerOnReconnect) {
+                  // Use the stable server-issued playerId, not the transient socket id.
+                  playerState.set({
+                    id: session.playerId,
+                    name: session.playerName,
+                    roomCode: session.roomCode,
+                  });
+                }
+              } else {
+                clearSession();
+                playerState.reset();
               }
-            } else {
-              clearSession();
-              playerState.reset();
-            }
-          });
+            },
+          );
         }
       });
 
@@ -171,10 +178,11 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
   function createRoomAction(playerName: string, gameId?: string): Promise<string> {
     const s = getSocket();
     return new Promise((resolve) => {
-      s.emit('lobby:create', playerName, (roomCode) => {
-        playerState.set({ id: s.id!, name: playerName, roomCode });
-        lobbyState.setHost(s.id!);
-        saveSession({ playerId: s.id!, playerName, roomCode });
+      s.emit('lobby:create', playerName, (result) => {
+        const { roomCode, playerId, reconnectToken } = result;
+        playerState.set({ id: playerId, name: playerName, roomCode });
+        lobbyState.setHost(playerId);
+        saveSession({ playerId, playerName, roomCode, reconnectToken });
 
         // If a game was pre-selected, select it
         if (adapter.enableGameSelection && gameId) {
@@ -194,11 +202,17 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
   ): Promise<{ success: boolean; error?: string }> {
     const s = getSocket();
     return new Promise((resolve) => {
-      s.emit('lobby:join', roomCode, playerName, (success, error) => {
-        if (success) {
-          const normalizedCode = roomCode.toUpperCase();
-          playerState.set({ id: s.id!, name: playerName, roomCode: normalizedCode });
-          saveSession({ playerId: s.id!, playerName, roomCode: normalizedCode });
+      s.emit('lobby:join', roomCode, playerName, (result) => {
+        const { success, error } = result;
+        if (success && result.playerId) {
+          const normalizedCode = result.roomCode ?? roomCode.toUpperCase();
+          playerState.set({ id: result.playerId, name: playerName, roomCode: normalizedCode });
+          saveSession({
+            playerId: result.playerId,
+            playerName,
+            roomCode: normalizedCode,
+            reconnectToken: result.reconnectToken,
+          });
         }
         resolve({ success, error });
       });

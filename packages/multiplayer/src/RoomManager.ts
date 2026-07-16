@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { LobbyPlayer } from '@parlor/game-types';
 import { generateRoomCode } from './utils.js';
 
@@ -11,31 +12,55 @@ export interface GameRoom {
   maxPlayers: number;
   status: 'waiting' | 'playing' | 'finished';
   createdAt: number;
+  /** playerId -> reconnect token. Never sent to clients. */
+  reconnectTokens: Map<string, string>;
 }
 
 export interface DisconnectResult {
   roomCode: string;
+  playerId: string;
   wasHost: boolean;
   wasInGame: boolean;
 }
 
+export interface CreateRoomResult {
+  roomCode: string;
+  playerId: string;
+  reconnectToken: string;
+}
+
+export interface JoinRoomResult {
+  success: boolean;
+  error?: string;
+  playerId?: string;
+  reconnectToken?: string;
+}
+
 export class RoomManager {
   private rooms = new Map<string, GameRoom>();
+  /** stable playerId -> roomCode */
   private playerToRoom = new Map<string, string>();
+  /** socketId -> stable playerId */
+  private socketToPlayer = new Map<string, string>();
+  /** socketId -> roomCode (spectators are tracked by socket id) */
+  private spectatorToRoom = new Map<string, string>();
   private botCounter = 0;
 
   static isBotPlayer(id: string): boolean {
     return id.startsWith('bot-');
   }
 
-  createRoom(hostSocketId: string, hostName: string, maxPlayers = 8): string {
+  createRoom(hostSocketId: string, hostName: string, maxPlayers = 8): CreateRoomResult {
     let code = generateRoomCode();
     while (this.rooms.has(code)) {
       code = generateRoomCode();
     }
 
+    const playerId = randomUUID();
+    const reconnectToken = randomUUID();
+
     const host: LobbyPlayer = {
-      id: hostSocketId,
+      id: playerId,
       name: hostName,
       connected: true,
       isReady: false,
@@ -44,21 +69,23 @@ export class RoomManager {
 
     this.rooms.set(code, {
       code,
-      hostId: hostSocketId,
-      players: new Map([[hostSocketId, host]]),
+      hostId: playerId,
+      players: new Map([[playerId, host]]),
       spectators: new Set(),
       gameData: null,
       gameId: null,
       maxPlayers,
       status: 'waiting',
       createdAt: Date.now(),
+      reconnectTokens: new Map([[playerId, reconnectToken]]),
     });
 
-    this.playerToRoom.set(hostSocketId, code);
-    return code;
+    this.playerToRoom.set(playerId, code);
+    this.socketToPlayer.set(hostSocketId, playerId);
+    return { roomCode: code, playerId, reconnectToken };
   }
 
-  joinRoom(code: string, socketId: string, name: string): { success: boolean; error?: string } {
+  joinRoom(code: string, socketId: string, name: string): JoinRoomResult {
     const room = this.rooms.get(code.toUpperCase());
     if (!room) return { success: false, error: 'Room not found' };
     if (room.players.size >= room.maxPlayers) return { success: false, error: 'Room is full' };
@@ -69,16 +96,21 @@ export class RoomManager {
     );
     if (nameTaken) return { success: false, error: 'Name already taken in this room' };
 
+    const playerId = randomUUID();
+    const reconnectToken = randomUUID();
+
     const player: LobbyPlayer = {
-      id: socketId,
+      id: playerId,
       name,
       connected: true,
       isReady: false,
       isBot: false,
     };
-    room.players.set(socketId, player);
-    this.playerToRoom.set(socketId, code.toUpperCase());
-    return { success: true };
+    room.players.set(playerId, player);
+    room.reconnectTokens.set(playerId, reconnectToken);
+    this.playerToRoom.set(playerId, code.toUpperCase());
+    this.socketToPlayer.set(socketId, playerId);
+    return { success: true, playerId, reconnectToken };
   }
 
   addBot(code: string, botName: string): { success: boolean; error?: string; botId?: string } {
@@ -111,11 +143,19 @@ export class RoomManager {
     return { success: true };
   }
 
-  setPlayerReady(socketId: string, isReady: boolean): void {
-    const room = this.getRoomByPlayer(socketId);
+  /** Set the room's max player count (e.g. from the selected game's meta). */
+  setMaxPlayers(roomCode: string, maxPlayers: number): void {
+    const room = this.rooms.get(roomCode.toUpperCase());
+    if (room) {
+      room.maxPlayers = maxPlayers;
+    }
+  }
+
+  setPlayerReady(playerId: string, isReady: boolean): void {
+    const room = this.getRoomByPlayer(playerId);
     if (!room) return;
 
-    const player = room.players.get(socketId);
+    const player = room.players.get(playerId);
     if (player) {
       player.isReady = isReady;
     }
@@ -125,6 +165,7 @@ export class RoomManager {
     const room = this.rooms.get(roomCode);
     if (!room) return false;
     if (room.players.size < 2) return false;
+    if (room.players.size > room.maxPlayers) return false;
     return [...room.players.values()].every((p) => p.isReady);
   }
 
@@ -150,13 +191,27 @@ export class RoomManager {
     return true;
   }
 
+  /** Mark every human player ready (used to re-ready after an explicit restart). */
+  readyAllHumans(roomCode: string): void {
+    const room = this.rooms.get(roomCode.toUpperCase());
+    if (!room) return;
+    for (const player of room.players.values()) {
+      player.isReady = true;
+    }
+  }
+
   getRoom(code: string): GameRoom | undefined {
     return this.rooms.get(code.toUpperCase());
   }
 
-  getRoomByPlayer(socketId: string): GameRoom | undefined {
-    const code = this.playerToRoom.get(socketId);
+  getRoomByPlayer(playerId: string): GameRoom | undefined {
+    const code = this.playerToRoom.get(playerId);
     return code ? this.rooms.get(code) : undefined;
+  }
+
+  /** Resolve the stable playerId currently bound to a live socket. */
+  getPlayerIdBySocket(socketId: string): string | undefined {
+    return this.socketToPlayer.get(socketId);
   }
 
   addSpectator(code: string, socketId: string): { success: boolean; error?: string } {
@@ -164,21 +219,21 @@ export class RoomManager {
     if (!room) return { success: false, error: 'Room not found' };
 
     room.spectators.add(socketId);
-    this.playerToRoom.set(socketId, code.toUpperCase());
+    this.spectatorToRoom.set(socketId, code.toUpperCase());
     return { success: true };
   }
 
   removeSpectator(socketId: string): void {
-    const room = this.getRoomByPlayer(socketId);
+    const code = this.spectatorToRoom.get(socketId);
+    const room = code ? this.rooms.get(code) : undefined;
     if (room) {
       room.spectators.delete(socketId);
-      this.playerToRoom.delete(socketId);
     }
+    this.spectatorToRoom.delete(socketId);
   }
 
   isSpectator(socketId: string): boolean {
-    const room = this.getRoomByPlayer(socketId);
-    return room?.spectators.has(socketId) ?? false;
+    return this.spectatorToRoom.has(socketId);
   }
 
   getSpectatorsInRoom(roomCode: string): string[] {
@@ -191,9 +246,9 @@ export class RoomManager {
     return room ? [...room.players.values()] : [];
   }
 
-  isHost(roomCode: string, socketId: string): boolean {
+  isHost(roomCode: string, playerId: string): boolean {
     const room = this.rooms.get(roomCode);
-    return room?.hostId === socketId;
+    return room?.hostId === playerId;
   }
 
   setGameId(roomCode: string, gameId: string): void {
@@ -220,67 +275,99 @@ export class RoomManager {
     return (room?.gameData as T) ?? null;
   }
 
-  handleDisconnect(socketId: string): DisconnectResult | null {
-    const room = this.getRoomByPlayer(socketId);
-    if (!room) return null;
+  /** Remove a player from its room entirely, reassigning host / GCing an empty room. */
+  private removePlayer(room: GameRoom, playerId: string): boolean {
+    const wasHost = room.hostId === playerId;
+    room.players.delete(playerId);
+    room.reconnectTokens.delete(playerId);
+    this.playerToRoom.delete(playerId);
 
-    // Handle spectator disconnect
-    if (room.spectators.has(socketId)) {
-      room.spectators.delete(socketId);
-      this.playerToRoom.delete(socketId);
-      return { roomCode: room.code, wasHost: false, wasInGame: false };
+    if (wasHost && room.players.size > 0) {
+      const humanPlayer = [...room.players.values()].find((p) => !p.isBot);
+      if (humanPlayer) {
+        room.hostId = humanPlayer.id;
+      }
     }
 
-    const player = room.players.get(socketId);
-    const wasHost = room.hostId === socketId;
+    if (room.players.size === 0 || [...room.players.values()].every((p) => p.isBot)) {
+      this.rooms.delete(room.code);
+    }
+
+    return wasHost;
+  }
+
+  handleDisconnect(socketId: string): DisconnectResult | null {
+    // Spectator disconnect
+    if (this.spectatorToRoom.has(socketId)) {
+      const code = this.spectatorToRoom.get(socketId)!;
+      const room = this.rooms.get(code);
+      room?.spectators.delete(socketId);
+      this.spectatorToRoom.delete(socketId);
+      return { roomCode: code, playerId: socketId, wasHost: false, wasInGame: false };
+    }
+
+    const playerId = this.socketToPlayer.get(socketId);
+    if (!playerId) return null;
+    this.socketToPlayer.delete(socketId);
+
+    const room = this.getRoomByPlayer(playerId);
+    if (!room) return null;
+
+    const player = room.players.get(playerId);
+    const wasHost = room.hostId === playerId;
     const wasInGame = room.status === 'playing';
 
     if (player) {
       if (wasInGame) {
+        // Keep the seat; mark disconnected so reconnect can restore it.
         player.connected = false;
       } else {
-        room.players.delete(socketId);
-        this.playerToRoom.delete(socketId);
-
-        if (wasHost && room.players.size > 0) {
-          const humanPlayer = [...room.players.values()].find(p => !p.isBot);
-          if (humanPlayer) {
-            room.hostId = humanPlayer.id;
-          }
-        }
+        this.removePlayer(room, playerId);
       }
     }
 
-    if (room.players.size === 0) {
-      this.rooms.delete(room.code);
-    }
-
-    return { roomCode: room.code, wasHost, wasInGame };
+    return { roomCode: room.code, playerId, wasHost, wasInGame };
   }
 
-  handleReconnect(roomCode: string, oldPlayerId: string, newSocketId: string): boolean {
+  /** Explicit leave: always removes the player regardless of game status. */
+  leaveRoom(socketId: string): DisconnectResult | null {
+    if (this.spectatorToRoom.has(socketId)) {
+      return this.handleDisconnect(socketId);
+    }
+
+    const playerId = this.socketToPlayer.get(socketId);
+    if (!playerId) return null;
+    this.socketToPlayer.delete(socketId);
+
+    const room = this.getRoomByPlayer(playerId);
+    if (!room) return null;
+
+    const wasInGame = room.status === 'playing';
+    const wasHost = this.removePlayer(room, playerId);
+    return { roomCode: room.code, playerId, wasHost, wasInGame };
+  }
+
+  handleReconnect(
+    roomCode: string,
+    playerId: string,
+    token: string,
+    newSocketId: string,
+  ): boolean {
     const room = this.rooms.get(roomCode.toUpperCase());
     if (!room) return false;
 
-    const player = room.players.get(oldPlayerId);
-    if (!player || player.connected) return false;
+    const player = room.players.get(playerId);
+    if (!player) return false;
 
-    room.players.delete(oldPlayerId);
-    player.id = newSocketId;
+    const expected = room.reconnectTokens.get(playerId);
+    if (!expected || expected !== token) return false;
+
     player.connected = true;
-    room.players.set(newSocketId, player);
-
-    this.playerToRoom.delete(oldPlayerId);
-    this.playerToRoom.set(newSocketId, roomCode.toUpperCase());
-
-    if (room.hostId === oldPlayerId) {
-      room.hostId = newSocketId;
-    }
-
+    this.socketToPlayer.set(newSocketId, playerId);
     return true;
   }
 
-  getRoomCodeForPlayer(socketId: string): string | undefined {
-    return this.playerToRoom.get(socketId);
+  getRoomCodeForPlayer(playerId: string): string | undefined {
+    return this.playerToRoom.get(playerId);
   }
 }

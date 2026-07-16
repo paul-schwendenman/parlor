@@ -60,8 +60,8 @@ export function clearSession(): void {
 
 export function createRoom(socket: GameSocket, playerName: string): Promise<string> {
   return new Promise((resolve) => {
-    socket.emit('lobby:create', playerName, (roomCode) => {
-      resolve(roomCode);
+    socket.emit('lobby:create', playerName, (result) => {
+      resolve(result.roomCode);
     });
   });
 }
@@ -72,8 +72,8 @@ export function joinRoom(
   playerName: string,
 ): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
-    socket.emit('lobby:join', code, playerName, (success, error) => {
-      resolve({ success, error });
+    socket.emit('lobby:join', code, playerName, (result) => {
+      resolve({ success: result.success, error: result.error });
     });
   });
 }
