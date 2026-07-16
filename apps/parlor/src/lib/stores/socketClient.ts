@@ -32,12 +32,25 @@ export function joinRoomAction(
 	return runtime.joinRoomAction(roomCode, playerName);
 }
 
-export function selectGameAction(gameId: string): void {
+export function selectGameAction(gameId: string | null): void {
 	runtime.selectGameAction(gameId);
+}
+
+export function readyAction(isReady: boolean): void {
+	runtime.readyAction(isReady);
+}
+
+export function startGameAction(): void {
+	runtime.startGameAction();
 }
 
 export function disconnectSocket(): void {
 	runtime.disconnectSocket();
+}
+
+// Drop the socket on HMR so the module singleton doesn't leak a stale connection.
+if (import.meta.hot) {
+	import.meta.hot.dispose(() => runtime.teardown());
 }
 
 export { saveSession, loadSession, clearSession };

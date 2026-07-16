@@ -93,7 +93,7 @@ export type ServerToClientEvents = {
   /** Player rejoined within the grace window (un-grey them). */
   'player:reconnected': (playerId: string) => void;
   'lobby:gameStarting': () => void;
-  'lobby:gameSelected': (gameId: string) => void;
+  'lobby:gameSelected': (gameId: string | null) => void;
 };
 
 export type ClientToServerEvents = {
@@ -109,7 +109,7 @@ export type ClientToServerEvents = {
     callback: (result: CreateRoomResult) => void,
     gameId?: string,
   ) => void;
-  'lobby:selectGame': (gameId: string, callback?: (success: boolean, error?: string) => void) => void;
+  'lobby:selectGame': (gameId: string | null, callback?: (success: boolean, error?: string) => void) => void;
   'lobby:join': (
     roomCode: string,
     playerName: string,

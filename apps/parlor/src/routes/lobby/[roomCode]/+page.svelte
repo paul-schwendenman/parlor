@@ -7,7 +7,7 @@
   import { gameState } from '$lib/stores/gameStore.svelte.js';
   import { playerState } from '$lib/stores/playerStore.svelte.js';
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
-  import { getSocket, selectGameAction } from '$lib/stores/socketClient.js';
+  import { getSocket, selectGameAction, readyAction, startGameAction } from '$lib/stores/socketClient.js';
   import type { GameMeta } from '@parlor/game-types';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
@@ -28,9 +28,14 @@
   });
 
   $effect(() => {
+    // State arrived (or we already have an identity): we are in this room.
+    if (lobbyState.players.length > 0 || playerState.id) {
+      roomNotFound = false;
+      return;
+    }
     if (connectionState.status !== 'connected') return;
-    if (lobbyState.players.length > 0) return;
-    if (playerState.id) return;
+    // Wait for the reconnect handshake before declaring the room gone.
+    if (connectionState.reconnectPending) return;
     roomNotFound = true;
   });
 
@@ -49,11 +54,11 @@
   let canStart = $derived(lobbyState.canStart && !!lobbyState.selectedGameId && !botsBlockStart);
 
   function toggleReady() {
-    if (me) getSocket().emit('lobby:ready', !me.isReady);
+    if (me) readyAction(!me.isReady);
   }
 
   function startGame() {
-    getSocket().emit('lobby:startGame');
+    startGameAction();
   }
 
   let rulesGameId = $state<string | null>(null);
@@ -117,7 +122,7 @@
           <span class="selected-label">Playing</span>
           <span class="selected-name">{selectedGame.name}</span>
           {#if isHost}
-            <button class="change-btn" onclick={() => lobbyState.selectedGameId = null}>Change</button>
+            <button class="change-btn" onclick={() => selectGameAction(null)}>Change</button>
           {/if}
         </div>
       {:else if isHost}
@@ -203,6 +208,10 @@
         {/if}
       {:else}
         <p class="hint">Waiting for host to start...</p>
+      {/if}
+
+      {#if connectionState.actionError}
+        <p class="action-error" role="alert">{connectionState.actionError}</p>
       {/if}
     </div>
 
@@ -653,6 +662,13 @@
     font-size: 0.8rem;
     color: #a8a29e;
     font-style: italic;
+    margin: 0;
+  }
+
+  .action-error {
+    font-size: 0.8rem;
+    color: #991b1b;
+    font-weight: 600;
     margin: 0;
   }
 

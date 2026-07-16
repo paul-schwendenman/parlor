@@ -21,10 +21,12 @@
 
   // Detect missing game state
   $effect(() => {
+    if (gameState.view || playerState.id) {
+      roomNotFound = false;
+      return;
+    }
     if (connectionState.status !== 'connected') return;
-    if (gameState.view) return;
-    if (playerState.id) return;
-
+    if (connectionState.reconnectPending) return;
     roomNotFound = true;
   });
 

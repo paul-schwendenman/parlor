@@ -17,6 +17,13 @@ export interface RuntimeConnectionState {
   setDisconnected(): void;
   setReconnecting(): void;
   setError(message: string): void;
+  /**
+   * Optional: flip while a `player:reconnect` handshake is in flight so pages
+   * can defer their "room not found" decision until the ack resolves.
+   */
+  setReconnectPending?(pending: boolean): void;
+  /** Optional: surface a transient action failure (ack timeout / server reject). */
+  setActionError?(message: string | null): void;
 }
 
 export interface RuntimeLobbyState {
@@ -24,7 +31,7 @@ export interface RuntimeLobbyState {
   setLobbyState(players: LobbyPlayer[], canStart: boolean): void;
   setHost(hostId: string): void;
   setGameStarting(): void;
-  setSelectedGame?(gameId: string): void;
+  setSelectedGame?(gameId: string | null): void;
   /** Optional: flip a single player's connected flag (grey out / restore during grace). */
   setPlayerConnected?(playerId: string, connected: boolean): void;
   reset(): void;
@@ -32,7 +39,7 @@ export interface RuntimeLobbyState {
 
 export interface RuntimeGameState {
   readonly view: unknown;
-  setGameId?(gameId: string): void;
+  setGameId?(gameId: string | null): void;
   reset(): void;
 }
 
@@ -72,15 +79,76 @@ export interface ParlorRuntime {
     roomCode: string,
     playerName: string,
   ): Promise<{ success: boolean; error?: string }>;
-  selectGameAction(gameId: string): void;
+  selectGameAction(gameId: string | null): void;
+  readyAction(isReady: boolean): void;
+  startGameAction(): void;
   disconnectSocket(): void;
+  /** HMR-safe teardown: drop the socket without clearing the persisted session. */
+  teardown(): void;
 }
+
+/** Ack timeout (ms) applied to reconnect + lobby action emits. */
+const ACK_TIMEOUT = 5000;
 
 export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntime {
   const { browser, connectionState, lobbyState, gameState, playerState } = adapter;
 
   let socket: GameSocket | null = null;
-  let reconnectAttempted = false;
+  // Per-connection auth latch: true once *this* connection has completed a
+  // successful (or definitively-rejected) reconnect. Reset on every disconnect
+  // and whenever a brand-new socket is built, so a fresh connection re-attempts.
+  let authedForConnection = false;
+  // Guards the connect/ack race: a second `connect` firing while an emit is
+  // still awaiting its ack must not fire a duplicate `player:reconnect`.
+  let reconnectInFlight = false;
+
+  function attemptReconnect(): void {
+    if (!socket) return;
+    if (authedForConnection || reconnectInFlight) return;
+
+    const session = loadSession();
+    if (!session || !session.roomCode || !session.playerId) return;
+
+    reconnectInFlight = true;
+    connectionState.setReconnectPending?.(true);
+
+    socket
+      .timeout(ACK_TIMEOUT)
+      .emit(
+        'player:reconnect',
+        session.roomCode,
+        session.playerId,
+        session.reconnectToken ?? '',
+        (err: Error | null, success?: boolean) => {
+          reconnectInFlight = false;
+          connectionState.setReconnectPending?.(false);
+
+          if (err) {
+            // No ack (timeout): transient. Do NOT clear the session — leave the
+            // per-connection latch open so the next `connect` retries.
+            return;
+          }
+
+          if (success) {
+            authedForConnection = true;
+            // playerId is stable; re-persist to refresh the stored session.
+            saveSession(session);
+            if (adapter.restorePlayerOnReconnect) {
+              playerState.set({
+                id: session.playerId,
+                name: session.playerName,
+                roomCode: session.roomCode,
+              });
+            }
+          } else {
+            // Room/player genuinely gone: clear and stop retrying this room.
+            authedForConnection = true;
+            clearSession();
+            playerState.reset();
+          }
+        },
+      );
+  }
 
   function getSocket(): GameSocket {
     if (!browser) {
@@ -89,45 +157,27 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
 
     if (!socket) {
       socket = createGameClient({ autoReconnect: true });
+      authedForConnection = false;
+      reconnectInFlight = false;
 
       socket.on('connect', () => {
         connectionState.setConnected();
-
-        if (reconnectAttempted) return;
-        reconnectAttempted = true;
-
-        const session = loadSession();
-        if (session && session.roomCode && session.playerId) {
-          socket?.emit(
-            'player:reconnect',
-            session.roomCode,
-            session.playerId,
-            session.reconnectToken ?? '',
-            (success) => {
-              if (success) {
-                if (adapter.restorePlayerOnReconnect) {
-                  // Use the stable server-issued playerId, not the transient socket id.
-                  playerState.set({
-                    id: session.playerId,
-                    name: session.playerName,
-                    roomCode: session.roomCode,
-                  });
-                }
-              } else {
-                clearSession();
-                playerState.reset();
-              }
-            },
-          );
-        }
+        // Attempt reconnect on EVERY connect (initial + every auto-reconnect),
+        // guarded by the per-connection latch + in-flight flag above.
+        attemptReconnect();
       });
 
       socket.on('disconnect', () => {
+        // New connection coming: allow it to re-attempt reconnect.
+        authedForConnection = false;
+        reconnectInFlight = false;
         connectionState.setDisconnected();
       });
 
+      // connect_error fires during reconnection attempts; it must NOT clobber
+      // the 'reconnecting' status. Only reconnect_failed is terminal.
       socket.on('connect_error', () => {
-        connectionState.setError('Unable to connect to server');
+        /* intentionally no status change */
       });
 
       socket.io.on('reconnect_attempt', () => {
@@ -187,6 +237,27 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
     return socket;
   }
 
+  /** Emit with an ack + timeout; surface failures via `setActionError`. */
+  function emitWithAck(
+    label: string,
+    emit: (
+      s: GameSocket,
+      cb: (err: Error | null, success?: boolean, error?: string) => void,
+    ) => void,
+  ): void {
+    const s = getSocket();
+    connectionState.setActionError?.(null);
+    emit(s, (err, success, error) => {
+      if (err) {
+        connectionState.setActionError?.(`${label} timed out — check your connection.`);
+        return;
+      }
+      if (success === false) {
+        connectionState.setActionError?.(error ?? `${label} failed.`);
+      }
+    });
+  }
+
   function createRoomAction(playerName: string, gameId?: string): Promise<string> {
     const s = getSocket();
     return new Promise((resolve) => {
@@ -231,17 +302,35 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
     });
   }
 
-  function selectGameAction(gameId: string): void {
-    const s = getSocket();
-    s.emit('lobby:selectGame', gameId);
+  function selectGameAction(gameId: string | null): void {
+    emitWithAck('Game selection', (s, cb) => {
+      s.timeout(ACK_TIMEOUT).emit('lobby:selectGame', gameId, cb);
+    });
   }
 
-  function disconnectSocket(): void {
+  function readyAction(isReady: boolean): void {
+    emitWithAck('Ready', (s, cb) => {
+      s.timeout(ACK_TIMEOUT).emit('lobby:ready', isReady, cb);
+    });
+  }
+
+  function startGameAction(): void {
+    emitWithAck('Start game', (s, cb) => {
+      s.timeout(ACK_TIMEOUT).emit('lobby:startGame', cb);
+    });
+  }
+
+  function teardown(): void {
     if (socket) {
       socket.disconnect();
       socket = null;
-      reconnectAttempted = false;
+      authedForConnection = false;
+      reconnectInFlight = false;
     }
+  }
+
+  function disconnectSocket(): void {
+    teardown();
     clearSession();
     playerState.reset();
     lobbyState.reset();
@@ -253,6 +342,9 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
     createRoomAction,
     joinRoomAction,
     selectGameAction,
+    readyAction,
+    startGameAction,
     disconnectSocket,
+    teardown,
   };
 }

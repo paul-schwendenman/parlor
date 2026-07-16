@@ -1,7 +1,8 @@
 <script lang="ts">
   import { lobbyState } from '../../stores/lobbyStore.svelte.js';
   import { playerState } from '../../stores/playerStore.svelte.js';
-  import { getSocket } from '../../stores/socketClient.js';
+  import { getSocket, readyAction, startGameAction } from '../../stores/socketClient.js';
+  import { connectionState } from '../../stores/connectionStore.svelte.js';
 
   let { roomCode }: { roomCode: string } = $props();
 
@@ -11,12 +12,12 @@
 
   function toggleReady() {
     if (me) {
-      getSocket().emit('lobby:ready', !me.isReady);
+      readyAction(!me.isReady);
     }
   }
 
   function startGame() {
-    getSocket().emit('lobby:startGame');
+    startGameAction();
   }
 
   function addBot() {
@@ -104,6 +105,10 @@
       {/if}
     {:else}
       <p class="hint">Waiting for host to start...</p>
+    {/if}
+
+    {#if connectionState.actionError}
+      <p class="action-error" role="alert">{connectionState.actionError}</p>
     {/if}
   </div>
 
@@ -378,6 +383,8 @@
     font-style: italic;
     margin: 0;
   }
+
+  .action-error { font-size: 0.8rem; color: #991b1b; font-weight: 600; margin: 0; }
 
   .starting {
     margin-top: 1rem;

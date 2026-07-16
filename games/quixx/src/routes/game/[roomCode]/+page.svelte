@@ -19,11 +19,13 @@
 
   // Detect when we're connected but have no game state and no player session
   $effect(() => {
+    if (gameState.view || playerState.id) {
+      roomNotFound = false;
+      return;
+    }
     if (connectionState.status !== 'connected') return;
-    if (gameState.view) return;
-    if (playerState.id) return;
-
-    // Connected but no session and no game — room doesn't exist or session expired
+    // Wait for the reconnect handshake before declaring the game gone.
+    if (connectionState.reconnectPending) return;
     roomNotFound = true;
   });
 

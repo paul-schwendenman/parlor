@@ -6,7 +6,7 @@ class GameState {
 		this.view = view;
 	}
 
-	setGameId(gameId: string) {
+	setGameId(gameId: string | null) {
 		this.gameId = gameId;
 	}
 

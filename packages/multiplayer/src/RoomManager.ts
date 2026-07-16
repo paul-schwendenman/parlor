@@ -270,7 +270,7 @@ export class RoomManager {
     return room?.hostId === playerId;
   }
 
-  setGameId(roomCode: string, gameId: string): void {
+  setGameId(roomCode: string, gameId: string | null): void {
     const room = this.rooms.get(roomCode.toUpperCase());
     if (room) {
       room.gameId = gameId;

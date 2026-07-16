@@ -96,6 +96,14 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 					return;
 				}
 
+				// null clears the current selection (host pressed "Change").
+				if (gameId === null) {
+					roomManager.setGameId(roomCode, null);
+					io.to(roomCode).emit('lobby:gameSelected', null);
+					callback?.(true);
+					return;
+				}
+
 				if (typeof gameId !== 'string' || !gameId.trim()) {
 					callback?.(false, 'Invalid game');
 					return;

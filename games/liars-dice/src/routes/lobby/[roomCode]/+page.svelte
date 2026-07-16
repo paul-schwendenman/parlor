@@ -25,6 +25,7 @@
       roomNotFound = false;
       return;
     }
+    if (connectionState.reconnectPending) return;
     const timeout = setTimeout(() => { roomNotFound = true; }, 1000);
     return () => clearTimeout(timeout);
   });

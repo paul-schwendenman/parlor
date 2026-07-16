@@ -30,8 +30,9 @@ export function createGameClient(options: GameClientOptions = {}): GameSocket {
   const socket: GameSocket = io(url ?? '', {
     autoConnect: true,
     reconnection: autoReconnect,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
+    reconnectionDelayMax: 10_000,
   });
 
   return socket;

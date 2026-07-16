@@ -21,11 +21,13 @@
 
   // Detect when we're connected but have no lobby state and no player session
   $effect(() => {
+    if (lobbyState.players.length > 0 || playerState.id) {
+      roomNotFound = false;
+      return;
+    }
     if (connectionState.status !== 'connected') return;
-    if (lobbyState.players.length > 0) return;
-    if (playerState.id) return;
-
-    // Connected but no session and no lobby — room doesn't exist
+    // Wait for the reconnect handshake before declaring the room gone.
+    if (connectionState.reconnectPending) return;
     roomNotFound = true;
   });
 

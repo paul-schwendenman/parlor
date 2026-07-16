@@ -20,7 +20,7 @@ class LobbyState {
 		this.gameStarting = true;
 	}
 
-	setSelectedGame(gameId: string) {
+	setSelectedGame(gameId: string | null) {
 		this.selectedGameId = gameId;
 	}
 
