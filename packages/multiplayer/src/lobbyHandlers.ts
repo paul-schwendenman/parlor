@@ -67,6 +67,14 @@ export function setupLobbyHandlers(
   callbacks?: LobbyCallbacks,
   options?: LobbyHandlerOptions,
 ): void {
+  // connectionStateRecovery restored this socket's data + rooms after a short blip.
+  // Re-bind it in the RoomManager so disconnect/grace-timer resolution stays consistent
+  // even before the client's authoritative player:reconnect arrives. Identity is still
+  // re-validated by player:reconnect (the source of truth); this is only an optimization.
+  if (socket.recovered && isNonEmptyString(socket.data.playerId)) {
+    roomManager.rebindSocket(socket.id, socket.data.playerId);
+  }
+
   socket.on('lobby:create', (playerName, callback) => {
     try {
       if (typeof callback !== 'function') return;

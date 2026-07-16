@@ -456,4 +456,22 @@ export class RoomManager {
   getRoomCodeForPlayer(playerId: string): string | undefined {
     return this.playerToRoom.get(playerId);
   }
+
+  /**
+   * Re-bind a new socket id to an existing player after Socket.io
+   * `connectionStateRecovery` restored a briefly-dropped connection. This keeps
+   * disconnect resolution and the grace timer consistent even before the client's
+   * authoritative `player:reconnect` arrives. Returns false if the player is gone.
+   */
+  rebindSocket(socketId: string, playerId: string): boolean {
+    const room = this.getRoomByPlayer(playerId);
+    if (!room) return false;
+    const player = room.players.get(playerId);
+    if (!player) return false;
+
+    this.clearDisconnectTimer(playerId);
+    player.connected = true;
+    this.socketToPlayer.set(socketId, playerId);
+    return true;
+  }
 }

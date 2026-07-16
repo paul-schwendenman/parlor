@@ -265,3 +265,35 @@ describe('RoomManager disconnect grace', () => {
     expect(() => vi.advanceTimersByTime(10_000)).not.toThrow();
   });
 });
+
+describe('RoomManager.rebindSocket (connectionStateRecovery)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('re-binds a recovered socket, clears the grace timer, and restores connected', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(1_000);
+    const { host } = seatTwoInGame(rm);
+    const outcomes: ExpiryOutcome[] = [];
+
+    // Original socket drops; a grace timer is scheduled and the seat greys out.
+    rm.handleDisconnect('sockA', (o) => outcomes.push(o));
+    expect(rm.getRoom(host.roomCode)?.players.get(host.playerId)?.connected).toBe(false);
+
+    // Socket.io recovers the connection under a new id before the client's reconnect.
+    expect(rm.rebindSocket('sockA-recovered', host.playerId)).toBe(true);
+    expect(rm.getRoom(host.roomCode)?.players.get(host.playerId)?.connected).toBe(true);
+    expect(rm.getPlayerIdBySocket('sockA-recovered')).toBe(host.playerId);
+
+    // The pending removal was cancelled — the timer must not fire.
+    vi.advanceTimersByTime(5_000);
+    expect(outcomes).toHaveLength(0);
+    expect(rm.getRoom(host.roomCode)?.players.has(host.playerId)).toBe(true);
+  });
+
+  it('returns false for an unknown player', () => {
+    const rm = new RoomManager();
+    expect(rm.rebindSocket('sock', 'nope')).toBe(false);
+  });
+});
