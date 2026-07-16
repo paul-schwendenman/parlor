@@ -78,7 +78,7 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 		setupLobbyHandlers(io, socket, roomManager, dynamicCallbacks);
 
 		// Handle game selection by host
-		socket.on('lobby:selectGame', (gameId: string, callback) => {
+		socket.on('lobby:selectGame', (gameId: string | null, callback) => {
 			try {
 				const roomCode = socket.data.roomCode;
 				if (!roomCode) {

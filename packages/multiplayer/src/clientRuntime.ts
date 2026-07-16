@@ -112,42 +112,50 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
     reconnectInFlight = true;
     connectionState.setReconnectPending?.(true);
 
-    socket
-      .timeout(ACK_TIMEOUT)
-      .emit(
-        'player:reconnect',
-        session.roomCode,
-        session.playerId,
-        session.reconnectToken ?? '',
-        (err: Error | null, success?: boolean) => {
-          reconnectInFlight = false;
-          connectionState.setReconnectPending?.(false);
+    // Manual ack timeout so we can distinguish "no ack" (transient, retry) from
+    // an explicit server rejection (room/player gone, clear). socket.io's
+    // `.timeout()` typing does not decorate optional-callback events reliably.
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reconnectInFlight = false;
+      connectionState.setReconnectPending?.(false);
+      // Timeout: leave the session intact and the per-connection latch open so
+      // the next `connect` retries.
+    }, ACK_TIMEOUT);
 
-          if (err) {
-            // No ack (timeout): transient. Do NOT clear the session — leave the
-            // per-connection latch open so the next `connect` retries.
-            return;
-          }
+    socket.emit(
+      'player:reconnect',
+      session.roomCode,
+      session.playerId,
+      session.reconnectToken ?? '',
+      (success: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reconnectInFlight = false;
+        connectionState.setReconnectPending?.(false);
 
-          if (success) {
-            authedForConnection = true;
-            // playerId is stable; re-persist to refresh the stored session.
-            saveSession(session);
-            if (adapter.restorePlayerOnReconnect) {
-              playerState.set({
-                id: session.playerId,
-                name: session.playerName,
-                roomCode: session.roomCode,
-              });
-            }
-          } else {
-            // Room/player genuinely gone: clear and stop retrying this room.
-            authedForConnection = true;
-            clearSession();
-            playerState.reset();
+        if (success) {
+          authedForConnection = true;
+          // playerId is stable; re-persist to refresh the stored session.
+          saveSession(session);
+          if (adapter.restorePlayerOnReconnect) {
+            playerState.set({
+              id: session.playerId,
+              name: session.playerName,
+              roomCode: session.roomCode,
+            });
           }
-        },
-      );
+        } else {
+          // Room/player genuinely gone: clear and stop retrying this room.
+          authedForConnection = true;
+          clearSession();
+          playerState.reset();
+        }
+      },
+    );
   }
 
   function getSocket(): GameSocket {
@@ -237,22 +245,30 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
     return socket;
   }
 
-  /** Emit with an ack + timeout; surface failures via `setActionError`. */
-  function emitWithAck(
+  /**
+   * Emit a lobby action with a manual ack timeout. Surfaces a timeout message
+   * if no ack arrives, or the server's error if it rejects. `doEmit` receives
+   * the ack callback to attach to its `socket.emit(...)` call.
+   */
+  function ackAction(
     label: string,
-    emit: (
-      s: GameSocket,
-      cb: (err: Error | null, success?: boolean, error?: string) => void,
-    ) => void,
+    doEmit: (s: GameSocket, ack: (success: boolean, error?: string) => void) => void,
   ): void {
     const s = getSocket();
     connectionState.setActionError?.(null);
-    emit(s, (err, success, error) => {
-      if (err) {
-        connectionState.setActionError?.(`${label} timed out — check your connection.`);
-        return;
-      }
-      if (success === false) {
+
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      connectionState.setActionError?.(`${label} timed out — check your connection.`);
+    }, ACK_TIMEOUT);
+
+    doEmit(s, (success: boolean, error?: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (!success) {
         connectionState.setActionError?.(error ?? `${label} failed.`);
       }
     });
@@ -303,21 +319,15 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
   }
 
   function selectGameAction(gameId: string | null): void {
-    emitWithAck('Game selection', (s, cb) => {
-      s.timeout(ACK_TIMEOUT).emit('lobby:selectGame', gameId, cb);
-    });
+    ackAction('Game selection', (s, ack) => s.emit('lobby:selectGame', gameId, ack));
   }
 
   function readyAction(isReady: boolean): void {
-    emitWithAck('Ready', (s, cb) => {
-      s.timeout(ACK_TIMEOUT).emit('lobby:ready', isReady, cb);
-    });
+    ackAction('Ready', (s, ack) => s.emit('lobby:ready', isReady, ack));
   }
 
   function startGameAction(): void {
-    emitWithAck('Start game', (s, cb) => {
-      s.timeout(ACK_TIMEOUT).emit('lobby:startGame', cb);
-    });
+    ackAction('Start game', (s, ack) => s.emit('lobby:startGame', ack));
   }
 
   function teardown(): void {
