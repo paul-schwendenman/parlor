@@ -6,7 +6,7 @@ import type {
   SocketData,
   LobbyPlayer,
 } from '@parlor/game-types';
-import type { RoomManager } from './RoomManager.js';
+import type { RoomManager, ExpiryOutcome } from './RoomManager.js';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -16,6 +16,11 @@ export interface LobbyCallbacks {
   onGameReset?: (roomCode: string, io: AppServer) => void;
   onPlayerDisconnect?: (roomCode: string, playerId: string, io: AppServer) => void;
   onPlayerReconnect?: (roomCode: string, playerId: string, io: AppServer) => void;
+  /**
+   * Fired when an in-game player is really removed after the disconnect grace
+   * window expires, so the game layer can forfeit / clean up in the engine.
+   */
+  onPlayerRemoved?: (roomCode: string, playerId: string, io: AppServer) => void;
 }
 
 export interface LobbyHandlerOptions {
@@ -25,6 +30,34 @@ export interface LobbyHandlerOptions {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+/** Emit the real-removal signals when a disconnect grace timer expires. */
+function emitExpiry(
+  io: AppServer,
+  roomManager: RoomManager,
+  outcome: ExpiryOutcome,
+  callbacks?: LobbyCallbacks,
+): void {
+  // Real removal: this is the only place (besides room:leave) that emits playerLeft.
+  io.to(outcome.roomCode).emit('lobby:playerLeft', outcome.playerId);
+
+  if (outcome.wasInGame) {
+    // Let the game layer forfeit / clean up the seat in the engine.
+    callbacks?.onPlayerRemoved?.(outcome.roomCode, outcome.playerId, io);
+  }
+
+  if (!outcome.roomDestroyed) {
+    const players = roomManager.getPlayersInRoom(outcome.roomCode);
+    io.to(outcome.roomCode).emit(
+      'lobby:state',
+      players,
+      roomManager.canStartGame(outcome.roomCode),
+    );
+    if (outcome.newHostId) {
+      io.to(outcome.roomCode).emit('lobby:hostChanged', outcome.newHostId);
+    }
+  }
 }
 
 export function setupLobbyHandlers(
@@ -327,6 +360,7 @@ export function setupLobbyHandlers(
         socket.data.playerId = playerId;
 
         const players = roomManager.getPlayersInRoom(normalizedCode);
+        io.to(normalizedCode).emit('player:reconnected', playerId);
         io.to(normalizedCode).emit('lobby:state', players, roomManager.canStartGame(normalizedCode));
         callbacks?.onPlayerReconnect?.(normalizedCode, playerId, io);
       }
@@ -338,27 +372,26 @@ export function setupLobbyHandlers(
 
   socket.on('disconnect', () => {
     try {
-      const result = roomManager.handleDisconnect(socket.id);
+      const result = roomManager.handleDisconnect(socket.id, (outcome) => {
+        // Fired later, when the grace timer expires and the player is really removed.
+        emitExpiry(io, roomManager, outcome, callbacks);
+      });
       if (!result) return;
 
-      io.to(result.roomCode).emit('lobby:playerLeft', result.playerId);
-      const players = roomManager.getPlayersInRoom(result.roomCode);
-      if (players.length > 0) {
-        io.to(result.roomCode).emit(
-          'lobby:state',
-          players,
-          roomManager.canStartGame(result.roomCode),
-        );
+      // Spectator (or already-gone player): nothing to retain or grey out.
+      if (!result.retained) return;
 
-        if (result.wasHost) {
-          const room = roomManager.getRoom(result.roomCode);
-          if (room) {
-            io.to(result.roomCode).emit('lobby:hostChanged', room.hostId);
-          }
-        }
-      }
+      // Player kept during the grace window: grey them out, do not remove.
+      io.to(result.roomCode).emit('player:disconnected', result.playerId);
+      const players = roomManager.getPlayersInRoom(result.roomCode);
+      io.to(result.roomCode).emit(
+        'lobby:state',
+        players,
+        roomManager.canStartGame(result.roomCode),
+      );
 
       if (result.wasInGame) {
+        // Tell the engine the seat went dark (view greys the player); removal waits for expiry.
         callbacks?.onPlayerDisconnect?.(result.roomCode, result.playerId, io);
       }
     } catch {

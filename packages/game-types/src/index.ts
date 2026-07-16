@@ -88,6 +88,10 @@ export type ServerToClientEvents = {
   'lobby:playerJoined': (player: LobbyPlayer) => void;
   'lobby:playerLeft': (playerId: string) => void;
   'lobby:hostChanged': (newHostId: string) => void;
+  /** Player kept during the disconnect grace window (grey them out, do not remove). */
+  'player:disconnected': (playerId: string) => void;
+  /** Player rejoined within the grace window (un-grey them). */
+  'player:reconnected': (playerId: string) => void;
   'lobby:gameStarting': () => void;
   'lobby:gameSelected': (gameId: string) => void;
 };

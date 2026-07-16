@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RoomManager } from './RoomManager.js';
 import { setupLobbyHandlers, type LobbyCallbacks } from './lobbyHandlers.js';
 
@@ -116,6 +116,72 @@ describe('lobbyHandlers host gates', () => {
     expect(onGameReset).toHaveBeenCalledTimes(1);
     expect(onGameStart).toHaveBeenCalledTimes(1);
     expect(io.emitted.some((e) => e.event === 'lobby:gameStarting')).toBe(true);
+  });
+});
+
+describe('lobbyHandlers disconnect grace', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function twoPlayers(rm: RoomManager, callbacks?: LobbyCallbacks) {
+    const io = makeIo();
+    const host = makeSocket('s1');
+    const guest = makeSocket('s2');
+    wire(rm, io, host, callbacks);
+    wire(rm, io, guest, callbacks);
+
+    let roomCode = '';
+    host.fire('lobby:create', 'Ann', (res: { roomCode: string }) => {
+      roomCode = res.roomCode;
+    });
+    guest.fire('lobby:join', roomCode, 'Bob', vi.fn());
+    return { io, host, guest, roomCode };
+  }
+
+  it('emits player:disconnected (not playerLeft) while retained, and playerLeft only on expiry', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(1_000);
+    const { io, guest } = twoPlayers(rm);
+    const guestId = guest.data.playerId!;
+
+    guest.fire('disconnect');
+
+    // During grace: greyed out, still seated.
+    expect(io.emitted.some((e) => e.event === 'player:disconnected' && e.args[0] === guestId)).toBe(
+      true,
+    );
+    expect(io.emitted.some((e) => e.event === 'lobby:playerLeft')).toBe(false);
+    expect(rm.getPlayersInRoom(guest.data.roomCode!).map((p) => p.id)).toContain(guestId);
+
+    // After grace: really removed.
+    vi.advanceTimersByTime(1_000);
+    expect(io.emitted.some((e) => e.event === 'lobby:playerLeft' && e.args[0] === guestId)).toBe(
+      true,
+    );
+    expect(rm.getPlayersInRoom(guest.data.roomCode!).map((p) => p.id)).not.toContain(guestId);
+  });
+
+  it('fires onPlayerRemoved and hostChanged when an in-game host expires', () => {
+    vi.useFakeTimers();
+    const onPlayerRemoved = vi.fn();
+    const rm = new RoomManager(1_000);
+    const { io, host, guest } = twoPlayers(rm, { onPlayerRemoved });
+    const hostId = host.data.playerId!;
+    const guestId = guest.data.playerId!;
+    const roomCode = host.data.roomCode!;
+
+    rm.setPlayerReady(hostId, true);
+    rm.setPlayerReady(guestId, true);
+    rm.startGame(roomCode);
+
+    host.fire('disconnect');
+    vi.advanceTimersByTime(1_000);
+
+    expect(onPlayerRemoved).toHaveBeenCalledWith(roomCode, hostId, expect.anything());
+    expect(io.emitted.some((e) => e.event === 'lobby:hostChanged' && e.args[0] === guestId)).toBe(
+      true,
+    );
   });
 });
 

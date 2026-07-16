@@ -21,6 +21,20 @@ export interface DisconnectResult {
   playerId: string;
   wasHost: boolean;
   wasInGame: boolean;
+  /** True when the player was kept during the grace window (a timer is now pending). */
+  retained: boolean;
+}
+
+/** Outcome reported to the lobby layer when a grace timer expires and a player is really removed. */
+export interface ExpiryOutcome {
+  roomCode: string;
+  playerId: string;
+  wasInGame: boolean;
+  wasHost: boolean;
+  /** Set when the host was reassigned to this player id. */
+  newHostId?: string;
+  /** True when the room was destroyed (no humans left). */
+  roomDestroyed: boolean;
 }
 
 export interface CreateRoomResult {
@@ -44,7 +58,12 @@ export class RoomManager {
   private socketToPlayer = new Map<string, string>();
   /** socketId -> roomCode (spectators are tracked by socket id) */
   private spectatorToRoom = new Map<string, string>();
+  /** playerId -> pending disconnect grace timer */
+  private disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private botCounter = 0;
+
+  /** @param graceMs disconnect grace window before a player is really removed. */
+  constructor(private readonly graceMs = 60_000) {}
 
   static isBotPlayer(id: string): boolean {
     return id.startsWith('bot-');
@@ -275,35 +294,100 @@ export class RoomManager {
     return (room?.gameData as T) ?? null;
   }
 
-  /** Remove a player from its room entirely, reassigning host / GCing an empty room. */
-  private removePlayer(room: GameRoom, playerId: string): boolean {
+  /**
+   * Remove a player from its room entirely: clear any pending timer, reassign the
+   * host among the remaining connected humans, and GC an empty / bot-only room.
+   */
+  private removePlayer(
+    room: GameRoom,
+    playerId: string,
+  ): { wasHost: boolean; newHostId?: string; roomDestroyed: boolean } {
     const wasHost = room.hostId === playerId;
     room.players.delete(playerId);
     room.reconnectTokens.delete(playerId);
     this.playerToRoom.delete(playerId);
+    this.clearDisconnectTimer(playerId);
 
-    if (wasHost && room.players.size > 0) {
-      const humanPlayer = [...room.players.values()].find((p) => !p.isBot);
-      if (humanPlayer) {
-        room.hostId = humanPlayer.id;
-      }
+    const humans = [...room.players.values()].filter((p) => !p.isBot);
+    if (humans.length === 0) {
+      // No humans left (empty or bot-only) — tear the room down.
+      this.destroyRoom(room);
+      return { wasHost, roomDestroyed: true };
     }
 
-    if (room.players.size === 0 || [...room.players.values()].every((p) => p.isBot)) {
-      this.rooms.delete(room.code);
+    let newHostId: string | undefined;
+    if (wasHost) {
+      const nextHost = humans.find((p) => p.connected) ?? humans[0];
+      room.hostId = nextHost.id;
+      newHostId = nextHost.id;
     }
 
-    return wasHost;
+    return { wasHost, newHostId, roomDestroyed: false };
   }
 
-  handleDisconnect(socketId: string): DisconnectResult | null {
-    // Spectator disconnect
+  /** Destroy a room, clearing every pending disconnect timer bound to its players. */
+  private destroyRoom(room: GameRoom): void {
+    for (const pid of room.players.keys()) {
+      this.clearDisconnectTimer(pid);
+      this.playerToRoom.delete(pid);
+      room.reconnectTokens.delete(pid);
+    }
+    this.rooms.delete(room.code);
+  }
+
+  private clearDisconnectTimer(playerId: string): void {
+    const timer = this.disconnectTimers.get(playerId);
+    if (timer) {
+      clearTimeout(timer);
+      this.disconnectTimers.delete(playerId);
+    }
+  }
+
+  private scheduleDisconnectTimer(
+    roomCode: string,
+    playerId: string,
+    onExpire?: (outcome: ExpiryOutcome) => void,
+  ): void {
+    this.clearDisconnectTimer(playerId);
+    const timer = setTimeout(() => {
+      this.disconnectTimers.delete(playerId);
+      const outcome = this.expireDisconnectedPlayer(roomCode, playerId);
+      if (outcome) onExpire?.(outcome);
+    }, this.graceMs);
+    // Do not keep the event loop alive purely for a grace timer.
+    (timer as { unref?: () => void }).unref?.();
+    this.disconnectTimers.set(playerId, timer);
+  }
+
+  private expireDisconnectedPlayer(roomCode: string, playerId: string): ExpiryOutcome | null {
+    const room = this.rooms.get(roomCode);
+    if (!room) return null;
+    const player = room.players.get(playerId);
+    // Reconnected (or already gone) before the timer fired: nothing to do.
+    if (!player || player.connected) return null;
+
+    const wasInGame = room.status === 'playing';
+    const { wasHost, newHostId, roomDestroyed } = this.removePlayer(room, playerId);
+    return { roomCode, playerId, wasInGame, wasHost, newHostId, roomDestroyed };
+  }
+
+  handleDisconnect(
+    socketId: string,
+    onExpire?: (outcome: ExpiryOutcome) => void,
+  ): DisconnectResult | null {
+    // Spectator disconnect — immediate, no grace window.
     if (this.spectatorToRoom.has(socketId)) {
       const code = this.spectatorToRoom.get(socketId)!;
       const room = this.rooms.get(code);
       room?.spectators.delete(socketId);
       this.spectatorToRoom.delete(socketId);
-      return { roomCode: code, playerId: socketId, wasHost: false, wasInGame: false };
+      return {
+        roomCode: code,
+        playerId: socketId,
+        wasHost: false,
+        wasInGame: false,
+        retained: false,
+      };
     }
 
     const playerId = this.socketToPlayer.get(socketId);
@@ -317,19 +401,19 @@ export class RoomManager {
     const wasHost = room.hostId === playerId;
     const wasInGame = room.status === 'playing';
 
-    if (player) {
-      if (wasInGame) {
-        // Keep the seat; mark disconnected so reconnect can restore it.
-        player.connected = false;
-      } else {
-        this.removePlayer(room, playerId);
-      }
+    if (!player) {
+      return { roomCode: room.code, playerId, wasHost, wasInGame, retained: false };
     }
 
-    return { roomCode: room.code, playerId, wasHost, wasInGame };
+    // Keep the seat; mark disconnected and start the grace timer. Whether the room
+    // is in a game or still in the lobby, removal now only happens on expiry.
+    player.connected = false;
+    this.scheduleDisconnectTimer(room.code, playerId, onExpire);
+
+    return { roomCode: room.code, playerId, wasHost, wasInGame, retained: true };
   }
 
-  /** Explicit leave: always removes the player regardless of game status. */
+  /** Explicit leave: always removes the player immediately regardless of game status. */
   leaveRoom(socketId: string): DisconnectResult | null {
     if (this.spectatorToRoom.has(socketId)) {
       return this.handleDisconnect(socketId);
@@ -343,8 +427,8 @@ export class RoomManager {
     if (!room) return null;
 
     const wasInGame = room.status === 'playing';
-    const wasHost = this.removePlayer(room, playerId);
-    return { roomCode: room.code, playerId, wasHost, wasInGame };
+    const { wasHost } = this.removePlayer(room, playerId);
+    return { roomCode: room.code, playerId, wasHost, wasInGame, retained: false };
   }
 
   handleReconnect(
@@ -362,6 +446,8 @@ export class RoomManager {
     const expected = room.reconnectTokens.get(playerId);
     if (!expected || expected !== token) return false;
 
+    // Within the grace window: cancel the pending removal and restore the seat.
+    this.clearDisconnectTimer(playerId);
     player.connected = true;
     this.socketToPlayer.set(newSocketId, playerId);
     return true;

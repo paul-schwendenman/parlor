@@ -25,6 +25,8 @@ export interface RuntimeLobbyState {
   setHost(hostId: string): void;
   setGameStarting(): void;
   setSelectedGame?(gameId: string): void;
+  /** Optional: flip a single player's connected flag (grey out / restore during grace). */
+  setPlayerConnected?(playerId: string, connected: boolean): void;
   reset(): void;
 }
 
@@ -148,6 +150,16 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
 
       socket.on('lobby:hostChanged', (newHostId) => {
         lobbyState.setHost(newHostId);
+      });
+
+      // Grace-window signals: authoritative connected flags also arrive via
+      // `lobby:state`; these let a store grey a player out immediately.
+      socket.on('player:disconnected', (playerId) => {
+        lobbyState.setPlayerConnected?.(playerId, false);
+      });
+
+      socket.on('player:reconnected', (playerId) => {
+        lobbyState.setPlayerConnected?.(playerId, true);
       });
 
       socket.on('lobby:gameStarting', () => {
