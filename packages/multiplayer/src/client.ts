@@ -7,6 +7,16 @@ import type {
 
 export type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
+export {
+  createParlorRuntime,
+  type ParlorRuntime,
+  type ParlorRuntimeAdapter,
+  type RuntimeConnectionState,
+  type RuntimeLobbyState,
+  type RuntimeGameState,
+  type RuntimePlayerState,
+} from './clientRuntime.js';
+
 export interface GameClientOptions {
   url?: string;
   autoReconnect?: boolean;
