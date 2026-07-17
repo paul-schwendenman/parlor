@@ -287,7 +287,7 @@ export const quixxDefinition: ServerGameDefinition = {
       switch (action.type) {
         case 'roll-dice': {
           const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
-          if (activePlayer.id !== socket.id) return;
+          if (activePlayer.id !== socket.data.playerId) return;
           engine.rollDice();
           broadcastViews(io, roomCode, engine, roomManager);
           startPhase1Timer(io, roomCode, engine, roomManager);
@@ -297,7 +297,7 @@ export const quixxDefinition: ServerGameDefinition = {
 
         case 'phase1-mark':
         case 'phase1-pass': {
-          engine.submitPhase1(socket.id, action);
+          engine.submitPhase1(socket.data.playerId, action);
           broadcastViews(io, roomCode, engine, roomManager);
 
           if (engine.allPhase1Submitted()) {
@@ -318,7 +318,7 @@ export const quixxDefinition: ServerGameDefinition = {
         case 'phase2-mark':
         case 'phase2-pass': {
           clearRoomTimer(roomCode);
-          engine.submitPhase2(socket.id, action);
+          engine.submitPhase2(socket.data.playerId, action);
 
           if (engine.isGameOver()) {
             broadcastViews(io, roomCode, engine, roomManager);

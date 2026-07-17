@@ -2,6 +2,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import type { ViteDevServer, Plugin } from 'vite';
 import { Server } from 'socket.io';
+import { buildSocketServerOptions } from '@parlor/multiplayer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -12,9 +13,7 @@ const webSocketServer: Plugin = {
   configureServer(server: ViteDevServer) {
     if (!server.httpServer) return;
 
-    const io = new Server(server.httpServer, {
-      cors: { origin: '*' },
-    });
+    const io = new Server(server.httpServer, buildSocketServerOptions());
 
     const socketServerPath = path.join(__dirname, 'src/lib/server/socket/socketServer.ts');
 

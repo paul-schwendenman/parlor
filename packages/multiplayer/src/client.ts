@@ -7,6 +7,16 @@ import type {
 
 export type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
+export {
+  createParlorRuntime,
+  type ParlorRuntime,
+  type ParlorRuntimeAdapter,
+  type RuntimeConnectionState,
+  type RuntimeLobbyState,
+  type RuntimeGameState,
+  type RuntimePlayerState,
+} from './clientRuntime.js';
+
 export interface GameClientOptions {
   url?: string;
   autoReconnect?: boolean;
@@ -20,8 +30,9 @@ export function createGameClient(options: GameClientOptions = {}): GameSocket {
   const socket: GameSocket = io(url ?? '', {
     autoConnect: true,
     reconnection: autoReconnect,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
+    reconnectionDelayMax: 10_000,
   });
 
   return socket;
@@ -50,8 +61,8 @@ export function clearSession(): void {
 
 export function createRoom(socket: GameSocket, playerName: string): Promise<string> {
   return new Promise((resolve) => {
-    socket.emit('lobby:create', playerName, (roomCode) => {
-      resolve(roomCode);
+    socket.emit('lobby:create', playerName, (result) => {
+      resolve(result.roomCode);
     });
   });
 }
@@ -62,8 +73,8 @@ export function joinRoom(
   playerName: string,
 ): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
-    socket.emit('lobby:join', code, playerName, (success, error) => {
-      resolve({ success, error });
+    socket.emit('lobby:join', code, playerName, (result) => {
+      resolve({ success: result.success, error: result.error });
     });
   });
 }

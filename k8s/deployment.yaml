@@ -14,6 +14,8 @@ spec:
       labels:
         app: parlor
     spec:
+      # Give the SIGTERM drain handler time to close sockets before SIGKILL.
+      terminationGracePeriodSeconds: 30
       containers:
         - name: parlor
           image: ghcr.io/paul-schwendenman/parlor:main
@@ -32,15 +34,21 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          # Probes hit the lightweight /healthz route (JSON 200) instead of `/`,
+          # which would trigger a full SvelteKit SSR render on every check.
           livenessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: 3010
             initialDelaySeconds: 10
             periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: 3010
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3

@@ -215,26 +215,26 @@ export const kingsCornerDefinition: ServerGameDefinition = {
     try {
       switch (action.type) {
         case 'draw-card': {
-          engine.drawCard(socket.id);
+          engine.drawCard(socket.data.playerId);
           broadcastViews(io, roomCode, engine, roomManager);
           break;
         }
 
         case 'play-card': {
-          engine.playCard(socket.id, action.card, action.target);
+          engine.playCard(socket.data.playerId, action.card, action.target);
           broadcastViews(io, roomCode, engine, roomManager);
           scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
           break;
         }
 
         case 'move-pile': {
-          engine.movePile(socket.id, action.from, action.to);
+          engine.movePile(socket.data.playerId, action.from, action.to);
           broadcastViews(io, roomCode, engine, roomManager);
           break;
         }
 
         case 'end-turn': {
-          engine.endTurn(socket.id);
+          engine.endTurn(socket.data.playerId);
           broadcastViews(io, roomCode, engine, roomManager);
           scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
           break;

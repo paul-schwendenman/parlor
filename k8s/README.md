@@ -33,6 +33,35 @@ kubectl logs -n parlor -l app=parlor --tail=50
 kubectl delete namespace parlor  # removes everything
 ```
 
+## Scaling beyond one replica (not yet implemented)
+
+The deployment is pinned to `replicas: 1` because game state (`RoomManager`) lives
+in each pod's memory and Socket.io connections are stateful. Two prerequisites must
+land **before** raising the replica count, or players will be routed to pods that
+don't hold their room:
+
+1. **Sticky sessions (Traefik).** Socket.io's HTTP long-polling handshake must return
+   to the same pod for the whole session. Enable cookie-based session affinity on the
+   Service so Traefik pins each client to one backend:
+
+   ```yaml
+   # service.yaml — add to the Service
+   annotations:
+     traefik.ingress.kubernetes.io/service.sticky.cookie: "true"
+     traefik.ingress.kubernetes.io/service.sticky.cookie.name: "parlor_affinity"
+   ```
+
+   Sticky sessions alone are not enough — a pod restart or rebalance still strands a
+   client, and cross-pod broadcasts (`io.to(playerId)`) won't reach other replicas.
+
+2. **Redis adapter (`@socket.io/redis-adapter`).** Wire every pod's Socket.io server to
+   a shared Redis so room broadcasts fan out across replicas. This also needs a shared
+   Redis-backed `RoomManager` (state is currently in-memory per pod), which is a larger
+   change tracked separately.
+
+Once both are in place, bump `replicas` and drop the single-replica comment in
+`deployment.yaml`. See `docs/SCALING.md` for broader infrastructure notes.
+
 ## Automating deploys (future)
 
 Port 6443 is only reachable on the innernet network, so the GitHub Action can't

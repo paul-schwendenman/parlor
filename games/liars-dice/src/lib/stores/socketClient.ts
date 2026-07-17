@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { createGameClient, saveSession, loadSession, clearSession } from '@parlor/multiplayer/client';
+import { createParlorRuntime, saveSession, loadSession, clearSession } from '@parlor/multiplayer/client';
 import type { GameSocket } from '@parlor/multiplayer/client';
 import { connectionState } from './connectionStore.svelte.js';
 import { lobbyState } from './lobbyStore.svelte.js';
@@ -7,119 +7,46 @@ import { gameState } from './gameStore.svelte.js';
 import { playerState } from './playerStore.svelte.js';
 import type { LiarsDicePlayerView } from '../types/game.js';
 
-let socket: GameSocket | null = null;
-let reconnectAttempted = false;
+const runtime = createParlorRuntime({
+  browser,
+  connectionState,
+  lobbyState,
+  gameState,
+  playerState,
+  restorePlayerOnReconnect: true,
+  onView: (state) => gameState.setView(state as unknown as LiarsDicePlayerView),
+});
 
 export function getSocket(): GameSocket {
-  if (!browser) {
-    throw new Error('Socket can only be used in browser');
-  }
-
-  if (!socket) {
-    socket = createGameClient({ autoReconnect: true });
-
-    socket.on('connect', () => {
-      connectionState.setConnected();
-
-      if (reconnectAttempted) return;
-      reconnectAttempted = true;
-
-      const session = loadSession();
-      if (session && session.roomCode && session.playerId) {
-        socket?.emit('player:reconnect', session.roomCode, session.playerId, (success) => {
-          if (success) {
-            playerState.set({ id: socket!.id!, name: session.playerName!, roomCode: session.roomCode! });
-          } else {
-            clearSession();
-            playerState.reset();
-          }
-        });
-      }
-    });
-
-    socket.on('disconnect', () => {
-      connectionState.setDisconnected();
-    });
-
-    socket.on('connect_error', () => {
-      connectionState.setError('Unable to connect to server');
-    });
-
-    socket.io.on('reconnect_attempt', () => {
-      connectionState.setReconnecting();
-    });
-
-    socket.io.on('reconnect_failed', () => {
-      connectionState.setError('Failed to reconnect to server');
-    });
-
-    socket.on('lobby:state', (players, canStart) => {
-      if (gameState.view && lobbyState.gameStarting) {
-        gameState.reset();
-        lobbyState.gameStarting = false;
-      }
-      lobbyState.setLobbyState(players, canStart);
-    });
-
-    socket.on('lobby:hostChanged', (newHostId) => {
-      lobbyState.setHost(newHostId);
-    });
-
-    socket.on('lobby:gameStarting', () => {
-      lobbyState.setGameStarting();
-    });
-
-    socket.on('game:state', (state) => {
-      gameState.setView(state as unknown as LiarsDicePlayerView);
-    });
-
-    socket.on('error', (message) => {
-      console.error('Server error:', message);
-    });
-  }
-
-  return socket;
+  return runtime.getSocket();
 }
 
 export function createRoomAction(playerName: string): Promise<string> {
-  const s = getSocket();
-  return new Promise((resolve) => {
-    s.emit('lobby:create', playerName, (roomCode) => {
-      playerState.set({ id: s.id!, name: playerName, roomCode });
-      lobbyState.setHost(s.id!);
-      saveSession({ playerId: s.id!, playerName, roomCode });
-      resolve(roomCode);
-    });
-  });
+  return runtime.createRoomAction(playerName);
 }
 
 export function joinRoomAction(
   roomCode: string,
   playerName: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const s = getSocket();
-  return new Promise((resolve) => {
-    s.emit('lobby:join', roomCode, playerName, (success, error) => {
-      if (success) {
-        const normalizedCode = roomCode.toUpperCase();
-        playerState.set({ id: s.id!, name: playerName, roomCode: normalizedCode });
-        saveSession({ playerId: s.id!, playerName, roomCode: normalizedCode });
-      }
-      resolve({ success, error });
-    });
-  });
+  return runtime.joinRoomAction(roomCode, playerName);
+}
+
+export function readyAction(isReady: boolean): void {
+  runtime.readyAction(isReady);
+}
+
+export function startGameAction(): void {
+  runtime.startGameAction();
 }
 
 export function disconnectSocket(): void {
-  if (socket) {
-    socket.disconnect();
-    socket = null;
-    reconnectAttempted = false;
-  }
-  clearSession();
-  playerState.reset();
-  lobbyState.reset();
-  gameState.reset();
+  runtime.disconnectSocket();
+}
+
+// Drop the socket on HMR so the module singleton does not leak a stale connection.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => runtime.teardown());
 }
 
 export { saveSession, loadSession, clearSession };

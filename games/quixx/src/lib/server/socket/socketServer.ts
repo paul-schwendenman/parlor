@@ -16,7 +16,7 @@ export function setupQuixxSocketHandlers(io: AppServer): void {
   const callbacks = quixxDefinition.createLobbyCallbacks(roomManager, io);
 
   io.on('connection', (socket) => {
-    setupLobbyHandlers(io, socket, roomManager, callbacks);
+    setupLobbyHandlers(io, socket, roomManager, callbacks, { defaultMaxPlayers: quixxDefinition.meta.maxPlayers });
 
     socket.on('game:action', (action) => {
       quixxDefinition.handleGameAction(io, socket, roomManager, action);

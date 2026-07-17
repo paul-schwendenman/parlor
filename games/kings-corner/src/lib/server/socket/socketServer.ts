@@ -16,7 +16,7 @@ export function setupKingsCornerSocketHandlers(io: AppServer): void {
   const callbacks = kingsCornerDefinition.createLobbyCallbacks(roomManager, io);
 
   io.on('connection', (socket) => {
-    setupLobbyHandlers(io, socket, roomManager, callbacks);
+    setupLobbyHandlers(io, socket, roomManager, callbacks, { defaultMaxPlayers: kingsCornerDefinition.meta.maxPlayers });
 
     socket.on('game:action', (action) => {
       kingsCornerDefinition.handleGameAction(io, socket, roomManager, action);

@@ -18,9 +18,13 @@
   });
 
   $effect(() => {
+    if (gameState.view || playerState.id) {
+      roomNotFound = false;
+      return;
+    }
     if (connectionState.status !== 'connected') return;
-    if (gameState.view) return;
-    if (playerState.id) return;
+    // Wait for the reconnect handshake before declaring the game gone.
+    if (connectionState.reconnectPending) return;
     roomNotFound = true;
   });
 

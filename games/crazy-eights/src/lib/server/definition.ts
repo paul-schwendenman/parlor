@@ -126,25 +126,25 @@ export const crazyEightsDefinition: ServerGameDefinition = {
     try {
       switch (action.type) {
         case 'play-card': {
-          engine.playCard(socket.id, action.card);
+          engine.playCard(socket.data.playerId, action.card);
           broadcastViews(io, roomCode, engine, roomManager);
           break;
         }
 
         case 'draw-card': {
-          engine.drawCard(socket.id);
+          engine.drawCard(socket.data.playerId);
           broadcastViews(io, roomCode, engine, roomManager);
           break;
         }
 
         case 'pass': {
-          engine.pass(socket.id);
+          engine.pass(socket.data.playerId);
           broadcastViews(io, roomCode, engine, roomManager);
           break;
         }
 
         case 'choose-suit': {
-          engine.chooseSuit(socket.id, action.suit);
+          engine.chooseSuit(socket.data.playerId, action.suit);
           broadcastViews(io, roomCode, engine, roomManager);
           break;
         }
