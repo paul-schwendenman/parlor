@@ -102,7 +102,8 @@ export interface DispatchGameActionOptions {
 
 /**
  * The single entry point for `game:action` (plan 3.1a). In order:
- * envelope → membership/role → active game → game's `validateAction` → handler.
+ * envelope → membership/role → active game → game's `validateAction` → handler
+ * (which receives the sanitized action `validateAction` returned).
  *
  * - Rejections before the handler leave state untouched and ack the error code.
  * - A `GameRuleError` from the handler acks its code/message and also emits
@@ -147,10 +148,9 @@ export function dispatchGameAction(opts: DispatchGameActionOptions): Promise<Act
       return Promise.resolve(reject('NO_ACTIVE_GAME', 'No game is in progress'));
     }
 
-    if (definition.validateAction) {
-      const checked = definition.validateAction(payload);
-      if (!checked.ok) return Promise.resolve(reject('INVALID_ACTION', checked.message));
-    }
+    const checked = definition.validateAction(payload);
+    if (!checked.ok) return Promise.resolve(reject('INVALID_ACTION', checked.message));
+    const sanitized = checked.action;
 
     const logContext = { roomCode, gameId: definition.meta.id, playerId, actionType: payload.type };
 
@@ -171,7 +171,7 @@ export function dispatchGameAction(opts: DispatchGameActionOptions): Promise<Act
 
     let returned: unknown;
     try {
-      returned = definition.handleGameAction(io, socket, roomManager, payload);
+      returned = definition.handleGameAction(io, socket, roomManager, sanitized);
     } catch (err) {
       return Promise.resolve(fail(err));
     }

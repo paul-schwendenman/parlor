@@ -17,6 +17,23 @@ import { canMark, getAvailablePhase1Moves, getAvailablePhase2Moves, numberAtCell
 import { computeAllScores } from '../../game/scoring.js';
 import { GameRuleError } from '@parlor/multiplayer';
 
+/**
+ * Defense in depth behind `validateQuixxAction`: a non-integer `cellIndex`
+ * (e.g. the string '10') used to bypass the lock / 5-marks rule (CORE-AUDIT A-08).
+ */
+function assertMarkShape(row: unknown, cellIndex: unknown): void {
+  if (
+    typeof row !== 'string' ||
+    !(ROW_COLORS as string[]).includes(row) ||
+    typeof cellIndex !== 'number' ||
+    !Number.isInteger(cellIndex) ||
+    cellIndex < 0 ||
+    cellIndex > 10
+  ) {
+    throw new GameRuleError('Invalid mark position', 'INVALID_ACTION');
+  }
+}
+
 function createScoresheet(): Scoresheet {
   return {
     red: Array(11).fill(false),
@@ -122,6 +139,7 @@ export class QuixxEngine {
         this.activePlayerPhase1Passed = true;
       }
     } else if (action.type === 'phase1-mark') {
+      assertMarkShape(action.row, action.cellIndex);
       const whiteSum = this.dice.white1 + this.dice.white2;
       const numAtCell = numberAtCell(action.row, action.cellIndex);
       if (numAtCell !== whiteSum) {
@@ -192,6 +210,7 @@ export class QuixxEngine {
         }
       }
     } else if (action.type === 'phase2-mark') {
+      assertMarkShape(action.row, action.cellIndex);
       if (!canMark(activePlayer.sheet, action.row, action.cellIndex, this.lockedRows)) {
         throw new GameRuleError('Invalid mark position');
       }

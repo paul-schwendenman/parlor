@@ -24,6 +24,7 @@ Paths are relative to the repo, so the scripts work from any checkout. A script 
 Converted to tests and removed:
 - `boundary/crash.mjs` (F-01) → `packages/multiplayer/src/malformedAck.test.ts`, `apps/parlor/src/lib/server/socketServer.test.ts`.
 - `security/spec.mts` (F-15), `security/err.mts` (F-22) and `crash/poison.mjs` (F-04) → `packages/multiplayer/src/actionBoundary.test.ts` and `apps/parlor/src/lib/server/actionBoundary.test.ts` (3.1a).
+- `crash/quixx-coerce.mts` (F-05) → `games/quixx/src/lib/server/validateAction.test.ts` (3.1a).
 
 | Script | Shows | Findings |
 |---|---|---|
@@ -33,7 +34,6 @@ Converted to tests and removed:
 | `rooms/stale.ts` | A late disconnect from the old socket evicts a player who has reconnected, and moves the host | F-10 (E-04, C-07) |
 | `crash/parser.cjs` | socket.io-parser behaviour at various nesting depths | F-04 (B-03) |
 | `crash/quixx.mjs` | Quixx with 2 bots and auto-roll stalls | F-09 (B-04) |
-| `crash/quixx-coerce.mts` | A string `cellIndex` bypasses the Quixx row rules | F-05 (A-08) |
 | `crash/shutdown.mts` | Graceful-shutdown behaviour of the socket server factory | F-03 (B-02) |
 | `crash/server.mts`, `crash/client.mjs` | Harness: the real server, and a scripted client with scenarios | (B) |
 | `lifecycle/core.mts` | Reconnect race; room destruction skips `onGameReset` / `onPlayerRemoved`; start while playing; spectator map after destroy | F-10, F-08, F-11, F-16, F-28 (C-06, C-07, C-09, C-14) |

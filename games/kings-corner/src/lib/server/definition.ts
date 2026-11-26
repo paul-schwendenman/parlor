@@ -11,6 +11,7 @@ import { KingsCornerEngine } from './game/KingsCornerEngine.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 import { DEFAULT_CONFIG } from '../types/game.js';
 import type { KingsCornerAction } from '../types/game.js';
+import { validateKingsCornerAction } from './validateAction.js';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -197,6 +198,8 @@ export const kingsCornerDefinition: ServerGameDefinition = {
       io.to(playerId).emit('game:state', view as never);
     },
   }),
+
+  validateAction: validateKingsCornerAction,
 
   handleGameAction: (
     io: AppServer,

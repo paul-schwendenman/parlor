@@ -135,6 +135,20 @@ beforeEach(async () => {
 	vi.resetModules();
 	const { setupParlorSocketHandlers } = await import('./socketServer.js');
 	setupParlorSocketHandlers(io as never);
+	// Every real game now validates its actions, so no client payload can make one
+	// throw unexpectedly. Inject a fault into a copy of crazy-eights to exercise
+	// the INTERNAL → back-to-lobby path through the real wiring.
+	const { registerGame } = await import('./gameRegistry.js');
+	const { crazyEightsDefinition: c8 } = await import('@parlor/crazy-eights/server-definition');
+	registerGame({
+		...c8,
+		meta: { ...c8.meta, id: 'faulty-eights' },
+		validateAction: (a) => (a.type === 'explode' ? { ok: true, action: { type: 'explode' } } : c8.validateAction(a)),
+		handleGameAction: (io, socket, rm, action) => {
+			if (action.type === 'explode') throw new TypeError("Cannot read properties of null (reading 'suit')");
+			return c8.handleGameAction(io, socket, rm, action);
+		}
+	});
 	await new Promise<void>((r) => http.listen(0, r));
 	port = (http.address() as AddressInfo).port;
 });
@@ -312,12 +326,26 @@ describe('game:action errors (F-03 / F-17 / F-22)', () => {
 		expect(await send(active, { type: 'draw-card' })).toEqual({ ok: true });
 	});
 
-	it('a TypeError inside a game → INTERNAL generic message, room back in the lobby', async () => {
+	it('a malformed card (the old TypeError probe) is now INVALID_ACTION, game keeps running', async () => {
 		const { host, guest } = await startGame('crazy-eights');
+		const [active] = c8ActiveAndOther(host, guest);
+		const before = host.states.length;
+		for (const card of [null, undefined, 'x', { suit: 'hearts' }, { suit: 'hearts', rank: 'K', junk: 1 }]) {
+			expect(await send(active, { type: 'play-card', card })).toMatchObject({ ok: false, code: 'INVALID_ACTION' });
+		}
+		await settle();
+		expect(host.states.length).toBe(before);
+		expect(allReceivedText(host, guest)).not.toMatch(/Cannot read|TypeError/);
+		expect(await roomIsWaiting(host, 'crazy-eights')).toBe(false);
+		expect(await send(active, { type: 'draw-card' })).toEqual({ ok: true });
+	});
+
+	it('a TypeError inside a game → INTERNAL generic message, room back in the lobby', async () => {
+		const { host, guest } = await startGame('faulty-eights');
 		const [active, other] = c8ActiveAndOther(host, guest);
 		const lobbyBefore = { host: host.lobbyStates, guest: guest.lobbyStates };
 
-		const result = await send(active, { type: 'play-card', card: null });
+		const result = await send(active, { type: 'explode' });
 		expect(result).toEqual({ ok: false, code: 'INTERNAL', message: 'Something went wrong' });
 		expect(active.errors).toEqual(['Something went wrong']);
 		expect(other.errors).toEqual([]);
@@ -328,7 +356,7 @@ describe('game:action errors (F-03 / F-17 / F-22)', () => {
 			() => host.lobbyStates > lobbyBefore.host && guest.lobbyStates > lobbyBefore.guest,
 			'lobby:state after room failure'
 		);
-		expect(await roomIsWaiting(host, 'crazy-eights')).toBe(true);
+		expect(await roomIsWaiting(host, 'faulty-eights')).toBe(true);
 		// No more game actions on the dead game.
 		expect(await send(other, { type: 'draw-card' })).toMatchObject({ ok: false, code: 'NO_ACTIVE_GAME' });
 
@@ -349,6 +377,54 @@ describe('game:action errors (F-03 / F-17 / F-22)', () => {
 		waiting.socket.emit('game:action', { type: 'pass' });
 		await waitFor(() => waiting.errors.length > 0, 'error event');
 		expect(waiting.errors[0]).toBe('Not your turn');
+	});
+});
+
+describe('per-game validateAction over the real wiring (F-05)', () => {
+	it("Kings Corner: a bogus pile target is INVALID_ACTION and the game keeps running", async () => {
+		const { host, guest } = await startGame('kings-corner');
+		const [active] = c8ActiveAndOther(host, guest);
+		const card = active.last().myHand[0];
+		const before = host.states.length;
+
+		for (const action of [
+			{ type: 'play-card', card, target: 'nowhere' },
+			{ type: 'play-card', card, target: 7 },
+			{ type: 'move-pile', from: 'north', to: '__proto__x' },
+			{ type: 'play-card', card },
+		]) {
+			expect(await send(active, action)).toMatchObject({ ok: false, code: 'INVALID_ACTION' });
+		}
+		await settle();
+		expect(host.states.length).toBe(before);
+		expect(await roomIsWaiting(host, 'kings-corner')).toBe(false);
+		expect(active.errors).toEqual([]);
+
+		expect(await send(active, { type: 'draw-card' })).toEqual({ ok: true });
+		await waitFor(() => host.states.length > before, 'game:state after draw');
+	});
+
+	it('Quixx: a bad row or a string cellIndex is INVALID_ACTION and the game keeps running', async () => {
+		const { host, guest } = await startGame('quixx');
+		// Quixx auto-rolls shortly after start.
+		await waitFor(() => host.last().phase === 'phase1' && guest.last().phase === 'phase1', 'phase1');
+		const before = host.states.length;
+
+		for (const action of [
+			{ type: 'phase1-mark', row: 'purple', cellIndex: 0 },
+			{ type: 'phase1-mark', row: 'red', cellIndex: '10' },
+			{ type: 'phase1-mark', row: 'red', cellIndex: 11 },
+			{ type: 'phase1-mark', row: 'red', cellIndex: 1.5 },
+			{ type: 'phase1-pass', extra: true },
+		]) {
+			expect(await send(host, action)).toMatchObject({ ok: false, code: 'INVALID_ACTION' });
+		}
+		await settle();
+		expect(host.states.length).toBe(before);
+		expect(await roomIsWaiting(host, 'quixx')).toBe(false);
+
+		expect(await send(host, { type: 'phase1-pass' })).toEqual({ ok: true });
+		await waitFor(() => guest.states.length > before, 'game:state after pass');
 	});
 });
 

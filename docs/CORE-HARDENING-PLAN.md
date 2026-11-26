@@ -140,7 +140,7 @@ The reasoning:
     - `apps/parlor` now has Vitest (a standalone `vitest.config.ts` and a `test` script), so its tests run in `turbo test` and CI.
 
 ### 3.1 Game contract: boundary first, migration second
-- [ ] **3.1a Core action boundary and required action validation.** *(In progress on branch `paul-schwendenman/core-hardening-3.1a`.)* No generic types or wire migration yet; those are 3.1b. Revised after a second external review: every action is validated at runtime in this item, rather than waiting for 3.1b.
+- [x] **3.1a Core action boundary and required action validation.** *(Done on branch `paul-schwendenman/core-hardening-3.1a`; see the notes at the end of this item.)* No generic types or wire migration yet; those are 3.1b. Revised after a second external review: every action is validated at runtime in this item, rather than waiting for 3.1b.
   - **One core dispatcher used by every router:** `dispatchGameAction()` in `packages/multiplayer/src/actionBoundary.ts`, used by all six (the parlor app and the five standalone game servers). In order:
     1. **Envelope:** a plain object with a string `type`, depth ≤ 4, ≤ 64 keys or elements, strings ≤ 256 characters, no `__proto__` / `constructor` / `prototype` keys → otherwise `INVALID_ACTION`. (F-04)
     2. **Membership:** a room exists (`NOT_IN_ROOM`), the sender is a seated, non-spectator player bound to this socket (`NOT_A_PLAYER`), and a game is running (`NO_ACTIVE_GAME`). (F-15)
@@ -163,6 +163,28 @@ The reasoning:
     - **Liar's Dice:** `nextRound` is limited to players in the game during the reveal (`requestNextRound`), and the auto-advance timer is tied to its round.
     - **Quixx:** the turn is checked before the phase timer is cleared.
     - **Booty Dice:** must roll before `endTurn` (F-06, moved up from 3.9 so a scoring bypass doesn't wait for the migration).
+  - **Done notes:**
+    - **Tests:** 334 → 532.
+    - **New core files:**
+      - `actionBoundary.ts`
+      - `actionValidation.ts` (the shared validator helpers)
+      - `errors.ts` (`GameRuleError`, `toPublicError`)
+      - a test-only harness at `@parlor/multiplayer/testing`
+      - `RoomManager.isSeatedPlayer()`
+      - `returnRoomToLobby()`
+    - **Per-game validators:** `games/*/src/lib/server/validateAction.ts`. Card games now push the server's own card object from the player's hand. The dead `booty-dice/.../validation.ts` was deleted.
+    - **Liar's Dice:** bids are 1–30 (the most dice any table can have). Over-bidding stays legal.
+    - **Booty Dice:**
+      - `lockDice`, `finishRolling` and `endTurn` all require having rolled this turn.
+      - A turn that a disconnect or bot timeout ends without a roll scores nothing.
+      - It still *shows* the previous player's dice at the start of a turn; resetting them is a UI decision.
+    - **The "unexpected error → back to the lobby" path** is tested with a deliberately faulty copy of Crazy Eights. No real game can be made to throw unexpectedly any more.
+    - **Left for later:**
+      - the 5 `as unknown as` casts, now behind validation (3.1b)
+      - an async handler rejecting after a restart could reset the new game (3.2; no handler is async today)
+      - a mid-game `lobby:state` is still treated as a reset by the client (3.8)
+      - envelope and membership rejections only send an ack, so the current GameViews show nothing for them
+    - **Also in this branch:** `.claude/worktrees/` was added to `.gitignore` and the ESLint ignores, after an in-repo agent worktree broke `pnpm lint`.
 - [ ] **3.1b Typed contract, piloted on one game, then migrated.**
   - **Design** `ServerGameDefinition<State, Action, View>`. Optionally replace 3.1a's hand-written validators with schemas (zod or valibot) that infer `Action`; the runtime behaviour must stay identical, and the 3.1a validator tests are the contract.
   - **Wire typing:** the shared socket carries every game, so `game:state` becomes an envelope: `{ gameId, view }`, typed as a union keyed by `gameId` (a `GameViewMap` in `game-types`, extended by each game via module augmentation or a central map). That's what actually removes the 35 `as never` casts rather than moving them.
@@ -288,3 +310,4 @@ The reasoning:
 | 2026-11-25 | Phase 2 triage: all 32 findings `now` | proposed buckets and order accepted |
 | 2026-11-25 | 3.0 hotfix (F-01) | branch `paul-schwendenman/core-hardening-3.0`, uncommitted |
 | 2026-11-25 | Plan revised after a second external review | 3.1a now requires validators for every action, handlers can't reject by returning silently, Booty Dice F-06 moved to 3.1a; 3.8 restart gets its own transition (check first, keep the game on failure); 3.7 validates the new seat before releasing the old one |
+| 2026-11-25 | 3.1a core action boundary + validators (F-15, F-05, F-04, F-03, F-17, F-22, F-06) | branch `paul-schwendenman/core-hardening-3.1a`, uncommitted; 532 tests |

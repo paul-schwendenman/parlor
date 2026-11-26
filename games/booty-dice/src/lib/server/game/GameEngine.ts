@@ -88,6 +88,11 @@ export class GameEngine {
     }));
   }
 
+  /** True once the current player has rolled at least once this turn. */
+  hasRolledThisTurn(): boolean {
+    return this.state.rollsRemaining < 3;
+  }
+
   roll(): { dice: Die[]; combo: ComboType; canRollAgain: boolean } {
     if (this.state.rollsRemaining <= 0) {
       throw new GameRuleError('No rolls remaining');
@@ -137,6 +142,11 @@ export class GameEngine {
   selectTarget(dieIndex: number, targetPlayerId: string): void {
     const action = this.state.pendingActions.find((a) => a.dieIndex === dieIndex);
     if (!action) throw new GameRuleError('Invalid action', 'INVALID_ACTION');
+    const current = this.getCurrentPlayer();
+    const target = this.state.players.find((p) => p.id === targetPlayerId);
+    if (!target || target.isEliminated || target.id === current.id) {
+      throw new GameRuleError('Invalid target', 'INVALID_ACTION');
+    }
 
     action.targetPlayerId = targetPlayerId;
     action.resolved = true;

@@ -139,6 +139,7 @@ function setup(handler: ServerGameDefinition['handleGameAction'], extra: Partial
       displayModes: ['peer'],
     },
     createLobbyCallbacks: () => ({}),
+    validateAction: (a) => ({ ok: true, action: a }),
     handleGameAction: handle,
     ...extra,
   };
@@ -236,13 +237,24 @@ describe('dispatchGameAction', () => {
 
   it('runs the game validateAction hook and rejects with its message', async () => {
     const validateAction = vi.fn((a: Record<string, unknown>) =>
-      a.type === 'ok' ? ({ ok: true } as const) : ({ ok: false, message: 'Unknown action' } as const),
+      a.type === 'ok' ? ({ ok: true, action: a } as const) : ({ ok: false, message: 'Unknown action' } as const),
     );
     const t = setup(() => {}, { validateAction });
     expect(await t.send(t.player, { type: 'nope' })).toEqual({ ok: false, code: 'INVALID_ACTION', message: 'Unknown action' });
     expect(t.handle).not.toHaveBeenCalled();
     expect(await t.send(t.player, { type: 'ok' })).toEqual({ ok: true });
     expect(t.handle).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes the sanitized action from validateAction to the handler, not the client payload', async () => {
+    const t = setup(() => {}, {
+      validateAction: (a) => ({ ok: true, action: { type: a.type, card: { suit: 'hearts', rank: 'K' } } }),
+    });
+    const clientCard = { suit: 'hearts', rank: 'K' };
+    await t.send(t.player, { type: 'play-card', card: clientCard });
+    const received = t.handle.mock.calls[0][3] as { card: unknown };
+    expect(received).toEqual({ type: 'play-card', card: { suit: 'hearts', rank: 'K' } });
+    expect(received.card).not.toBe(clientCard);
   });
 
   it('a GameRuleError acks its code and message, emits error, and keeps the room', async () => {

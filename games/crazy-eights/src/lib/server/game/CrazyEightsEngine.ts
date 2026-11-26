@@ -120,13 +120,15 @@ export class CrazyEightsEngine {
       throw new GameRuleError('Card not in hand');
     }
 
-    if (!canPlayCard(card, this.getTopDiscard(), this.declaredSuit)) {
+    // From here on use the server's own card, never the client's object (CORE-AUDIT A-05).
+    const handCard = player.hand[cardIndex];
+    if (!canPlayCard(handCard, this.getTopDiscard(), this.declaredSuit)) {
       throw new GameRuleError('Cannot play this card');
     }
 
     // Remove from hand, add to discard
     player.hand.splice(cardIndex, 1);
-    this.discardPile.push(card);
+    this.discardPile.push(handCard);
     this.declaredSuit = null;
 
     // Check win
@@ -137,7 +139,7 @@ export class CrazyEightsEngine {
     }
 
     // If played an 8, need to choose suit
-    if (card.rank === '8') {
+    if (handCard.rank === '8') {
       this.phase = 'choosing-suit';
       return;
     }

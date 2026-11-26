@@ -11,7 +11,7 @@ import { GameEngine } from './game/GameEngine.js';
 import { createPlayer } from '../types/game.js';
 import type { BootyDiceAction } from '../types/game.js';
 import { AIPlayer } from './ai/AIPlayer.js';
-import { validateDiceIndices } from './validation.js';
+import { validateBootyDiceAction } from './validateAction.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
@@ -59,11 +59,14 @@ function handleEndTurn(
   engine: GameEngine,
   roomManager: RoomManager,
 ): void {
-  const resolution = engine.resolveTurn();
-
-  if (resolution.winner) {
-    broadcastViews(io, roomCode, engine, roomManager);
-    return;
+  // A turn with no roll (only reachable from server-driven paths such as the AI
+  // timeout fallback; players are rejected earlier) scores nothing.
+  if (engine.hasRolledThisTurn()) {
+    const resolution = engine.resolveTurn();
+    if (resolution.winner) {
+      broadcastViews(io, roomCode, engine, roomManager);
+      return;
+    }
   }
 
   engine.endTurn();
@@ -139,6 +142,10 @@ async function handleAITurn(
       handleEndTurn(io, roomCode, engine, roomManager);
     }
   }
+}
+
+function requireRolled(engine: GameEngine, message: string): void {
+  if (!engine.hasRolledThisTurn()) throw new GameRuleError(message);
 }
 
 function requireActivePlayer(state: ReturnType<GameEngine['getState']>, playerId: string): void {
@@ -222,8 +229,9 @@ export const bootyDiceDefinition: ServerGameDefinition = {
           }
         }
 
-        // Resolve and end turn
-        const resolution = engine.resolveTurn();
+        // Resolve and end turn. A player who drops before rolling forfeits the
+        // turn rather than scoring the previous dice (CORE-AUDIT A-06).
+        const resolution = engine.hasRolledThisTurn() ? engine.resolveTurn() : { winner: null };
         if (!resolution.winner) {
           engine.endTurn();
         }
@@ -254,6 +262,8 @@ export const bootyDiceDefinition: ServerGameDefinition = {
     },
   }),
 
+  validateAction: validateBootyDiceAction,
+
   handleGameAction: (
     io: AppServer,
     socket: AppSocket,
@@ -280,14 +290,14 @@ export const bootyDiceDefinition: ServerGameDefinition = {
       }
 
       case 'lockDice': {
-        const diceResult = validateDiceIndices(action.diceIndices);
-        if (!diceResult.valid) throw new GameRuleError(diceResult.error, 'INVALID_ACTION');
-
         const state = engine.getState();
         requireActivePlayer(state, socket.data.playerId);
         if (state.turnPhase !== 'rolling') throw new GameRuleError('You can only do that while rolling');
+        // Locking before the first roll would keep the previous player's (or the
+        // opening) dice through the roll (CORE-AUDIT A-06).
+        requireRolled(engine, 'Roll before locking dice');
 
-        engine.lockDice(diceResult.indices);
+        engine.lockDice(action.diceIndices);
         broadcastViews(io, roomCode, engine, roomManager);
         break;
       }
@@ -296,6 +306,8 @@ export const bootyDiceDefinition: ServerGameDefinition = {
         const state = engine.getState();
         requireActivePlayer(state, socket.data.playerId);
         if (state.turnPhase !== 'rolling') throw new GameRuleError('You can only do that while rolling');
+
+        requireRolled(engine, 'Roll at least once first');
 
         engine.finishRolling();
         broadcastViews(io, roomCode, engine, roomManager);
@@ -317,6 +329,9 @@ export const bootyDiceDefinition: ServerGameDefinition = {
         requireActivePlayer(state, socket.data.playerId);
         if (state.phase !== 'playing') throw new GameRuleError('The game is not in progress');
 
+        // Without a roll this turn, resolveTurn would score the opening or the
+        // previous player's dice (CORE-AUDIT A-06).
+        requireRolled(engine, 'You must roll before ending your turn');
         if (engine.hasUnresolvedTargets()) {
           throw new GameRuleError('Select targets for all attacks and steals first');
         }

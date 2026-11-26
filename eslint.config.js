@@ -22,6 +22,8 @@ export default tseslint.config(
 			'**/playwright-report/**',
 			// Throwaway audit repro scripts (see docs/audit-repros/README.md).
 			'docs/audit-repros/**',
+			// Agent worktrees are full repo checkouts (see .gitignore).
+			'.claude/worktrees/**',
 			'**/*.config.js',
 			'**/*.config.ts',
 		],

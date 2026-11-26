@@ -125,14 +125,17 @@ export class KingsCornerEngine {
       throw new GameRuleError('Card not in hand');
     }
 
-    const pile = this.getPile(target);
-    if (!canPlayCardOnPile(card, { position: target, cards: pile }, target)) {
+    const pile = this.piles.get(target);
+    if (!pile) throw new GameRuleError('Invalid pile', 'INVALID_ACTION');
+    // From here on use the server's own card, never the client's object (CORE-AUDIT A-05).
+    const handCard = player.hand[cardIndex];
+    if (!canPlayCardOnPile(handCard, { position: target, cards: pile }, target)) {
       throw new GameRuleError('Cannot play this card on that pile');
     }
 
     // Remove from hand, add to pile
     player.hand.splice(cardIndex, 1);
-    pile.push(card);
+    pile.push(handCard);
 
     // Check win
     if (player.hand.length === 0) {
@@ -155,8 +158,9 @@ export class KingsCornerEngine {
       throw new GameRuleError('Cannot move pile onto itself');
     }
 
-    const fromPile = this.getPile(from);
-    const toPile = this.getPile(to);
+    const fromPile = this.piles.get(from);
+    const toPile = this.piles.get(to);
+    if (!fromPile || !toPile) throw new GameRuleError('Invalid pile', 'INVALID_ACTION');
 
     if (!canMovePile(
       { position: from, cards: fromPile },

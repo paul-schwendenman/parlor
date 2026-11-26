@@ -11,3 +11,6 @@ build
 test-results/
 playwright-report/
 blob-report/
+
+# Claude Code agent worktrees
+.claude/worktrees/

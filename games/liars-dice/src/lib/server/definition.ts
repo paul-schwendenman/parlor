@@ -11,6 +11,7 @@ import { LiarsDiceEngine } from './game/LiarsDiceEngine.js';
 import { createPlayer } from '../types/game.js';
 import type { LiarsDiceAction } from '../types/game.js';
 import { AIPlayer } from './ai/AIPlayer.js';
+import { validateLiarsDiceAction } from './validateAction.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
@@ -226,6 +227,8 @@ export const liarsDiceDefinition: ServerGameDefinition = {
       io.to(playerId).emit('game:state', engine.getPlayerView(playerId) as never);
     },
   }),
+
+  validateAction: validateLiarsDiceAction,
 
   handleGameAction: (
     io: AppServer,

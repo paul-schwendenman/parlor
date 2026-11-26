@@ -18,6 +18,7 @@ import type { QuixxAction } from '../types/game.js';
 import { QuixxEngine } from './game/QuixxEngine.js';
 import { DEFAULT_CONFIG } from '../types/game.js';
 import { scheduleBotActions, clearBotTimers } from './game/botController.js';
+import { validateQuixxAction } from './validateAction.js';
 
 // Per-room timer handles
 const roomTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -269,6 +270,8 @@ export const quixxDefinition: ServerGameDefinition = {
       io.to(playerId).emit('game:state', view as never);
     },
   }),
+
+  validateAction: validateQuixxAction,
 
   handleGameAction: (
     io: AppServer,

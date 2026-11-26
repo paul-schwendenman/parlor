@@ -41,6 +41,17 @@ export {
   type PublicError,
 } from './errors.js';
 export {
+  type ActionValidation,
+  invalid,
+  valid,
+  isRecord,
+  hasExactKeys,
+  isIntInRange,
+  isOneOf,
+  validateByType,
+  typeOnly,
+} from './actionValidation.js';
+export {
   dispatchGameAction,
   validateActionEnvelope,
   ACTION_LIMITS,

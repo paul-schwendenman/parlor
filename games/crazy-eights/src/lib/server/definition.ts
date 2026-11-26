@@ -10,6 +10,7 @@ import { GameRuleError, RoomManager } from '@parlor/multiplayer';
 import { CrazyEightsEngine } from './game/CrazyEightsEngine.js';
 import { DEFAULT_CONFIG } from '../types/game.js';
 import type { CrazyEightsAction } from '../types/game.js';
+import { validateCrazyEightsAction } from './validateAction.js';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -108,6 +109,8 @@ export const crazyEightsDefinition: ServerGameDefinition = {
       io.to(playerId).emit('game:state', view as never);
     },
   }),
+
+  validateAction: validateCrazyEightsAction,
 
   handleGameAction: (
     io: AppServer,
