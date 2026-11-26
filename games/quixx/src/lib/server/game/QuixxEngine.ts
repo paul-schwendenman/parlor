@@ -15,6 +15,7 @@ import { DEFAULT_CONFIG, ROW_COLORS } from '../../types/game.js';
 import { rollAllDice } from './dice.js';
 import { canMark, getAvailablePhase1Moves, getAvailablePhase2Moves, numberAtCell, cellForNumber } from '../../game/validation.js';
 import { computeAllScores } from '../../game/scoring.js';
+import { GameRuleError } from '@parlor/multiplayer';
 
 function createScoresheet(): Scoresheet {
   return {
@@ -91,7 +92,7 @@ export class QuixxEngine {
 
   rollDice(): DiceState {
     if (this.phase !== 'rolling') {
-      throw new Error('Cannot roll dice outside of rolling phase');
+      throw new GameRuleError('Cannot roll dice outside of rolling phase');
     }
 
     this.dice = rollAllDice(this.removedDice);
@@ -108,12 +109,12 @@ export class QuixxEngine {
 
   submitPhase1(playerId: string, action: QuixxAction): void {
     if (this.phase !== 'phase1') {
-      throw new Error('Not in phase1');
+      throw new GameRuleError('Not in phase1');
     }
 
     const player = this.players.find((p) => p.id === playerId);
-    if (!player) throw new Error('Player not found');
-    if (player.phase1Decision !== null) throw new Error('Already submitted phase1 choice');
+    if (!player) throw new GameRuleError('Player not found');
+    if (player.phase1Decision !== null) throw new GameRuleError('Already submitted phase1 choice');
 
     if (action.type === 'phase1-pass') {
       player.phase1Decision = { type: 'pass' };
@@ -124,17 +125,17 @@ export class QuixxEngine {
       const whiteSum = this.dice.white1 + this.dice.white2;
       const numAtCell = numberAtCell(action.row, action.cellIndex);
       if (numAtCell !== whiteSum) {
-        throw new Error(`Invalid mark: number at cell ${action.cellIndex} in ${action.row} is ${numAtCell}, not ${whiteSum}`);
+        throw new GameRuleError(`Invalid mark: number at cell ${action.cellIndex} in ${action.row} is ${numAtCell}, not ${whiteSum}`);
       }
       if (!canMark(player.sheet, action.row, action.cellIndex, this.lockedRows)) {
-        throw new Error('Invalid mark position');
+        throw new GameRuleError('Invalid mark position');
       }
       player.phase1Decision = { type: 'mark', row: action.row, cellIndex: action.cellIndex };
       if (playerId === this.players[this.activePlayerIndex].id) {
         this.activePlayerPhase1Passed = false;
       }
     } else {
-      throw new Error('Invalid phase1 action type');
+      throw new GameRuleError('Invalid phase1 action type', 'INVALID_ACTION');
     }
   }
 
@@ -172,12 +173,12 @@ export class QuixxEngine {
 
   submitPhase2(playerId: string, action: QuixxAction): void {
     if (this.phase !== 'phase2') {
-      throw new Error('Not in phase2');
+      throw new GameRuleError('Not in phase2');
     }
 
     const activePlayer = this.players[this.activePlayerIndex];
     if (activePlayer.id !== playerId) {
-      throw new Error('Only the active player can act in phase2');
+      throw new GameRuleError('Only the active player can act in phase2', 'NOT_YOUR_TURN');
     }
 
     if (action.type === 'phase2-pass') {
@@ -192,7 +193,7 @@ export class QuixxEngine {
       }
     } else if (action.type === 'phase2-mark') {
       if (!canMark(activePlayer.sheet, action.row, action.cellIndex, this.lockedRows)) {
-        throw new Error('Invalid mark position');
+        throw new GameRuleError('Invalid mark position');
       }
 
       // Validate it's a valid colored combo
@@ -206,7 +207,7 @@ export class QuixxEngine {
         (m) => m.row === action.row && m.cellIndex === action.cellIndex,
       );
       if (!isValid) {
-        throw new Error('Invalid phase2 mark: not a valid colored combo');
+        throw new GameRuleError('Invalid phase2 mark: not a valid colored combo');
       }
 
       activePlayer.sheet[action.row][action.cellIndex] = true;
@@ -215,7 +216,7 @@ export class QuixxEngine {
         this.lockRow(action.row, activePlayer);
       }
     } else {
-      throw new Error('Invalid phase2 action type');
+      throw new GameRuleError('Invalid phase2 action type', 'INVALID_ACTION');
     }
 
     // Check game end (2+ locked rows)

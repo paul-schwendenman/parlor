@@ -6,7 +6,7 @@ import type {
   SocketData,
 } from '@parlor/game-types';
 import type { ServerGameDefinition } from '@parlor/multiplayer';
-import { RoomManager } from '@parlor/multiplayer';
+import { GameRuleError, RoomManager } from '@parlor/multiplayer';
 import { KingsCornerEngine } from './game/KingsCornerEngine.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 import { DEFAULT_CONFIG } from '../types/game.js';
@@ -212,37 +212,35 @@ export const kingsCornerDefinition: ServerGameDefinition = {
 
     const action = rawAction as unknown as KingsCornerAction;
 
-    try {
-      switch (action.type) {
-        case 'draw-card': {
-          engine.drawCard(socket.data.playerId);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'play-card': {
-          engine.playCard(socket.data.playerId, action.card, action.target);
-          broadcastViews(io, roomCode, engine, roomManager);
-          scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'move-pile': {
-          engine.movePile(socket.data.playerId, action.from, action.to);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'end-turn': {
-          engine.endTurn(socket.data.playerId);
-          broadcastViews(io, roomCode, engine, roomManager);
-          scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-          break;
-        }
+    switch (action.type) {
+      case 'draw-card': {
+        engine.drawCard(socket.data.playerId);
+        broadcastViews(io, roomCode, engine, roomManager);
+        break;
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      socket.emit('error', message);
+
+      case 'play-card': {
+        engine.playCard(socket.data.playerId, action.card, action.target);
+        broadcastViews(io, roomCode, engine, roomManager);
+        scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      case 'move-pile': {
+        engine.movePile(socket.data.playerId, action.from, action.to);
+        broadcastViews(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      case 'end-turn': {
+        engine.endTurn(socket.data.playerId);
+        broadcastViews(io, roomCode, engine, roomManager);
+        scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      default:
+        throw new GameRuleError('Unknown action', 'INVALID_ACTION');
     }
   },
 };

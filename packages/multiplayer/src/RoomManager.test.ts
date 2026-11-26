@@ -297,3 +297,47 @@ describe('RoomManager.rebindSocket (connectionStateRecovery)', () => {
     expect(rm.rebindSocket('sock', 'nope')).toBe(false);
   });
 });
+
+describe('RoomManager.isSeatedPlayer', () => {
+  it('accepts a seated human bound to its own socket', () => {
+    const rm = new RoomManager();
+    const { host, guest } = seatTwoInGame(rm);
+    expect(rm.isSeatedPlayer(host.roomCode, host.playerId)).toBe(true);
+    expect(rm.isSeatedPlayer(host.roomCode, host.playerId, 'sockA')).toBe(true);
+    expect(rm.isSeatedPlayer(host.roomCode.toLowerCase(), guest.playerId!, 'sockB')).toBe(true);
+  });
+
+  it('rejects a missing id, an unknown room, and a player from another room', () => {
+    const rm = new RoomManager();
+    const { host } = seatTwoInGame(rm);
+    const other = rm.createRoom('sockC', 'Cat');
+    expect(rm.isSeatedPlayer(host.roomCode, undefined)).toBe(false);
+    expect(rm.isSeatedPlayer(host.roomCode, '')).toBe(false);
+    expect(rm.isSeatedPlayer('ZZZZ', host.playerId)).toBe(false);
+    expect(rm.isSeatedPlayer(host.roomCode, other.playerId, 'sockC')).toBe(false);
+  });
+
+  it('rejects a socket acting for a seat it is not bound to', () => {
+    const rm = new RoomManager();
+    const { host } = seatTwoInGame(rm);
+    expect(rm.isSeatedPlayer(host.roomCode, host.playerId, 'sockB')).toBe(false);
+    expect(rm.isSeatedPlayer(host.roomCode, host.playerId, 'stranger')).toBe(false);
+  });
+
+  it('rejects spectators and bots', () => {
+    const rm = new RoomManager();
+    const host = rm.createRoom('sockA', 'Ann');
+    const bot = rm.addBot(host.roomCode, 'Bot Alice');
+    rm.addSpectator(host.roomCode, 'sockS');
+    expect(rm.isSpectator('sockS')).toBe(true);
+    expect(rm.isSeatedPlayer(host.roomCode, host.playerId, 'sockS')).toBe(false);
+    expect(rm.isSeatedPlayer(host.roomCode, bot.botId!)).toBe(false);
+  });
+
+  it('rejects a player after they leave', () => {
+    const rm = new RoomManager();
+    const { host, guest } = seatTwoInGame(rm);
+    rm.leaveRoom('sockB');
+    expect(rm.isSeatedPlayer(host.roomCode, guest.playerId!, 'sockB')).toBe(false);
+  });
+});

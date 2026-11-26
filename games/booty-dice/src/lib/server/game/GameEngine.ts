@@ -1,3 +1,4 @@
+import { GameRuleError } from '@parlor/multiplayer';
 import type {
   GameState,
   BootyDicePlayer,
@@ -89,7 +90,7 @@ export class GameEngine {
 
   roll(): { dice: Die[]; combo: ComboType; canRollAgain: boolean } {
     if (this.state.rollsRemaining <= 0) {
-      throw new Error('No rolls remaining');
+      throw new GameRuleError('No rolls remaining');
     }
 
     const result = this.diceRoller.roll(this.state.dice);
@@ -135,7 +136,7 @@ export class GameEngine {
 
   selectTarget(dieIndex: number, targetPlayerId: string): void {
     const action = this.state.pendingActions.find((a) => a.dieIndex === dieIndex);
-    if (!action) throw new Error('Invalid action');
+    if (!action) throw new GameRuleError('Invalid action', 'INVALID_ACTION');
 
     action.targetPlayerId = targetPlayerId;
     action.resolved = true;

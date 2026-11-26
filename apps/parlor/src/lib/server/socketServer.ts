@@ -6,7 +6,14 @@ import type {
 	SocketData,
 	LobbyPlayer
 } from '@parlor/game-types';
-import { RoomManager, safeAck, setupLobbyHandlers } from '@parlor/multiplayer';
+import {
+	RoomManager,
+	dispatchGameAction,
+	returnRoomToLobby,
+	safeAck,
+	setupLobbyHandlers,
+	toPublicError
+} from '@parlor/multiplayer';
 import type { LobbyCallbacks } from '@parlor/multiplayer';
 import { registerAllGames } from './games/index.js';
 import { getGameDefinition } from './gameRegistry.js';
@@ -39,10 +46,12 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 		// Create dynamic lobby callbacks that delegate to the correct game based on room's gameId
 		const dynamicCallbacks: LobbyCallbacks = {
 			onGameStart: (roomCode: string, players: LobbyPlayer[], io: AppServer) => {
+				// Throw (rather than silently return) so the lobby rolls the start back.
 				const gameId = roomManager.getGameId(roomCode);
-				if (!gameId) return;
+				if (!gameId) throw new Error(`No game selected for room ${roomCode}`);
 				const callbacks = getCallbacksForGame(gameId, io);
-				callbacks?.onGameStart?.(roomCode, players, io);
+				if (!callbacks) throw new Error(`Unknown game ${gameId} for room ${roomCode}`);
+				callbacks.onGameStart?.(roomCode, players, io);
 			},
 
 			onGameReset: (roomCode: string, io: AppServer) => {
@@ -122,22 +131,24 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 				io.to(roomCode).emit('lobby:gameSelected', gameId);
 				ack(true);
 			} catch (err) {
-				ack(false, err instanceof Error ? err.message : 'Failed to select game');
+				ack(false, toPublicError(err, 'Failed to select game', { roomCode: socket.data.roomCode }).message);
 			}
 		});
 
-		// Unified game:action handler - routes to correct game
-		socket.on('game:action', (action) => {
+		// Unified game:action handler: the core boundary validates, checks
+		// membership, and routes to the room's game.
+		socket.on('game:action', (action, ack) => {
 			const roomCode = socket.data.roomCode;
-			if (!roomCode) return;
-
-			const gameId = roomManager.getGameId(roomCode);
-			if (!gameId) return;
-
-			const definition = getGameDefinition(gameId);
-			if (!definition) return;
-
-			definition.handleGameAction(io, socket, roomManager, action);
+			const gameId = roomCode ? roomManager.getGameId(roomCode) : null;
+			void dispatchGameAction({
+				io,
+				socket,
+				roomManager,
+				definition: gameId ? getGameDefinition(gameId) : undefined,
+				action,
+				ack,
+				onRoomFailure: (code) => returnRoomToLobby(io, roomManager, code, dynamicCallbacks)
+			});
 		});
 	});
 }

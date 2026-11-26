@@ -7,6 +7,7 @@ import type {
   GameMeta,
 } from '@parlor/game-types';
 import {
+  GameRuleError,
   RoomManager,
   type ServerGameDefinition,
   type AppServer,
@@ -283,61 +284,63 @@ export const quixxDefinition: ServerGameDefinition = {
 
     const action = rawAction as unknown as QuixxAction;
 
-    try {
-      switch (action.type) {
-        case 'roll-dice': {
-          const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
-          if (activePlayer.id !== socket.data.playerId) return;
-          engine.rollDice();
-          broadcastViews(io, roomCode, engine, roomManager);
-          startPhase1Timer(io, roomCode, engine, roomManager);
-          scheduleBotActions(io, roomCode, engine, roomManager);
-          break;
+    switch (action.type) {
+      case 'roll-dice': {
+        const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
+        if (activePlayer.id !== socket.data.playerId) {
+          throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
         }
-
-        case 'phase1-mark':
-        case 'phase1-pass': {
-          engine.submitPhase1(socket.data.playerId, action);
-          broadcastViews(io, roomCode, engine, roomManager);
-
-          if (engine.allPhase1Submitted()) {
-            clearRoomTimer(roomCode);
-            engine.resolvePhase1();
-            broadcastViews(io, roomCode, engine, roomManager);
-
-            if (!engine.isGameOver()) {
-              startPhase2Timer(io, roomCode, engine, roomManager);
-              scheduleBotActions(io, roomCode, engine, roomManager);
-            }
-          } else {
-            scheduleBotActions(io, roomCode, engine, roomManager);
-          }
-          break;
-        }
-
-        case 'phase2-mark':
-        case 'phase2-pass': {
-          clearRoomTimer(roomCode);
-          engine.submitPhase2(socket.data.playerId, action);
-
-          if (engine.isGameOver()) {
-            broadcastViews(io, roomCode, engine, roomManager);
-          } else {
-            engine.advanceTurn();
-            broadcastViews(io, roomCode, engine, roomManager);
-
-            // Auto-roll after turn advance
-            if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) {
-              autoRollIfNeeded(io, roomCode, engine, roomManager);
-            }
-            scheduleBotActions(io, roomCode, engine, roomManager);
-          }
-          break;
-        }
+        engine.rollDice();
+        broadcastViews(io, roomCode, engine, roomManager);
+        startPhase1Timer(io, roomCode, engine, roomManager);
+        scheduleBotActions(io, roomCode, engine, roomManager);
+        break;
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      socket.emit('error', message);
+
+      case 'phase1-mark':
+      case 'phase1-pass': {
+        engine.submitPhase1(socket.data.playerId, action);
+        broadcastViews(io, roomCode, engine, roomManager);
+
+        if (engine.allPhase1Submitted()) {
+          clearRoomTimer(roomCode);
+          engine.resolvePhase1();
+          broadcastViews(io, roomCode, engine, roomManager);
+
+          if (!engine.isGameOver()) {
+            startPhase2Timer(io, roomCode, engine, roomManager);
+            scheduleBotActions(io, roomCode, engine, roomManager);
+          }
+        } else {
+          scheduleBotActions(io, roomCode, engine, roomManager);
+        }
+        break;
+      }
+
+      case 'phase2-mark':
+      case 'phase2-pass': {
+        // submitPhase2 validates phase + active player before mutating; only a
+        // successful submit may cancel the turn timer (CORE-AUDIT A-12).
+        engine.submitPhase2(socket.data.playerId, action);
+        clearRoomTimer(roomCode);
+
+        if (engine.isGameOver()) {
+          broadcastViews(io, roomCode, engine, roomManager);
+        } else {
+          engine.advanceTurn();
+          broadcastViews(io, roomCode, engine, roomManager);
+
+          // Auto-roll after turn advance
+          if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) {
+            autoRollIfNeeded(io, roomCode, engine, roomManager);
+          }
+          scheduleBotActions(io, roomCode, engine, roomManager);
+        }
+        break;
+      }
+
+      default:
+        throw new GameRuleError('Unknown action', 'INVALID_ACTION');
     }
   },
 };

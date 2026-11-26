@@ -367,6 +367,66 @@ describe('createParlorRuntime', () => {
     expect(adapter.connectionState.setActionError).toHaveBeenCalledWith('Cannot start the game yet');
   });
 
+  it('sendAction emits game:action with an ack and resolves ok without setting an error', async () => {
+    const adapter = makeAdapter();
+    const runtime = createParlorRuntime(adapter);
+    runtime.getSocket();
+    const socket = latestSocket();
+    const pending = runtime.sendAction({ type: 'lockDice', diceIndices: [0, 2] });
+    const call = socket.emit.mock.calls.find((c) => c[0] === 'game:action')!;
+    expect(call[1]).toEqual({ type: 'lockDice', diceIndices: [0, 2] });
+    (call[2] as (r: unknown) => void)({ ok: true });
+    await expect(pending).resolves.toEqual({ ok: true });
+    expect(adapter.connectionState.setActionError).toHaveBeenCalledTimes(1);
+    expect(adapter.connectionState.setActionError).toHaveBeenCalledWith(null);
+  });
+
+  it('sendAction surfaces a server rejection through actionError', async () => {
+    const adapter = makeAdapter();
+    const runtime = createParlorRuntime(adapter);
+    runtime.getSocket();
+    const socket = latestSocket();
+    const pending = runtime.sendAction({ type: 'bid', quantity: 1, faceValue: 2 });
+    const reject = { ok: false, code: 'NOT_YOUR_TURN', message: 'Not your turn' };
+    (ackOf(socket, 'game:action') as unknown as (r: unknown) => void)(reject);
+    await expect(pending).resolves.toEqual(reject);
+    expect(adapter.connectionState.setActionError).toHaveBeenLastCalledWith('Not your turn');
+  });
+
+  it('sendAction resolves TIMEOUT after 5s with no ack, and ignores a late ack', async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = makeAdapter();
+      const runtime = createParlorRuntime(adapter);
+      runtime.getSocket();
+      const socket = latestSocket();
+      const pending = runtime.sendAction({ type: 'roll' });
+      vi.advanceTimersByTime(4999);
+      expect(adapter.connectionState.setActionError).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(1);
+      await expect(pending).resolves.toEqual({
+        ok: false,
+        code: 'TIMEOUT',
+        message: 'Server did not respond',
+      });
+      expect(adapter.connectionState.setActionError).toHaveBeenLastCalledWith('Server did not respond');
+      (ackOf(socket, 'game:action') as unknown as (r: unknown) => void)({ ok: true });
+      expect(adapter.connectionState.setActionError).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sendAction treats a malformed ack as an internal failure', async () => {
+    const adapter = makeAdapter();
+    const runtime = createParlorRuntime(adapter);
+    runtime.getSocket();
+    const socket = latestSocket();
+    const pending = runtime.sendAction({ type: 'roll' });
+    (ackOf(socket, 'game:action') as unknown as (r: unknown) => void)(true);
+    await expect(pending).resolves.toMatchObject({ ok: false, code: 'INTERNAL' });
+  });
+
   it('resets game view when lobby:state arrives during gameStarting', () => {
     const adapter = makeAdapter();
     adapter.gameState = { view: { some: 'view' }, setGameId: vi.fn(), reset: vi.fn() };

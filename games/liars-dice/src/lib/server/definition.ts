@@ -6,7 +6,7 @@ import type {
   SocketData,
 } from '@parlor/game-types';
 import type { ServerGameDefinition, AppServer } from '@parlor/multiplayer';
-import { RoomManager } from '@parlor/multiplayer';
+import { GameRuleError, RoomManager } from '@parlor/multiplayer';
 import { LiarsDiceEngine } from './game/LiarsDiceEngine.js';
 import { createPlayer } from '../types/game.js';
 import type { LiarsDiceAction } from '../types/game.js';
@@ -59,6 +59,33 @@ function scheduleAITurnIfNeeded(
   });
 }
 
+const REVEAL_DELAY_MS = 3000;
+
+/**
+ * Server-driven advance after a reveal. Bound to the round it was scheduled
+ * for: if a player already advanced (via `nextRound`), the stale timer must not
+ * cut a later round's reveal short (CORE-AUDIT A-12).
+ */
+function scheduleNextRound(
+  io: AppServer,
+  roomCode: string,
+  engine: LiarsDiceEngine,
+  roomManager: RoomManager,
+): void {
+  if (engine.getState().gameOver) return;
+  const round = engine.getState().round;
+  setTimeout(() => {
+    try {
+      if (engine.getState().round !== round) return;
+      engine.startNextRound();
+      broadcastViews(io, roomCode, engine, roomManager);
+      scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
+    } catch {
+      // game may have ended
+    }
+  }, REVEAL_DELAY_MS);
+}
+
 async function handleAITurn(
   io: AppServer,
   roomCode: string,
@@ -95,17 +122,7 @@ async function handleAITurn(
             engine.challenge(activePlayer.id);
             broadcastViews(io, roomCode, engine, roomManager);
             // Auto-advance to next round after reveal delay
-            if (!engine.getState().gameOver) {
-              setTimeout(() => {
-                try {
-                  engine.startNextRound();
-                  broadcastViews(io, roomCode, engine, roomManager);
-                  scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-                } catch {
-                  // game may have ended
-                }
-              }, 3000);
-            }
+            scheduleNextRound(io, roomCode, engine, roomManager);
           } catch (err) {
             console.error('[AI Challenge] Error:', err);
           }
@@ -115,17 +132,7 @@ async function handleAITurn(
           try {
             engine.spotOn(activePlayer.id);
             broadcastViews(io, roomCode, engine, roomManager);
-            if (!engine.getState().gameOver) {
-              setTimeout(() => {
-                try {
-                  engine.startNextRound();
-                  broadcastViews(io, roomCode, engine, roomManager);
-                  scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-                } catch {
-                  // game may have ended
-                }
-              }, 3000);
-            }
+            scheduleNextRound(io, roomCode, engine, roomManager);
           } catch (err) {
             console.error('[AI Spot On] Error:', err);
           }
@@ -206,17 +213,7 @@ export const liarsDiceDefinition: ServerGameDefinition = {
           engine.challenge(playerId);
           broadcastViews(io, roomCode, engine, roomManager);
 
-          if (!engine.getState().gameOver) {
-            setTimeout(() => {
-              try {
-                engine.startNextRound();
-                broadcastViews(io, roomCode, engine, roomManager);
-                scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-              } catch {
-                // game may have ended
-              }
-            }, 3000);
-          }
+          scheduleNextRound(io, roomCode, engine, roomManager);
         } catch {
           // ignore errors
         }
@@ -244,41 +241,40 @@ export const liarsDiceDefinition: ServerGameDefinition = {
 
     const action = rawAction as unknown as LiarsDiceAction;
 
-    try {
-      switch (action.type) {
-        case 'bid': {
-          if (typeof action.quantity !== 'number' || typeof action.faceValue !== 'number') {
-            socket.emit('error', 'Invalid bid');
-            return;
-          }
-          engine.placeBid(socket.data.playerId, action.quantity, action.faceValue);
-          broadcastViews(io, roomCode, engine, roomManager);
-          scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-          break;
+    switch (action.type) {
+      case 'bid': {
+        if (typeof action.quantity !== 'number' || typeof action.faceValue !== 'number') {
+          throw new GameRuleError('Invalid bid', 'INVALID_ACTION');
         }
-
-        case 'challenge': {
-          engine.challenge(socket.data.playerId);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'spot-on': {
-          engine.spotOn(socket.data.playerId);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'nextRound': {
-          engine.startNextRound();
-          broadcastViews(io, roomCode, engine, roomManager);
-          scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-          break;
-        }
+        engine.placeBid(socket.data.playerId, action.quantity, action.faceValue);
+        broadcastViews(io, roomCode, engine, roomManager);
+        scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
+        break;
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      socket.emit('error', message);
+
+      case 'challenge': {
+        engine.challenge(socket.data.playerId);
+        broadcastViews(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      case 'spot-on': {
+        engine.spotOn(socket.data.playerId);
+        broadcastViews(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      case 'nextRound': {
+        // Any player at the table (eliminated players included, they still see
+        // the reveal) may advance, but only from a reveal phase; the engine checks both.
+        engine.requestNextRound(socket.data.playerId);
+        broadcastViews(io, roomCode, engine, roomManager);
+        scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      default:
+        throw new GameRuleError('Unknown action', 'INVALID_ACTION');
     }
   },
 };

@@ -1,3 +1,4 @@
+import type { ActionResult } from '@parlor/game-types';
 import type { QuixxPlayerView, DiceState, RowColor, PlayerScore } from './game.js';
 
 export interface QuixxServerToClientEvents {
@@ -9,5 +10,5 @@ export interface QuixxServerToClientEvents {
 }
 
 export interface QuixxClientToServerEvents {
-  'game:action': (action: { type: string; row?: RowColor; cellIndex?: number }) => void;
+  'game:action': (action: { type: string; row?: RowColor; cellIndex?: number }, ack?: (result: ActionResult) => void) => void;
 }

@@ -1,3 +1,4 @@
+import { GameRuleError } from '@parlor/multiplayer';
 import type {
   Card,
   PilePosition,
@@ -92,16 +93,16 @@ export class KingsCornerEngine {
 
   drawCard(playerId: string): void {
     if (this.phase !== 'drawing') {
-      throw new Error('Not in drawing phase');
+      throw new GameRuleError('Not in drawing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     if (this.drawPile.length === 0) {
-      throw new Error('Draw pile is empty');
+      throw new GameRuleError('Draw pile is empty');
     }
 
     const drawn = this.drawPile.pop()!;
@@ -111,22 +112,22 @@ export class KingsCornerEngine {
 
   playCard(playerId: string, card: Card, target: PilePosition): void {
     if (this.phase !== 'playing') {
-      throw new Error('Not in playing phase');
+      throw new GameRuleError('Not in playing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     const cardIndex = player.hand.findIndex((c) => cardEquals(c, card));
     if (cardIndex === -1) {
-      throw new Error('Card not in hand');
+      throw new GameRuleError('Card not in hand');
     }
 
     const pile = this.getPile(target);
     if (!canPlayCardOnPile(card, { position: target, cards: pile }, target)) {
-      throw new Error('Cannot play this card on that pile');
+      throw new GameRuleError('Cannot play this card on that pile');
     }
 
     // Remove from hand, add to pile
@@ -142,16 +143,16 @@ export class KingsCornerEngine {
 
   movePile(playerId: string, from: PilePosition, to: PilePosition): void {
     if (this.phase !== 'playing') {
-      throw new Error('Not in playing phase');
+      throw new GameRuleError('Not in playing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     if (from === to) {
-      throw new Error('Cannot move pile onto itself');
+      throw new GameRuleError('Cannot move pile onto itself');
     }
 
     const fromPile = this.getPile(from);
@@ -162,7 +163,7 @@ export class KingsCornerEngine {
       { position: to, cards: toPile },
       to,
     )) {
-      throw new Error('Cannot move this pile there');
+      throw new GameRuleError('Cannot move this pile there');
     }
 
     // Move all cards from source to destination
@@ -172,17 +173,17 @@ export class KingsCornerEngine {
 
   endTurn(playerId: string): void {
     if (this.phase !== 'playing') {
-      throw new Error('Not in playing phase');
+      throw new GameRuleError('Not in playing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     // Check mandatory Kings rule
     if (this.playerMustPlayKing(player)) {
-      throw new Error('You must play a King to an open corner before ending your turn');
+      throw new GameRuleError('You must play a King to an open corner before ending your turn');
     }
 
     this.advanceTurn();

@@ -6,7 +6,7 @@ import type {
   SocketData,
 } from '@parlor/game-types';
 import type { ServerGameDefinition, AppServer } from '@parlor/multiplayer';
-import { RoomManager } from '@parlor/multiplayer';
+import { GameRuleError, RoomManager } from '@parlor/multiplayer';
 import { GameEngine } from './game/GameEngine.js';
 import { createPlayer } from '../types/game.js';
 import type { BootyDiceAction } from '../types/game.js';
@@ -141,6 +141,12 @@ async function handleAITurn(
   }
 }
 
+function requireActivePlayer(state: ReturnType<GameEngine['getState']>, playerId: string): void {
+  if (state.players[state.currentPlayerIndex].id !== playerId) {
+    throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
+  }
+}
+
 export const bootyDiceDefinition: ServerGameDefinition = {
   meta: {
     id: 'booty-dice',
@@ -262,71 +268,65 @@ export const bootyDiceDefinition: ServerGameDefinition = {
 
     const action = rawAction as unknown as BootyDiceAction;
 
-    try {
-      switch (action.type) {
-        case 'roll': {
-          const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
-          if (state.turnPhase !== 'rolling') return;
+    switch (action.type) {
+      case 'roll': {
+        const state = engine.getState();
+        requireActivePlayer(state, socket.data.playerId);
+        if (state.turnPhase !== 'rolling') throw new GameRuleError('You can only do that while rolling');
 
-          engine.roll();
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'lockDice': {
-          const diceResult = validateDiceIndices(action.diceIndices);
-          if (!diceResult.valid) {
-            socket.emit('error', diceResult.error);
-            return;
-          }
-
-          const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
-          if (state.turnPhase !== 'rolling') return;
-
-          engine.lockDice(diceResult.indices);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'finishRolling': {
-          const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
-          if (state.turnPhase !== 'rolling') return;
-
-          engine.finishRolling();
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'selectTarget': {
-          const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
-          if (state.turnPhase !== 'selecting_targets') return;
-
-          engine.selectTarget(action.dieIndex, action.targetPlayerId);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'endTurn': {
-          const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
-          if (state.phase !== 'playing') return;
-
-          if (engine.hasUnresolvedTargets()) {
-            socket.emit('error', 'Select targets for all attacks and steals first');
-            return;
-          }
-
-          handleEndTurn(io, roomCode, engine, roomManager);
-          break;
-        }
+        engine.roll();
+        broadcastViews(io, roomCode, engine, roomManager);
+        break;
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      socket.emit('error', message);
+
+      case 'lockDice': {
+        const diceResult = validateDiceIndices(action.diceIndices);
+        if (!diceResult.valid) throw new GameRuleError(diceResult.error, 'INVALID_ACTION');
+
+        const state = engine.getState();
+        requireActivePlayer(state, socket.data.playerId);
+        if (state.turnPhase !== 'rolling') throw new GameRuleError('You can only do that while rolling');
+
+        engine.lockDice(diceResult.indices);
+        broadcastViews(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      case 'finishRolling': {
+        const state = engine.getState();
+        requireActivePlayer(state, socket.data.playerId);
+        if (state.turnPhase !== 'rolling') throw new GameRuleError('You can only do that while rolling');
+
+        engine.finishRolling();
+        broadcastViews(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      case 'selectTarget': {
+        const state = engine.getState();
+        requireActivePlayer(state, socket.data.playerId);
+        if (state.turnPhase !== 'selecting_targets') throw new GameRuleError('Not selecting targets');
+
+        engine.selectTarget(action.dieIndex, action.targetPlayerId);
+        broadcastViews(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      case 'endTurn': {
+        const state = engine.getState();
+        requireActivePlayer(state, socket.data.playerId);
+        if (state.phase !== 'playing') throw new GameRuleError('The game is not in progress');
+
+        if (engine.hasUnresolvedTargets()) {
+          throw new GameRuleError('Select targets for all attacks and steals first');
+        }
+
+        handleEndTurn(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      default:
+        throw new GameRuleError('Unknown action', 'INVALID_ACTION');
     }
   },
 };

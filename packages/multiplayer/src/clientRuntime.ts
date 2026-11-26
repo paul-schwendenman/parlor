@@ -1,4 +1,4 @@
-import type { LobbyPlayer } from '@parlor/game-types';
+import type { ActionResult, LobbyPlayer } from '@parlor/game-types';
 import {
   createGameClient,
   saveSession,
@@ -82,6 +82,12 @@ export interface ParlorRuntime {
   selectGameAction(gameId: string | null): void;
   readyAction(isReady: boolean): void;
   startGameAction(): void;
+  /**
+   * Send a `game:action` and wait for the server's verdict. Never rejects:
+   * resolves `{ ok: false, code: 'TIMEOUT' }` if no ack arrives in time.
+   * Failures are also surfaced through `connectionState.setActionError`.
+   */
+  sendAction(action: Record<string, unknown>): Promise<ActionResult>;
   disconnectSocket(): void;
   /** HMR-safe teardown: drop the socket without clearing the persisted session. */
   teardown(): void;
@@ -330,6 +336,35 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
     ackAction('Start game', (s, ack) => s.emit('lobby:startGame', ack));
   }
 
+  function sendAction(action: Record<string, unknown>): Promise<ActionResult> {
+    const s = getSocket();
+    connectionState.setActionError?.(null);
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (result: ActionResult) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (!result.ok) connectionState.setActionError?.(result.message);
+        resolve(result);
+      };
+      const timer = setTimeout(
+        () => finish({ ok: false, code: 'TIMEOUT', message: 'Server did not respond' }),
+        ACK_TIMEOUT,
+      );
+
+      s.emit('game:action', action, (result: ActionResult) => {
+        // Defend against a malformed ack from an older server.
+        if (result && typeof result === 'object' && typeof result.ok === 'boolean') {
+          finish(result);
+        } else {
+          finish({ ok: false, code: 'INTERNAL', message: 'Something went wrong' });
+        }
+      });
+    });
+  }
+
   function teardown(): void {
     if (socket) {
       socket.disconnect();
@@ -354,6 +389,7 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
     selectGameAction,
     readyAction,
     startGameAction,
+    sendAction,
     disconnectSocket,
     teardown,
   };

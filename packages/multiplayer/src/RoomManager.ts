@@ -255,6 +255,25 @@ export class RoomManager {
     return this.spectatorToRoom.has(socketId);
   }
 
+  /**
+   * True when `playerId` holds a human seat in `roomCode`. With `socketId`, also
+   * requires that socket to be bound to that player and not to be a spectator,
+   * so a socket can't act for a seat it doesn't own.
+   */
+  isSeatedPlayer(roomCode: string, playerId: string | undefined, socketId?: string): boolean {
+    if (!playerId) return false;
+    const code = roomCode.toUpperCase();
+    const room = this.rooms.get(code);
+    if (!room || !room.players.has(playerId)) return false;
+    if (RoomManager.isBotPlayer(playerId)) return false;
+    if (this.playerToRoom.get(playerId) !== code) return false;
+    if (socketId !== undefined) {
+      if (this.spectatorToRoom.has(socketId)) return false;
+      if (this.socketToPlayer.get(socketId) !== playerId) return false;
+    }
+    return true;
+  }
+
   getSpectatorsInRoom(roomCode: string): string[] {
     const room = this.rooms.get(roomCode);
     return room ? [...room.spectators] : [];

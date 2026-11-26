@@ -1,3 +1,4 @@
+import { GameRuleError } from '@parlor/multiplayer';
 import type {
   LiarsDiceGameState,
   LiarsDicePlayer,
@@ -126,17 +127,17 @@ export class LiarsDiceEngine {
   }
 
   placeBid(playerId: string, quantity: number, faceValue: number): void {
-    if (this.state.phase !== 'bidding') throw new Error('Not in bidding phase');
+    if (this.state.phase !== 'bidding') throw new GameRuleError('Not in bidding phase');
 
     const activePlayer = this.state.players[this.state.activePlayerIndex];
-    if (activePlayer.id !== playerId) throw new Error('Not your turn');
+    if (activePlayer.id !== playerId) throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
 
-    if (faceValue < 1 || faceValue > 6) throw new Error('Face value must be 1-6');
-    if (quantity < 1) throw new Error('Quantity must be at least 1');
+    if (faceValue < 1 || faceValue > 6) throw new GameRuleError('Face value must be 1-6');
+    if (quantity < 1) throw new GameRuleError('Quantity must be at least 1');
 
     const newBid: Bid = { playerId, quantity, faceValue };
     if (!this.isValidBid(newBid, this.state.currentBid)) {
-      throw new Error('Bid is not high enough');
+      throw new GameRuleError('Bid is not high enough');
     }
 
     this.state.previousBidderId = this.state.currentBid?.playerId ?? null;
@@ -149,11 +150,11 @@ export class LiarsDiceEngine {
   }
 
   challenge(playerId: string): void {
-    if (this.state.phase !== 'bidding') throw new Error('Not in bidding phase');
-    if (!this.state.currentBid) throw new Error('No bid to challenge');
+    if (this.state.phase !== 'bidding') throw new GameRuleError('Not in bidding phase');
+    if (!this.state.currentBid) throw new GameRuleError('No bid to challenge');
 
     const activePlayer = this.state.players[this.state.activePlayerIndex];
-    if (activePlayer.id !== playerId) throw new Error('Not your turn');
+    if (activePlayer.id !== playerId) throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
 
     const bid = this.state.currentBid;
     const allDice = this.state.players
@@ -197,12 +198,12 @@ export class LiarsDiceEngine {
   }
 
   spotOn(playerId: string): void {
-    if (this.state.phase !== 'bidding') throw new Error('Not in bidding phase');
-    if (!this.state.currentBid) throw new Error('No bid to call spot on');
-    if (!this.state.spotOnEnabled) throw new Error('Spot on is not enabled');
+    if (this.state.phase !== 'bidding') throw new GameRuleError('Not in bidding phase');
+    if (!this.state.currentBid) throw new GameRuleError('No bid to call spot on');
+    if (!this.state.spotOnEnabled) throw new GameRuleError('Spot on is not enabled');
 
     const activePlayer = this.state.players[this.state.activePlayerIndex];
-    if (activePlayer.id !== playerId) throw new Error('Not your turn');
+    if (activePlayer.id !== playerId) throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
 
     const bid = this.state.currentBid;
     const allDice = this.state.players
@@ -253,9 +254,22 @@ export class LiarsDiceEngine {
     }
   }
 
+  /**
+   * A player's `nextRound` request. Any player in the game may advance from a
+   * reveal, eliminated players included (they still see the reveal); anyone
+   * else, or any other phase, is a rule error and changes nothing.
+   */
+  requestNextRound(playerId: string): void {
+    if (!playerId || !this.state.players.some((p) => p.id === playerId)) {
+      throw new GameRuleError('Only players in this game can start the next round');
+    }
+    this.startNextRound();
+  }
+
+  /** Advance from a reveal to the next round (server auto-advance path). */
   startNextRound(): void {
     if (this.state.phase !== 'challenge' && this.state.phase !== 'spot-on' && this.state.phase !== 'round-result') {
-      throw new Error('Cannot start next round from this phase');
+      throw new GameRuleError('Cannot start next round from this phase');
     }
 
     if (this.state.gameOver) return;

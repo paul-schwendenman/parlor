@@ -76,6 +76,25 @@ export interface GameMeta {
   supportsBots?: boolean;
 }
 
+/**
+ * Stable public error codes for a rejected `game:action`.
+ * - `RATE_LIMITED` is reserved for the boundary rate limiter (plan 3.3).
+ * - `TIMEOUT` is produced client-side only, when no ack arrives.
+ */
+export type ActionErrorCode =
+  | 'NOT_IN_ROOM'
+  | 'NOT_A_PLAYER'
+  | 'NO_ACTIVE_GAME'
+  | 'INVALID_ACTION'
+  | 'NOT_YOUR_TURN'
+  | 'RULE_VIOLATION'
+  | 'RATE_LIMITED'
+  | 'INTERNAL'
+  | 'TIMEOUT';
+
+/** Ack payload for `game:action`. `message` is always safe to show to the user. */
+export type ActionResult = { ok: true } | { ok: false; code: ActionErrorCode; message: string };
+
 export type ServerToClientEvents = {
   'room:updated': (room: Room) => void;
   'game:state': (state: BaseGameState) => void;
@@ -101,7 +120,7 @@ export type ClientToServerEvents = {
   'room:join': (code: string, playerName: string, callback: (room: Room | null, error?: string) => void) => void;
   'room:leave': () => void;
   'game:start': () => void;
-  'game:action': (action: Record<string, unknown>) => void;
+  'game:action': (action: Record<string, unknown>, ack?: (result: ActionResult) => void) => void;
   'chat:send': (text: string) => void;
 
   'lobby:create': (

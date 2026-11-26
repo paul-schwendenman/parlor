@@ -1,3 +1,4 @@
+import { GameRuleError } from '@parlor/multiplayer';
 import type {
   Card,
   Suit,
@@ -99,28 +100,28 @@ export class CrazyEightsEngine {
 
   playCard(playerId: string, card: Card): void {
     if (this.phase !== 'playing') {
-      throw new Error('Cannot play card outside of playing phase');
+      throw new GameRuleError('Cannot play card outside of playing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     // If player drew a card this turn, they can only play the drawn card
     if (this.drawnThisTurn && this.drewCard) {
       if (!cardEquals(card, this.drewCard)) {
-        throw new Error('After drawing, you can only play the drawn card');
+        throw new GameRuleError('After drawing, you can only play the drawn card');
       }
     }
 
     const cardIndex = player.hand.findIndex((c) => cardEquals(c, card));
     if (cardIndex === -1) {
-      throw new Error('Card not in hand');
+      throw new GameRuleError('Card not in hand');
     }
 
     if (!canPlayCard(card, this.getTopDiscard(), this.declaredSuit)) {
-      throw new Error('Cannot play this card');
+      throw new GameRuleError('Cannot play this card');
     }
 
     // Remove from hand, add to discard
@@ -146,16 +147,16 @@ export class CrazyEightsEngine {
 
   chooseSuit(playerId: string, suit: Suit): void {
     if (this.phase !== 'choosing-suit') {
-      throw new Error('Not in choosing-suit phase');
+      throw new GameRuleError('Not in choosing-suit phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     if (!SUITS.includes(suit)) {
-      throw new Error('Invalid suit');
+      throw new GameRuleError('Invalid suit', 'INVALID_ACTION');
     }
 
     this.declaredSuit = suit;
@@ -164,16 +165,16 @@ export class CrazyEightsEngine {
 
   drawCard(playerId: string): void {
     if (this.phase !== 'playing') {
-      throw new Error('Cannot draw outside of playing phase');
+      throw new GameRuleError('Cannot draw outside of playing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     if (this.drawnThisTurn) {
-      throw new Error('Already drew this turn');
+      throw new GameRuleError('Already drew this turn');
     }
 
     this.ensureDrawPile();
@@ -197,16 +198,16 @@ export class CrazyEightsEngine {
 
   pass(playerId: string): void {
     if (this.phase !== 'playing') {
-      throw new Error('Cannot pass outside of playing phase');
+      throw new GameRuleError('Cannot pass outside of playing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     if (!this.drawnThisTurn) {
-      throw new Error('Must draw before passing');
+      throw new GameRuleError('Must draw before passing');
     }
 
     this.advanceTurn();

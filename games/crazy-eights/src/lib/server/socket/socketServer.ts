@@ -5,7 +5,12 @@ import type {
   InterServerEvents,
   SocketData,
 } from '@parlor/game-types';
-import { RoomManager, setupLobbyHandlers } from '@parlor/multiplayer';
+import {
+  RoomManager,
+  dispatchGameAction,
+  returnRoomToLobby,
+  setupLobbyHandlers,
+} from '@parlor/multiplayer';
 import { crazyEightsDefinition } from '../definition.js';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -18,8 +23,16 @@ export function setupCrazyEightsSocketHandlers(io: AppServer): void {
   io.on('connection', (socket) => {
     setupLobbyHandlers(io, socket, roomManager, callbacks, { defaultMaxPlayers: crazyEightsDefinition.meta.maxPlayers });
 
-    socket.on('game:action', (action) => {
-      crazyEightsDefinition.handleGameAction(io, socket, roomManager, action);
+    socket.on('game:action', (action, ack) => {
+      void dispatchGameAction({
+        io,
+        socket,
+        roomManager,
+        definition: crazyEightsDefinition,
+        action,
+        ack,
+        onRoomFailure: (roomCode) => returnRoomToLobby(io, roomManager, roomCode, callbacks),
+      });
     });
   });
 }

@@ -6,7 +6,7 @@ import type {
   SocketData,
 } from '@parlor/game-types';
 import type { ServerGameDefinition } from '@parlor/multiplayer';
-import { RoomManager } from '@parlor/multiplayer';
+import { GameRuleError, RoomManager } from '@parlor/multiplayer';
 import { CrazyEightsEngine } from './game/CrazyEightsEngine.js';
 import { DEFAULT_CONFIG } from '../types/game.js';
 import type { CrazyEightsAction } from '../types/game.js';
@@ -123,35 +123,33 @@ export const crazyEightsDefinition: ServerGameDefinition = {
 
     const action = rawAction as unknown as CrazyEightsAction;
 
-    try {
-      switch (action.type) {
-        case 'play-card': {
-          engine.playCard(socket.data.playerId, action.card);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'draw-card': {
-          engine.drawCard(socket.data.playerId);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'pass': {
-          engine.pass(socket.data.playerId);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'choose-suit': {
-          engine.chooseSuit(socket.data.playerId, action.suit);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
+    switch (action.type) {
+      case 'play-card': {
+        engine.playCard(socket.data.playerId, action.card);
+        broadcastViews(io, roomCode, engine, roomManager);
+        break;
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      socket.emit('error', message);
+
+      case 'draw-card': {
+        engine.drawCard(socket.data.playerId);
+        broadcastViews(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      case 'pass': {
+        engine.pass(socket.data.playerId);
+        broadcastViews(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      case 'choose-suit': {
+        engine.chooseSuit(socket.data.playerId, action.suit);
+        broadcastViews(io, roomCode, engine, roomManager);
+        break;
+      }
+
+      default:
+        throw new GameRuleError('Unknown action', 'INVALID_ACTION');
     }
   },
 };

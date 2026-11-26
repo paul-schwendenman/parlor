@@ -25,9 +25,24 @@ export {
 export { RoomManager, type GameRoom, type DisconnectResult } from './RoomManager.js';
 export {
   setupLobbyHandlers,
+  returnRoomToLobby,
   type LobbyCallbacks,
   type LobbyHandlerOptions,
 } from './lobbyHandlers.js';
 export { generateRoomCode } from './utils.js';
 export { safeAck } from './ack.js';
-export { type ServerGameDefinition } from './gameDefinition.js';
+export { type ServerGameDefinition, type AppSocket } from './gameDefinition.js';
+export {
+  GameRuleError,
+  isGameRuleError,
+  toPublicError,
+  INTERNAL_ERROR_MESSAGE,
+  type GameRuleErrorCode,
+  type PublicError,
+} from './errors.js';
+export {
+  dispatchGameAction,
+  validateActionEnvelope,
+  ACTION_LIMITS,
+  type DispatchGameActionOptions,
+} from './actionBoundary.js';
