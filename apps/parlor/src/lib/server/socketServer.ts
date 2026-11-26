@@ -6,7 +6,7 @@ import type {
 	SocketData,
 	LobbyPlayer
 } from '@parlor/game-types';
-import { RoomManager, setupLobbyHandlers } from '@parlor/multiplayer';
+import { RoomManager, safeAck, setupLobbyHandlers } from '@parlor/multiplayer';
 import type { LobbyCallbacks } from '@parlor/multiplayer';
 import { registerAllGames } from './games/index.js';
 import { getGameDefinition } from './gameRegistry.js';
@@ -79,20 +79,21 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 
 		// Handle game selection by host
 		socket.on('lobby:selectGame', (gameId: string | null, callback) => {
+			const ack = safeAck(callback);
 			try {
 				const roomCode = socket.data.roomCode;
 				if (!roomCode) {
-					callback?.(false, 'Not in a room');
+					ack(false, 'Not in a room');
 					return;
 				}
 				if (!roomManager.isHost(roomCode, socket.data.playerId)) {
-					callback?.(false, 'Only the host can select the game');
+					ack(false, 'Only the host can select the game');
 					return;
 				}
 
 				const room = roomManager.getRoom(roomCode);
 				if (!room || room.status !== 'waiting') {
-					callback?.(false, 'Cannot change game after it has started');
+					ack(false, 'Cannot change game after it has started');
 					return;
 				}
 
@@ -100,28 +101,28 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 				if (gameId === null) {
 					roomManager.setGameId(roomCode, null);
 					io.to(roomCode).emit('lobby:gameSelected', null);
-					callback?.(true);
+					ack(true);
 					return;
 				}
 
 				if (typeof gameId !== 'string' || !gameId.trim()) {
-					callback?.(false, 'Invalid game');
+					ack(false, 'Invalid game');
 					return;
 				}
 
 				const definition = getGameDefinition(gameId);
 				if (!definition) {
 					socket.emit('error', 'Unknown game');
-					callback?.(false, 'Unknown game');
+					ack(false, 'Unknown game');
 					return;
 				}
 
 				roomManager.setGameId(roomCode, gameId);
 				roomManager.setMaxPlayers(roomCode, definition.meta.maxPlayers);
 				io.to(roomCode).emit('lobby:gameSelected', gameId);
-				callback?.(true);
+				ack(true);
 			} catch (err) {
-				callback?.(false, err instanceof Error ? err.message : 'Failed to select game');
+				ack(false, err instanceof Error ? err.message : 'Failed to select game');
 			}
 		});
 

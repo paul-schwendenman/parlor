@@ -107,8 +107,8 @@ Run five parallel reviews. Each writes findings into `docs/CORE-AUDIT.md`, and e
 
 ## Phase 2: Triage
 
-- [ ] Review `docs/CORE-AUDIT.md` together; fill the Triage column (`now` / `later` / `wontfix`)
-- [ ] Adjust the Phase 3 list below to match
+- [x] Review `docs/CORE-AUDIT.md` together; fill the Triage column (`now` / `later` / `wontfix`). 2026-11-25: the user accepted the proposed buckets and order; all 32 findings marked `now`.
+- [x] Adjust the Phase 3 list below to match
 
 ## Phase 3: Hardening
 
@@ -132,7 +132,12 @@ The reasoning:
 - **3.1b before 3.9:** the five-game type migration waits until the boundary is safe, and gives the per-game fixes the contract they need (for example `onPlayerRemoved`).
 
 ### 3.0 Hotfix
-- [ ] **3.0** Only call an ack if `typeof callback === 'function'`, on every handler that takes one. Don't call the ack again from the `catch` block. Regression test: the `boundary/crash.mjs` packet → the process stays up, and a valid `lobby:ready` afterward still succeeds. (F-01)
+- [x] **3.0** Only call an ack if `typeof callback === 'function'`, on every handler that takes one. Don't call the ack again from the `catch` block. Regression test: the `boundary/crash.mjs` packet → the process stays up, and a valid `lobby:ready` afterward still succeeds. (F-01)
+  - **Done (branch `paul-schwendenman/core-hardening-3.0`):**
+    - New `safeAck()` in `packages/multiplayer/src/ack.ts`, exported from `@parlor/multiplayer`.
+    - Applied to `lobby:ready`, `lobby:startGame` and `lobby:selectGame`, the only handlers using `callback?.()`. The others already checked `typeof callback === 'function'`.
+    - Regression tests over a real socket.io server and client, each sending 7 bad ack values and then a valid request: `packages/multiplayer/src/malformedAck.test.ts` (24 tests) and `apps/parlor/src/lib/server/socketServer.test.ts` (8 tests). Both fail without the fix.
+    - `apps/parlor` now has Vitest (a standalone `vitest.config.ts` and a `test` script), so its tests run in `turbo test` and CI.
 
 ### 3.1 Game contract: boundary first, migration second
 - [ ] **3.1a Core action boundary.** No per-game type changes yet. The core `game:action` router:
@@ -260,3 +265,5 @@ The reasoning:
 | 2026-11-25 | Phase 0 complete (0.1–0.4) | branch `paul-schwendenman/core-hardening-phase-0`, uncommitted |
 | 2026-11-25 | Phase 1 audit complete (A–E) | `docs/CORE-AUDIT.md`, 32 findings |
 | 2026-11-25 | Plan revised after the audit and an external review | Phase 3 restructured (3.0–3.10, 3.1 split into a/b, 3.6 dropped); log-and-exit safety net; game-instance lifetime; regression tests required in every fix PR; 0.5 added; repros copied to `docs/audit-repros/` |
+| 2026-11-25 | Phase 2 triage: all 32 findings `now` | proposed buckets and order accepted |
+| 2026-11-25 | 3.0 hotfix (F-01) | branch `paul-schwendenman/core-hardening-3.0`, uncommitted |

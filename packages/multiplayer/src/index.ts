@@ -29,4 +29,5 @@ export {
   type LobbyHandlerOptions,
 } from './lobbyHandlers.js';
 export { generateRoomCode } from './utils.js';
+export { safeAck } from './ack.js';
 export { type ServerGameDefinition } from './gameDefinition.js';

@@ -21,9 +21,10 @@ Paths are relative to the repo, so the scripts work from any checkout. A script 
 
 ## Index
 
+Converted to tests and removed: `boundary/crash.mjs` (F-01) → `packages/multiplayer/src/malformedAck.test.ts`, `apps/parlor/src/lib/server/socketServer.test.ts`.
+
 | Script | Shows | Findings |
 |---|---|---|
-| `boundary/crash.mjs` | A non-function ack crashes the process (exits 1 with `TypeError`) | F-01 (A-01, B-01) |
 | `boundary/leak.mjs` | One socket creates thousands of rooms that outlive its disconnect | F-02 (A-02, A-03) |
 | `rooms/probe.ts` | Ghost seats, `setMaxPlayers` under occupancy, 1 MB names, code-space size | F-02, F-11, F-13 (E-01, E-03, E-07) |
 | `rooms/mem.ts` | Memory per room, and slowdown as the code space fills | F-02 (E-02) |

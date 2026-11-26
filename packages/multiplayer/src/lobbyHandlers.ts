@@ -7,6 +7,7 @@ import type {
   LobbyPlayer,
 } from '@parlor/game-types';
 import type { RoomManager, ExpiryOutcome } from './RoomManager.js';
+import { safeAck } from './ack.js';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -171,24 +172,25 @@ export function setupLobbyHandlers(
   });
 
   socket.on('lobby:ready', (isReady, callback) => {
+    const ack = safeAck(callback);
     try {
       const roomCode = socket.data.roomCode;
       const playerId = socket.data.playerId;
       if (!roomCode || !playerId) {
-        callback?.(false, 'Not in a room');
+        ack(false, 'Not in a room');
         return;
       }
       if (typeof isReady !== 'boolean') {
-        callback?.(false, 'Invalid ready value');
+        ack(false, 'Invalid ready value');
         return;
       }
 
       roomManager.setPlayerReady(playerId, isReady);
       const players = roomManager.getPlayersInRoom(roomCode);
       io.to(roomCode).emit('lobby:state', players, roomManager.canStartGame(roomCode));
-      callback?.(true);
+      ack(true);
     } catch (err) {
-      callback?.(false, err instanceof Error ? err.message : 'Failed to set ready');
+      ack(false, err instanceof Error ? err.message : 'Failed to set ready');
     }
   });
 
@@ -261,28 +263,29 @@ export function setupLobbyHandlers(
   });
 
   socket.on('lobby:startGame', (callback) => {
+    const ack = safeAck(callback);
     try {
       const roomCode = socket.data.roomCode;
       if (!roomCode) {
-        callback?.(false, 'Not in a room');
+        ack(false, 'Not in a room');
         return;
       }
       if (!roomManager.isHost(roomCode, socket.data.playerId)) {
-        callback?.(false, 'Only the host can start the game');
+        ack(false, 'Only the host can start the game');
         return;
       }
 
       const players = roomManager.startGame(roomCode);
       if (!players) {
-        callback?.(false, 'Cannot start the game yet');
+        ack(false, 'Cannot start the game yet');
         return;
       }
 
       io.to(roomCode).emit('lobby:gameStarting');
       callbacks?.onGameStart?.(roomCode, players, io);
-      callback?.(true);
+      ack(true);
     } catch (err) {
-      callback?.(false, err instanceof Error ? err.message : 'Failed to start game');
+      ack(false, err instanceof Error ? err.message : 'Failed to start game');
     }
   });
 
