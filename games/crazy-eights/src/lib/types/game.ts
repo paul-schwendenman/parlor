@@ -49,3 +49,11 @@ export interface CrazyEightsConfig {
 export const DEFAULT_CONFIG: CrazyEightsConfig = {
   turnTimer: null,
 };
+
+// Crazy Eights' entry in the `game:state` wire map (plan 3.1b). Players and
+// spectators both receive this shape; a spectator's has `myIndex: -1` and an empty hand.
+declare module '@parlor/game-types' {
+  interface GameViewMap {
+    'crazy-eights': CrazyEightsPlayerView;
+  }
+}

@@ -13,12 +13,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Server } from 'socket.io';
 import { io as ioc, type Socket as ClientSocket } from 'socket.io-client';
 import type { ActionResult, JoinRoomResult } from '@parlor/game-types';
+import type { ServerGameDefinition } from '@parlor/multiplayer';
 
 type View = any;
 
 interface Client {
 	socket: ClientSocket;
+	/** The `view` of every `game:state` envelope received. */
 	states: View[];
+	/** The `gameId` of every `game:state` envelope received, aligned with `states`. */
+	gameIds: string[];
 	errors: string[];
 	lobbyStates: number;
 	last(): View;
@@ -57,11 +61,15 @@ async function connect(): Promise<Client> {
 	const c: Client = {
 		socket,
 		states: [],
+		gameIds: [],
 		errors: [],
 		lobbyStates: 0,
 		last: () => c.states[c.states.length - 1]
 	};
-	socket.on('game:state', (s: View) => c.states.push(s));
+	socket.on('game:state', (s: { gameId: string; view: View }) => {
+		c.gameIds.push(s.gameId);
+		c.states.push(s.view);
+	});
 	socket.on('error', (m: string) => c.errors.push(m));
 	socket.on('lobby:state', () => c.lobbyStates++);
 	await new Promise<void>((r) => socket.on('connect', () => r()));
@@ -140,15 +148,17 @@ beforeEach(async () => {
 	// the INTERNAL → back-to-lobby path through the real wiring.
 	const { registerGame } = await import('./gameRegistry.js');
 	const { crazyEightsDefinition: c8 } = await import('@parlor/crazy-eights/server-definition');
-	registerGame({
+	type FaultyAction = Parameters<typeof c8.handleGameAction>[3] | { type: 'explode' };
+	const faulty: ServerGameDefinition<unknown, FaultyAction> = {
 		...c8,
 		meta: { ...c8.meta, id: 'faulty-eights' },
 		validateAction: (a) => (a.type === 'explode' ? { ok: true, action: { type: 'explode' } } : c8.validateAction(a)),
-		handleGameAction: (io, socket, rm, action) => {
+		handleGameAction(io, socket, rm, action) {
 			if (action.type === 'explode') throw new TypeError("Cannot read properties of null (reading 'suit')");
 			return c8.handleGameAction(io, socket, rm, action);
 		}
-	});
+	};
+	registerGame(faulty);
 	await new Promise<void>((r) => http.listen(0, r));
 	port = (http.address() as AddressInfo).port;
 });
@@ -544,6 +554,51 @@ describe('lobby:startGame preconditions (F-11)', () => {
 		// Still in the lobby: a game can be selected and started.
 		expect(await roomIsWaiting(host, 'liars-dice')).toBe(true);
 		await readyAndStart(host, guest);
+		expect(host.last().phase).toBe('bidding');
+	});
+});
+
+describe('game:state envelopes over the real parlor wiring (plan 3.1b)', () => {
+	it('crazy-eights: every recipient gets a crazy-eights envelope, and the spectator never gets a hand', async () => {
+		const { host, guest, spectator } = await startGame('crazy-eights', true);
+		const spec = spectator!;
+		const [active] = c8ActiveAndOther(host, guest);
+		const before = spec.states.length;
+		expect(await send(active, { type: 'draw-card' })).toEqual({ ok: true });
+		await waitFor(() => spec.states.length > before, 'spectator view after draw');
+
+		for (const c of [host, guest, spec]) {
+			expect(c.gameIds.length).toBeGreaterThan(0);
+			expect(new Set(c.gameIds)).toEqual(new Set(['crazy-eights']));
+		}
+		expect(host.last().myHand.length).toBeGreaterThan(0);
+		expect(guest.last().myHand.length).toBeGreaterThan(0);
+		expect(host.last().myIndex).not.toBe(guest.last().myIndex);
+		for (const view of spec.states) {
+			expect(view).toMatchObject({ myHand: [], myIndex: -1, playableCards: [], drewCard: null });
+		}
+	});
+
+	it('a not-yet-migrated game (liars-dice) reaches players and spectators in its own envelope', async () => {
+		const { host, guest, spectator } = await startGame('liars-dice', true);
+		for (const c of [host, guest, spectator!]) {
+			expect(new Set(c.gameIds)).toEqual(new Set(['liars-dice']));
+			expect(c.last().phase).toBe('bidding');
+		}
+	});
+
+	it('after returning to the lobby and switching game, only the new game is sent', async () => {
+		const { host, guest } = await startGame('crazy-eights');
+		const returned = new Promise<void>((resolve) => host.socket.once('lobby:returned', () => resolve()));
+		host.socket.emit('lobby:resetGame');
+		await returned;
+		expect(await roomIsWaiting(host, 'liars-dice')).toBe(true);
+
+		const seen = { host: host.gameIds.length, guest: guest.gameIds.length };
+		await readyAndStart(host, guest);
+		await settle();
+		expect(new Set(host.gameIds.slice(seen.host))).toEqual(new Set(['liars-dice']));
+		expect(new Set(guest.gameIds.slice(seen.guest))).toEqual(new Set(['liars-dice']));
 		expect(host.last().phase).toBe('bidding');
 	});
 });

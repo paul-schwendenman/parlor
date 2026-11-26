@@ -34,7 +34,26 @@ export {
 } from './lobbyHandlers.js';
 export { generateRoomCode } from './utils.js';
 export { safeAck } from './ack.js';
-export { type ServerGameDefinition, type AppSocket } from './gameDefinition.js';
+export {
+  type ServerGameDefinition,
+  type TypedGameAccess,
+  type LooseGameAction,
+  type AppSocket,
+} from './gameDefinition.js';
+export {
+  defineGame,
+  type TypedGameDefinition,
+  type GameActionHandlers,
+  type GameContext,
+  type PlayerContext,
+  type RoomDestroyedContext,
+  type GameHandlerResult,
+} from './defineGame.js';
+export {
+  withGameStateEnvelope,
+  envelopeGameStateEmits,
+  isTypedGameDefinition,
+} from './legacyGameDefinition.js';
 export {
   GameRuleError,
   isGameRuleError,

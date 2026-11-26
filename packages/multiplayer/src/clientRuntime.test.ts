@@ -291,7 +291,7 @@ describe('createParlorRuntime', () => {
     reconnectCb(socket)(true);
     socket.trigger('lobby:state', [{ id: 'p1', name: 'Ann', connected: true }], false);
     socket.trigger('lobby:gameStarting');
-    socket.trigger('game:state', { phase: 'playing' });
+    socket.trigger('game:state', { gameId: 'quixx', view: { phase: 'playing' } });
     socket.trigger('disconnect');
     socket.trigger('connect');
     reconnectCb(socket)(false);
@@ -472,12 +472,33 @@ describe('createParlorRuntime', () => {
     expect(adapter.gameState.setGameId).toHaveBeenCalledWith('crazy-eights');
   });
 
-  it('applies incoming game:state via onView', () => {
+  it('passes the unwrapped view of a game:state envelope to onView', () => {
     const adapter = makeAdapter();
     const runtime = createParlorRuntime(adapter);
     runtime.getSocket();
-    latestSocket().trigger('game:state', { hello: 'world' });
-    expect(adapter.onView).toHaveBeenCalledWith({ hello: 'world' });
+    latestSocket().trigger('game:state', { gameId: 'quixx', view: { hello: 'world' } });
+    expect(adapter.onView).toHaveBeenCalledExactlyOnceWith({ hello: 'world' });
+  });
+
+  it('passes the whole game:state envelope to onGameState', () => {
+    const onGameState = vi.fn();
+    const adapter = makeAdapter({ onGameState });
+    const runtime = createParlorRuntime(adapter);
+    runtime.getSocket();
+    const envelope = { gameId: 'quixx', view: { phase: 'phase1' } };
+    latestSocket().trigger('game:state', envelope);
+    expect(onGameState).toHaveBeenCalledExactlyOnceWith(envelope);
+    expect(adapter.onView).toHaveBeenCalledExactlyOnceWith({ phase: 'phase1' });
+  });
+
+  it('ignores a game:state payload that is not an envelope object', () => {
+    const onGameState = vi.fn();
+    const adapter = makeAdapter({ onGameState });
+    const runtime = createParlorRuntime(adapter);
+    runtime.getSocket();
+    expect(() => latestSocket().trigger('game:state', null)).not.toThrow();
+    expect(onGameState).not.toHaveBeenCalled();
+    expect(adapter.onView).not.toHaveBeenCalled();
   });
 
   it('createRoomAction stores session and selects a pre-chosen game when enabled', async () => {

@@ -10,8 +10,13 @@ import {
   dispatchGameAction,
   returnRoomToLobby,
   setupLobbyHandlers,
+  withGameStateEnvelope,
 } from '@parlor/multiplayer';
-import { kingsCornerDefinition } from '../definition.js';
+import { kingsCornerDefinition as unwrappedDefinition } from '../definition.js';
+
+// Not migrated to the typed contract yet (plan 3.1b): wrap its bare views in the
+// `{ gameId, view }` envelope the client runtime expects.
+const kingsCornerDefinition = withGameStateEnvelope(unwrappedDefinition);
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 

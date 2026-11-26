@@ -1,9 +1,16 @@
+import type { GameStateEnvelope } from '@parlor/game-types';
+
 class GameState {
-	view = $state<unknown>(null);
+	/** The latest `game:state` envelope: the view tagged with the game that sent it. */
+	state = $state<GameStateEnvelope | null>(null);
 	gameId = $state<string | null>(null);
 
-	setView(view: unknown) {
-		this.view = view;
+	get view(): unknown {
+		return this.state?.view ?? null;
+	}
+
+	setState(state: GameStateEnvelope) {
+		this.state = state;
 	}
 
 	setGameId(gameId: string | null) {
@@ -11,7 +18,7 @@ class GameState {
 	}
 
 	reset() {
-		this.view = null;
+		this.state = null;
 		this.gameId = null;
 	}
 }

@@ -28,7 +28,7 @@
     roomNotFound = true;
   });
 
-  let view = $derived(gameState.view);
+  let view = $derived(gameState.state);
   let hadView = false;
 
   $effect(() => {
@@ -61,8 +61,7 @@
   </div>
 {:else}
   <GameRenderer
-    gameId={gameState.gameId}
-    {view}
+    state={view}
     socket={getSocket()}
     playerId={playerState.id}
     onBackToLobby={handleBackToLobby}

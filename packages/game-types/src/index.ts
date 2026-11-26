@@ -97,9 +97,51 @@ export type ActionErrorCode =
 /** Ack payload for `game:action`. `message` is always safe to show to the user. */
 export type ActionResult = { ok: true } | { ok: false; code: ActionErrorCode; message: string };
 
+/**
+ * View type each game sends over `game:state`, keyed by game id (plan 3.1b).
+ *
+ * A migrated game adds its own entry by module augmentation, next to its view type:
+ *
+ * ```ts
+ * declare module '@parlor/game-types' {
+ *   interface GameViewMap { 'crazy-eights': CrazyEightsPlayerView }
+ * }
+ * ```
+ *
+ * The games listed here have not moved to the typed contract yet, so their views
+ * are still loose. Migrating one deletes its entry here and from
+ * `LEGACY_GAME_IDS`, then augments the map from the game package.
+ */
+export interface GameViewMap {
+  quixx: unknown;
+  'booty-dice': unknown;
+  'liars-dice': unknown;
+  'kings-corner': unknown;
+}
+
+/** Game ids that still use the pre-3.1b loose definition (see `GameViewMap`). */
+export const LEGACY_GAME_IDS = ['quixx', 'booty-dice', 'liars-dice', 'kings-corner'] as const satisfies readonly (keyof GameViewMap)[];
+export type LegacyGameId = (typeof LEGACY_GAME_IDS)[number];
+
+export function isLegacyGameId(id: string): id is LegacyGameId {
+  return (LEGACY_GAME_IDS as readonly string[]).includes(id);
+}
+
+/** Every game id the wire knows about (legacy entries plus augmentations). */
+export type GameId = Extract<keyof GameViewMap, string>;
+
+/**
+ * Payload of `game:state`: the view tagged with the game that produced it, so a
+ * client can narrow `view` by `gameId` and never renders one game's view with
+ * another game's component.
+ */
+export type GameStateEnvelope<K extends GameId = GameId> = {
+  [P in K]: { gameId: P; view: GameViewMap[P] };
+}[K];
+
 export type ServerToClientEvents = {
   'room:updated': (room: Room) => void;
-  'game:state': (state: BaseGameState) => void;
+  'game:state': (state: GameStateEnvelope) => void;
   'player:joined': (player: Player) => void;
   'player:left': (playerId: string) => void;
   'chat:message': (message: ChatMessage) => void;

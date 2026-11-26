@@ -14,7 +14,7 @@ const runtime = createParlorRuntime({
 	playerState,
 	restorePlayerOnReconnect: true,
 	enableGameSelection: true,
-	onView: (state) => gameState.setView(state),
+	onGameState: (state) => gameState.setState(state),
 });
 
 export function getSocket(): GameSocket {

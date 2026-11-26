@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { GameStateEnvelope } from '@parlor/game-types';
   import type { GameSocket } from '@parlor/multiplayer/client';
   import QuixxGame from '@parlor/quixx/game-view';
   import CrazyEightsGame from '@parlor/crazy-eights/game-view';
@@ -7,26 +8,27 @@
   import KingsCornerGame from '@parlor/kings-corner/game-view';
 
   interface Props {
-    gameId: string | null;
-    view: unknown;
+    /** The latest `game:state` envelope. The component is chosen by the game that sent the view. */
+    state: GameStateEnvelope;
     socket: GameSocket;
     playerId: string;
     onBackToLobby: () => void;
   }
 
-  let { gameId, view, socket, playerId, onBackToLobby }: Props = $props();
+  let { state, socket, playerId, onBackToLobby }: Props = $props();
 </script>
 
-{#if gameId === 'quixx'}
-  <QuixxGame view={view as any} {socket} {playerId} />
-{:else if gameId === 'crazy-eights'}
-  <CrazyEightsGame view={view as any} {socket} {playerId} />
-{:else if gameId === 'booty-dice'}
-  <BootyDiceGame view={view as any} {socket} {playerId} {onBackToLobby} />
-{:else if gameId === 'liars-dice'}
-  <LiarsDiceGame view={view as any} {socket} {playerId} {onBackToLobby} />
-{:else if gameId === 'kings-corner'}
-  <KingsCornerGame view={view as any} {socket} {playerId} {onBackToLobby} />
+<!-- Migrated games (plan 3.1b) get their typed view from the envelope; the rest still cast. -->
+{#if state.gameId === 'crazy-eights'}
+  <CrazyEightsGame view={state.view} {socket} {playerId} />
+{:else if state.gameId === 'quixx'}
+  <QuixxGame view={state.view as any} {socket} {playerId} />
+{:else if state.gameId === 'booty-dice'}
+  <BootyDiceGame view={state.view as any} {socket} {playerId} {onBackToLobby} />
+{:else if state.gameId === 'liars-dice'}
+  <LiarsDiceGame view={state.view as any} {socket} {playerId} {onBackToLobby} />
+{:else if state.gameId === 'kings-corner'}
+  <KingsCornerGame view={state.view as any} {socket} {playerId} {onBackToLobby} />
 {:else}
   <div style="text-align: center; padding: 4rem 1rem; color: #a8a29e;">
     <p>Unknown game type</p>

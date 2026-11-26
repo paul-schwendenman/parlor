@@ -1,45 +1,10 @@
-import type { Server, Socket } from 'socket.io';
-import type {
-  ClientToServerEvents,
-  ServerToClientEvents,
-  InterServerEvents,
-  SocketData,
-} from '@parlor/game-types';
-import type { ServerGameDefinition } from '@parlor/multiplayer';
-import { GameRuleError, RoomManager } from '@parlor/multiplayer';
+import { defineGame, type TypedGameDefinition } from '@parlor/multiplayer';
 import { CrazyEightsEngine } from './game/CrazyEightsEngine.js';
-import { DEFAULT_CONFIG } from '../types/game.js';
-import type { CrazyEightsAction } from '../types/game.js';
+import { DEFAULT_CONFIG, type CrazyEightsAction } from '../types/game.js';
 import { validateCrazyEightsAction } from './validateAction.js';
 
-type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-
-function broadcastViews(
-  io: AppServer,
-  roomCode: string,
-  engine: CrazyEightsEngine,
-  roomManager: RoomManager,
-): void {
-  if (roomManager.getGameData(roomCode) !== engine) return;
-  roomManager.getGameInstance(roomCode)?.emitIfCurrent(() => {
-    if (engine.isGameOver()) roomManager.finishGame(roomCode, engine);
-    for (const player of roomManager.getGamePlayers(roomCode)) {
-      if (RoomManager.isBotPlayer(player.id)) continue;
-      io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
-    }
-
-    const spectators = roomManager.getGameSpectators(roomCode);
-    if (spectators.length > 0) {
-      const spectatorView = engine.getSpectatorView();
-      for (const spectatorId of spectators) {
-        io.to(spectatorId).emit('game:state', spectatorView as never);
-      }
-    }
-  });
-}
-
-export const crazyEightsDefinition: ServerGameDefinition = {
+/** Crazy Eights on the typed game contract (plan 3.1b). Exported for tests; servers use `crazyEightsDefinition`. */
+export const crazyEightsGame: TypedGameDefinition<'crazy-eights', CrazyEightsEngine, CrazyEightsAction> = {
   meta: {
     id: 'crazy-eights',
     name: 'Crazy Eights',
@@ -51,82 +16,38 @@ export const crazyEightsDefinition: ServerGameDefinition = {
     displayModes: ['peer'],
   },
 
-  createLobbyCallbacks: (roomManager: RoomManager, io: AppServer) => ({
-    onGameStart: (roomCode, players, io) => {
-      const engine = new CrazyEightsEngine(
-        players.map((p) => ({ id: p.id, name: p.name })),
-        roomCode,
-        DEFAULT_CONFIG,
-      );
-      roomManager.setGameData(roomCode, engine);
-
-      broadcastViews(io, roomCode, engine, roomManager);
-    },
-
-    onPlayerDisconnect: (roomCode, playerId) => {
-      const engine = roomManager.getGameData<CrazyEightsEngine>(roomCode);
-      if (!engine) return;
-
-      engine.handleDisconnect(playerId);
-      broadcastViews(io, roomCode, engine, roomManager);
-    },
-
-    onPlayerReconnect: (roomCode, playerId) => {
-      const engine = roomManager.getGameData<CrazyEightsEngine>(roomCode);
-      if (!engine) return;
-
-      const isParticipant = roomManager.isGameParticipant(roomCode, playerId);
-      if (isParticipant) engine.handleReconnect(playerId);
-      const view = isParticipant ? engine.getPlayerView(playerId) : engine.getSpectatorView();
-      roomManager.getGameInstance(roomCode)?.emitIfCurrent(() => {
-        io.to(playerId).emit('game:state', view as never);
-      });
-    },
-  }),
-
   validateAction: validateCrazyEightsAction,
 
-  handleGameAction: (
-    io: AppServer,
-    socket: AppSocket,
-    roomManager: RoomManager,
-    rawAction: Record<string, unknown>,
-  ) => {
-    const roomCode = socket.data.roomCode;
-    if (!roomCode) return;
+  createState: (roomCode, players) =>
+    new CrazyEightsEngine(
+      players.map((p) => ({ id: p.id, name: p.name })),
+      roomCode,
+      DEFAULT_CONFIG,
+    ),
 
-    const engine = roomManager.getGameData<CrazyEightsEngine>(roomCode);
-    if (!engine) return;
-
-    const action = rawAction as unknown as CrazyEightsAction;
-
-    switch (action.type) {
-      case 'play-card': {
-        engine.playCard(socket.data.playerId, action.card);
-        broadcastViews(io, roomCode, engine, roomManager);
-        break;
-      }
-
-      case 'draw-card': {
-        engine.drawCard(socket.data.playerId);
-        broadcastViews(io, roomCode, engine, roomManager);
-        break;
-      }
-
-      case 'pass': {
-        engine.pass(socket.data.playerId);
-        broadcastViews(io, roomCode, engine, roomManager);
-        break;
-      }
-
-      case 'choose-suit': {
-        engine.chooseSuit(socket.data.playerId, action.suit);
-        broadcastViews(io, roomCode, engine, roomManager);
-        break;
-      }
-
-      default:
-        throw new GameRuleError('Unknown action', 'INVALID_ACTION');
-    }
+  actions: {
+    'play-card': ({ state, playerId }, action) => state.playCard(playerId, action.card),
+    'draw-card': ({ state, playerId }) => state.drawCard(playerId),
+    pass: ({ state, playerId }) => state.pass(playerId),
+    'choose-suit': ({ state, playerId }, action) => state.chooseSuit(playerId, action.suit),
   },
+
+  getPlayerView: (engine, playerId) => engine.getPlayerView(playerId),
+  getSpectatorView: (engine) => engine.getSpectatorView(),
+  isGameOver: (engine) => engine.isGameOver(),
+
+  onPlayerDisconnect: ({ state, playerId }) => state.handleDisconnect(playerId),
+  onPlayerReconnect: ({ state, playerId }) => state.handleReconnect(playerId),
+
+  // The seat is gone for good. The engine has no seat removal yet (skipping
+  // removed seats is plan 3.9), so apply the same stand-in the disconnect path
+  // uses: mark them gone and, if it is their turn now, take their turn for them
+  // so the table is not left waiting on someone who cannot come back.
+  onPlayerRemoved: ({ state, playerId }) => state.handleDisconnect(playerId),
+
+  // Nothing to release: the engine holds no timers or outside resources, and the
+  // core has already invalidated the game instance.
+  onRoomDestroyed: () => undefined,
 };
+
+export const crazyEightsDefinition = defineGame(crazyEightsGame);

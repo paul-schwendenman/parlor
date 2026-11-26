@@ -1,4 +1,4 @@
-import type { ActionResult, LobbyPlayer } from '@parlor/game-types';
+import type { ActionResult, GameStateEnvelope, LobbyPlayer } from '@parlor/game-types';
 import {
   createGameClient,
   saveSession,
@@ -55,8 +55,16 @@ export interface ParlorRuntimeAdapter {
   lobbyState: RuntimeLobbyState;
   gameState: RuntimeGameState;
   playerState: RuntimePlayerState;
-  /** Applies an incoming `game:state` payload to the game store (per-app cast). */
-  onView: (state: unknown) => void;
+  /**
+   * Receives each `game:state` envelope. Narrow on `state.gameId` to get the
+   * game's typed view (plan 3.1b).
+   */
+  onGameState?: (state: GameStateEnvelope) => void;
+  /**
+   * Pre-3.1b form: receives only the unwrapped view, which the app casts.
+   * Kept for the games that have not been migrated yet.
+   */
+  onView?: (view: unknown) => void;
   /**
    * When true, restore `playerState` on a successful `player:reconnect`
    * (parlor / liars-dice / booty-dice behavior). When false/omitted, a
@@ -242,9 +250,11 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
         });
       }
 
-      // Game events - each app applies its own view shape
+      // Game views arrive as `{ gameId, view }`.
       socket.on('game:state', (state) => {
-        adapter.onView(state);
+        if (typeof state !== 'object' || state === null) return;
+        adapter.onGameState?.(state);
+        adapter.onView?.(state.view);
       });
 
       socket.on('error', (message) => {
