@@ -43,6 +43,25 @@ function holdFirstBotTurn() {
 }
 
 describe("Liar's Dice game:state envelopes", () => {
+  it.each([
+    { standing: { quantity: 1, faceValue: 1 }, expected: { quantity: 2, faceValue: 1 } },
+    { standing: { quantity: 30, faceValue: 6 }, expected: { quantity: 15, faceValue: 1 } },
+    { standing: { quantity: 30, faceValue: 1 }, expected: null },
+  ])('advertises a playable bid when available after $standing', async ({ standing, expected }) => {
+    const h = createDispatchHarness(liarsDiceDefinition);
+    const engine = h.getState()!;
+    expect(await h.send(activeId(engine), { type: 'bid', ...standing })).toEqual({ ok: true });
+
+    const next = activeId(engine);
+    const hint = received(h.emitted, next).at(-1)?.view.minimumBid;
+    expect(hint).toEqual(expected);
+    if (hint) {
+      expect(await h.send(next, { type: 'bid', ...hint })).toEqual({ ok: true });
+    } else {
+      expect(await h.send(next, { type: 'challenge' })).toEqual({ ok: true });
+    }
+  });
+
   it('players get their own dice; spectators get no dice and myIndex -1', async () => {
     const h = createDispatchHarness(liarsDiceDefinition, 3);
     h.spectate('spectator-socket');

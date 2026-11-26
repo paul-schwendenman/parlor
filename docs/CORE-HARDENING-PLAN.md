@@ -410,7 +410,7 @@ The reasoning:
 
 Rules questions and smaller bugs found during the work. Come back to these once Phase 4 is done.
 
-- [ ] **Liar’s Dice minimum-bid hint:** after a bid of one wild one, the view advertises a bid of one two, but the engine requires at least three when switching to a non-one face. The seeded driver uses the engine’s legality check. (Found in 4.2.)
+- [x] **Liar’s Dice minimum-bid hint.** The view now checks the suggested bid against the engine rules and wire limit, then searches for a legal alternative when needed. After one wild one, it suggests two ones. When no bid fits the wire limit, the view sends a null hint. (Found in 4.2.)
 
 - [ ] **Kings Corner empty draw pile:** with the draw pile empty, turns can loop forever with everyone present. The user is checking the official rules; Crazy Eights reshuffles, but Kings Corner may differ. (Found in 3.9.)
 - [ ] **Kings Corner bot-timeout fallback overwrites game over:** when the fallback's auto-play of kings wins the game, it still advances the turn, which overwrites the `game-over` state. This was already there and was left alone in 3.9. (Found in 3.9.)

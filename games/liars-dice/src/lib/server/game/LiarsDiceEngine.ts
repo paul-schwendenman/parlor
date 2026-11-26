@@ -1,5 +1,6 @@
 import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
 import { appendGameLog, GameRuleError } from '@parlor/multiplayer';
+import { MAX_DICE_IN_PLAY } from '../validateAction.js';
 import type { LiarsDiceBotView } from '../ai/AIStrategy.js';
 import type {
   LiarsDiceGameState,
@@ -80,16 +81,7 @@ export class LiarsDiceEngine {
    * exists below twice the dice in play plus one (never, in practice).
    */
   getStandInBid(): { quantity: number; faceValue: number } | null {
-    const maxQuantity = this.state.totalDiceInPlay * 2 + 1;
-    const faces = [2, 3, 4, 5, 6, 1];
-    for (let quantity = 1; quantity <= maxQuantity; quantity++) {
-      for (const faceValue of faces) {
-        if (this.isValidBid({ playerId: '', quantity, faceValue }, this.state.currentBid)) {
-          return { quantity, faceValue };
-        }
-      }
-    }
-    return null;
+    return this.findLegalBid([2, 3, 4, 5, 6, 1], this.state.totalDiceInPlay * 2 + 1);
   }
 
   getActivePlayerId(): string {
@@ -466,22 +458,31 @@ export class LiarsDiceEngine {
   }
 
   getMinimumBid(): { quantity: number; faceValue: number } | null {
-    if (!this.state.currentBid) {
-      return { quantity: 1, faceValue: 1 };
-    }
-
     const current = this.state.currentBid;
+    if (!current) return { quantity: 1, faceValue: 1 };
 
-    // Try same quantity, next face value
-    if (current.faceValue < 6) {
-      return { quantity: current.quantity, faceValue: current.faceValue + 1 };
+    const next = current.faceValue < 6
+      ? { quantity: current.quantity, faceValue: current.faceValue + 1 }
+      : { quantity: current.quantity + 1, faceValue: 1 };
+    if (next.quantity <= MAX_DICE_IN_PLAY && this.isValidBid({ playerId: '', ...next }, current)) {
+      return next;
     }
 
-    // Must increase quantity
-    return { quantity: current.quantity + 1, faceValue: 1 };
+    return this.findLegalBid([1, 2, 3, 4, 5, 6], MAX_DICE_IN_PLAY);
   }
 
   // --- Private helpers ---
+
+  private findLegalBid(faces: number[], maxQuantity: number): { quantity: number; faceValue: number } | null {
+    for (let quantity = 1; quantity <= maxQuantity; quantity++) {
+      for (const faceValue of faces) {
+        if (this.isValidBid({ playerId: '', quantity, faceValue }, this.state.currentBid)) {
+          return { quantity, faceValue };
+        }
+      }
+    }
+    return null;
+  }
 
   private rollAllDice(): void {
     for (const player of this.state.players) {
