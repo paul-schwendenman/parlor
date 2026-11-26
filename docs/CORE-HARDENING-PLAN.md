@@ -413,7 +413,7 @@ Rules questions and smaller bugs found during the work. Come back to these once 
 - [x] **Liar’s Dice minimum-bid hint.** The view now checks the suggested bid against the engine rules and wire limit, then searches for a legal alternative when needed. After one wild one, it suggests two ones. When no bid fits the wire limit, the view sends a null hint. (Found in 4.2.)
 
 - [ ] **Kings Corner empty draw pile:** with the draw pile empty, turns can loop forever with everyone present. The user is checking the official rules; Crazy Eights reshuffles, but Kings Corner may differ. (Found in 3.9.)
-- [ ] **Kings Corner bot-timeout fallback overwrites game over:** when the fallback's auto-play of kings wins the game, it still advances the turn, which overwrites the `game-over` state. This was already there and was left alone in 3.9. (Found in 3.9.)
+- [x] **Kings Corner bot-timeout fallback.** When the bot wins by playing its last king, the fallback preserves `game-over`, marks the room finished through the normal broadcast, and sends the winning view. (Found in 3.9.)
 - [ ] **`room:leave` and `lobby:spectate` UI:** the server handles both, but no UI sends them. They're kept for now, and the likely plan is a minimal UI: a Leave room button and a Watch as spectator option on join, with e2e coverage. (Decided in 3.5.)
 - [ ] **Booty Dice dodge:** because grace-window stand-ins don't resolve rolled dice, a player can disconnect right after a bad roll to skip its resolution, then return within grace. They lose that turn's good dice too. Decide whether that matters. (Found in 3.9.)
 

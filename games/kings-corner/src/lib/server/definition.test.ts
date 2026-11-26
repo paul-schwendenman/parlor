@@ -98,3 +98,35 @@ it('aborts a timed-out bot and ignores its late callback after the fallback turn
   expect(emitted).toEqual([]);
   rooms.resetGame(roomCode);
 });
+
+it('finishes the room when the bot timeout plays its last king', async () => {
+  const takeTurn = vi.spyOn(AIPlayer.prototype, 'takeTurn')
+    .mockImplementation(() => new Promise<void>(() => undefined));
+  const { rooms, roomCode, engine, botId, emitted } = startBotTurn();
+
+  // Put the active bot one mandatory play from winning, with an empty corner.
+  engine.drawCard(botId);
+  const { activePlayerIndex } = engine.getPlayerView(botId);
+  engine['players'][activePlayerIndex].hand = [{ rank: 'K', suit: 'hearts' }];
+  expect(engine.getPlayerView(botId).mustPlayKing).toBe(true);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(takeTurn).toHaveBeenCalledTimes(1);
+  emitted.length = 0;
+
+  await vi.advanceTimersByTimeAsync(30_000);
+
+  expect(engine.getActivePlayerId()).toBe(botId);
+  expect(rooms.getRoom(roomCode)?.status).toBe('finished');
+  expect(emitted.filter(({ event }) => event === 'game:state')).toEqual([
+    expect.objectContaining({
+      payload: {
+        gameId: 'kings-corner',
+        view: expect.objectContaining({
+          phase: 'game-over',
+          gameOver: true,
+          winner: { id: botId, name: 'Bot' },
+        }),
+      },
+    }),
+  ]);
+});

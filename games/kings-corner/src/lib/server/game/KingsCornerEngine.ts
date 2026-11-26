@@ -327,7 +327,7 @@ export class KingsCornerEngine {
 
   /**
    * The fallback for a bot that overran its time: draw, play any mandatory
-   * kings, and pass (unchanged from before plan 3.9; bots are never absent).
+   * kings, and pass if the game is still running.
    */
   takeTimedOutTurn(playerId: string): void {
     if (this.phase === 'game-over') return;
@@ -343,9 +343,8 @@ export class KingsCornerEngine {
     }
 
     if (this.phase === 'playing') {
-      // Play any mandatory Kings first
       this.autoPlayKings(activePlayer);
-      this.advanceTurn();
+      if (this.phase === 'playing') this.advanceTurn();
     }
   }
 
