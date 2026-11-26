@@ -1,9 +1,10 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { getSocket, createRoomAction, joinRoomAction } from '$lib/stores/socketClient.js';
+  import { getSocket, createRoomAction, joinRoomAction, spectateRoomAction } from '$lib/stores/socketClient.js';
   import { ROOM_CODE_LENGTH, type GameMeta } from '@parlor/game-types';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
@@ -72,7 +73,7 @@
   let createName = $state('');
 
   $effect(() => {
-    joinCode = prefillCode;
+    if (prefillCode) joinCode = prefillCode;
   });
 
   onMount(() => {
@@ -82,6 +83,7 @@
   });
 
   async function handleJoin() {
+    if (loading) return;
     if (!joinName.trim()) { error = 'Enter your name'; return; }
     if (!joinCode.trim()) { error = 'Enter a room code'; return; }
     loading = true;
@@ -95,6 +97,23 @@
       }
     } catch {
       error = 'Failed to join room';
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleWatch() {
+    if (loading) return;
+    const code = joinCode.trim().toUpperCase();
+    if (!code) { error = 'Enter a room code'; return; }
+
+    loading = true;
+    error = '';
+    try {
+      await spectateRoomAction(code);
+      await goto(resolve('/lobby/[roomCode]', { roomCode: code }));
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to watch room';
     } finally {
       loading = false;
     }
@@ -186,6 +205,10 @@
           Join
         </button>
       </div>
+      <button class="btn-watch" onclick={handleWatch} disabled={loading}>Watch as spectator</button>
+      {#if error && !selectedGameForCreate}
+        <p class="error" role="alert">{error}</p>
+      {/if}
     </div>
   </div>
 
@@ -216,10 +239,6 @@
       {/each}
     </div>
   </div>
-
-  {#if error}
-    <p class="error">{error}</p>
-  {/if}
 
   <RulesModal
     open={rulesOpen}
@@ -316,6 +335,23 @@
     display: flex;
     gap: 0.75rem;
     align-items: center;
+  }
+
+  .btn-watch {
+    margin-top: 0.75rem;
+    padding: 0.45rem 0;
+    background: none;
+    border: 0;
+    color: var(--color-espresso);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .btn-watch:disabled {
+    opacity: 0.55;
+    cursor: default;
   }
 
   .input {

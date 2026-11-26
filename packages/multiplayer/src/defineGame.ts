@@ -258,6 +258,13 @@ export function defineGame<const Id extends GameId, State extends object>(
       onPlayerRemoved: (roomCode, playerId) =>
         playerHook(definition.onPlayerRemoved, roomCode, playerId),
 
+      onSpectatorJoin: (roomCode, socketId) => {
+        const entry = current(roomManager, roomCode);
+        if (entry) {
+          io.to(socketId).emit('game:state', envelope(definition.getSpectatorView(entry.state)));
+        }
+      },
+
       onPlayerReconnect: (roomCode, playerId) => {
         const entry = current(roomManager, roomCode);
         if (!entry) return;

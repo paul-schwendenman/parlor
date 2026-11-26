@@ -414,7 +414,7 @@ Rules questions and smaller bugs found during the work. Come back to these once 
 
 - [ ] **Kings Corner empty draw pile:** with the draw pile empty, turns can loop forever with everyone present. The user is checking the official rules; Crazy Eights reshuffles, but Kings Corner may differ. (Found in 3.9.)
 - [x] **Kings Corner bot-timeout fallback.** When the bot wins by playing its last king, the fallback preserves `game-over`, marks the room finished through the normal broadcast, and sends the winning view. (Found in 3.9.)
-- [ ] **`room:leave` and `lobby:spectate` UI:** the server handles both, but no UI sends them. They're kept for now, and the likely plan is a minimal UI: a Leave room button and a Watch as spectator option on join, with e2e coverage. (Decided in 3.5.)
+- [x] **`room:leave` and `lobby:spectate` UI.** Parlor has a Watch as spectator option using the room code and a Leave room button in the lobby and game. Spectators joining a live game receive the current public view immediately. Playwright covers late joins, leaving, host transfer, room closure and Quixx spectator rendering.
 - [ ] **Booty Dice dodge:** because grace-window stand-ins don't resolve rolled dice, a player can disconnect right after a bad roll to skip its resolution, then return within grace. They lose that turn's good dice too. Decide whether that matters. (Found in 3.9.)
 
 ---

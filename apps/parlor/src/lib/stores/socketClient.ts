@@ -17,8 +17,66 @@ const runtime = createParlorRuntime({
 	onGameState: (state) => gameState.setState(state),
 });
 
+function clearRoomState(): void {
+	clearSession();
+	playerState.reset();
+	lobbyState.reset();
+	gameState.reset();
+}
+
+let boundSocket: GameSocket | undefined;
+
 export function getSocket(): GameSocket {
-	return runtime.getSocket();
+	const socket = runtime.getSocket();
+	if (socket !== boundSocket) {
+		boundSocket = socket;
+		socket.on('room:closed', (roomCode) => {
+			if (playerState.roomCode === roomCode) clearRoomState();
+		});
+		socket.on('connect', () => {
+			if (!playerState.roomCode || playerState.id) return;
+			void spectateRoomAction(playerState.roomCode).catch(() => clearRoomState());
+		});
+	}
+	return socket;
+}
+
+export async function spectateRoomAction(roomCode: string): Promise<void> {
+	const code = roomCode.trim().toUpperCase();
+	const socket = getSocket();
+	await new Promise<void>((resolve, reject) => {
+		socket.timeout(5000).emit('lobby:spectate', code, (timeout, success, message) => {
+			if (timeout || !success) {
+				reject(new Error(message ?? 'Could not watch this room. Check your connection and try again.'));
+				return;
+			}
+			clearRoomState();
+			playerState.set({ id: '', name: '', roomCode: code });
+			resolve();
+		});
+	});
+}
+
+export async function leaveRoomAction(): Promise<void> {
+	const socket = getSocket();
+	if (!socket.connected) throw new Error('Reconnect before leaving the room.');
+	await new Promise<void>((resolve, reject) => {
+		let timedOut = false;
+		const timer = setTimeout(() => {
+			timedOut = true;
+			reject(new Error('Could not leave the room. Try again.'));
+		}, 5000);
+		socket.emit('room:leave', (success, message) => {
+			if (timedOut) return;
+			clearTimeout(timer);
+			if (!success) {
+				reject(new Error(message ?? 'Could not leave the room. Try again.'));
+				return;
+			}
+			runtime.disconnectSocket();
+			resolve();
+		});
+	});
 }
 
 export function createRoomAction(playerName: string, gameId?: string): Promise<string> {

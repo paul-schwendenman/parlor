@@ -9,6 +9,7 @@
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
   import { getSocket, selectGameAction, readyAction, startGameAction } from '$lib/stores/socketClient.js';
   import type { GameMeta } from '@parlor/game-types';
+  import LeaveRoomButton from '$lib/components/LeaveRoomButton.svelte';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
   const games: GameMeta[] = [
@@ -29,7 +30,7 @@
 
   $effect(() => {
     // State arrived (or we already have an identity): we are in this room.
-    if (lobbyState.players.length > 0 || playerState.id) {
+    if (playerState.roomCode === roomCode) {
       roomNotFound = false;
       return;
     }
@@ -40,12 +41,13 @@
   });
 
   $effect(() => {
-    if (lobbyState.gameStarting || gameState.view) {
+    if (playerState.roomCode === roomCode && (lobbyState.gameStarting || gameState.view)) {
       goto(`/game/${roomCode}`).catch(console.error);
     }
   });
 
-  let isHost = $derived(lobbyState.hostId === playerState.id);
+  let isHost = $derived(!!playerState.id && lobbyState.hostId === playerState.id);
+  let spectator = $derived(playerState.roomCode === roomCode && !playerState.id);
   let me = $derived(lobbyState.players.find(p => p.id === playerState.id));
   let selectedGame = $derived(games.find(g => g.id === lobbyState.selectedGameId));
   let gameSupportsAI = $derived(selectedGame?.supportsBots ?? false);
@@ -105,7 +107,10 @@
   </div>
 {:else}
   <div class="lobby">
-    <a href="/" class="back-home">Parlor</a>
+    <div class="room-nav">
+      <a href="/" class="back-home">Parlor</a>
+      {#if playerState.roomCode === roomCode}<LeaveRoomButton />{/if}
+    </div>
 
     <div class="room-header">
       <p class="room-label">Room Code</p>
@@ -180,9 +185,13 @@
 
     <!-- Actions -->
     <div class="actions">
-      <button class="btn btn-ready" class:is-ready={me?.isReady} disabled={!me} onclick={toggleReady}>
-        {me?.isReady ? 'Not Ready' : 'Ready Up'}
-      </button>
+      {#if spectator}
+        <p class="hint">Watching as spectator</p>
+      {:else}
+        <button class="btn btn-ready" class:is-ready={me?.isReady} disabled={!me} onclick={toggleReady}>
+          {me?.isReady ? 'Not Ready' : 'Ready Up'}
+        </button>
+      {/if}
 
       {#if isHost}
         {#if gameSupportsAI}
@@ -238,6 +247,15 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+  }
+
+  .room-nav {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
   }
 
   .back-home {

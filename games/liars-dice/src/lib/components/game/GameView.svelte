@@ -8,7 +8,7 @@
     view: LiarsDicePlayerView;
     socket: GameSocket<'liars-dice'>;
     playerId: string;
-    onBackToLobby: () => void;
+    onBackToLobby?: () => void;
   }
 
   let { view, socket, playerId, onBackToLobby }: Props = $props();
@@ -65,7 +65,7 @@
   }
 
   function backToLobby() {
-    onBackToLobby();
+    onBackToLobby?.();
   }
 
   function dieFace(value: number): string {
@@ -286,7 +286,7 @@
     <div class="winner-content">
       <p class="winner-name">{winnerName}</p>
       <p class="winner-reason">wins the game!</p>
-      <button class="btn btn-primary" onclick={backToLobby}>Play Again</button>
+      {#if onBackToLobby}<button class="btn btn-primary" onclick={backToLobby}>Play Again</button>{/if}
     </div>
   </Modal>
 

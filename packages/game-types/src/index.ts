@@ -128,6 +128,7 @@ export type GameStateEnvelope<K extends GameId = GameId> = {
 }[K];
 
 export type ServerToClientEvents = {
+  'room:closed': (roomCode: string) => void;
   'game:state': (state: GameStateEnvelope) => void;
   'error': (message: string) => void;
 
@@ -144,8 +145,8 @@ export type ServerToClientEvents = {
 
 /** Client-to-server events other than `game:action`: identical on both ends of the wire. */
 export type LobbyClientEvents = {
-  /** Leave the room for good (no UI sends this yet; see the plan's "Revisit at the end"). */
-  'room:leave': () => void;
+  /** Leave the room for good. */
+  'room:leave': (callback?: (success: boolean, error?: string) => void) => void;
   'lobby:create': (
     playerName: string,
     callback: (result: CreateRoomResult | null, error?: string) => void,
@@ -157,7 +158,7 @@ export type LobbyClientEvents = {
     playerName: string,
     callback: (result: JoinRoomResult) => void,
   ) => void;
-  /** Join a room as a spectator (no UI sends this yet; see the plan's "Revisit at the end"). */
+  /** Join a room as a spectator. */
   'lobby:spectate': (roomCode: string, callback: (success: boolean, error?: string) => void) => void;
   'lobby:ready': (isReady: boolean, callback?: (success: boolean, error?: string) => void) => void;
   'lobby:startGame': (callback?: (success: boolean, error?: string) => void) => void;

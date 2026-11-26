@@ -11,7 +11,7 @@
     view: BootyDicePlayerView;
     socket: GameSocket<'booty-dice'>;
     playerId: string;
-    onBackToLobby: () => void;
+    onBackToLobby?: () => void;
   }
 
   let { view, socket, playerId, onBackToLobby }: Props = $props();
@@ -108,7 +108,7 @@
   }
 
   function backToLobby() {
-    onBackToLobby();
+    onBackToLobby?.();
   }
 </script>
 
@@ -223,7 +223,7 @@
     <div class="winner-content">
       <p class="winner-name">{winnerName}</p>
       <p class="winner-reason">wins by {winReason}!</p>
-      <button class="btn btn-primary" onclick={backToLobby}>Play Again</button>
+      {#if onBackToLobby}<button class="btn btn-primary" onclick={backToLobby}>Play Again</button>{/if}
     </div>
   </Modal>
 

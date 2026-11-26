@@ -126,40 +126,42 @@
       <DiceDisplay dice={view.dice} removedDice={view.removedDice} />
     {/if}
 
-    <PhaseIndicator
-      phase={view.phase}
-      isActivePlayer={view.isActivePlayer}
-      {activePlayerName}
-      {phase1Submitted}
-      {submittedCount}
-      totalPlayers={view.players.length}
-      hasSelection={selectedMove !== null}
-      activePlayerPhase1Passed={view.activePlayerPhase1Passed}
-      onpass={handlePass}
-      onroll={handleRoll}
-      onconfirm={handleConfirm}
-    />
+    {#if view.myIndex >= 0}
+      <PhaseIndicator
+        phase={view.phase}
+        isActivePlayer={view.isActivePlayer}
+        {activePlayerName}
+        {phase1Submitted}
+        {submittedCount}
+        totalPlayers={view.players.length}
+        hasSelection={selectedMove !== null}
+        activePlayerPhase1Passed={view.activePlayerPhase1Passed}
+        onpass={handlePass}
+        onroll={handleRoll}
+        onconfirm={handleConfirm}
+      />
 
-    <OptionsSummary
-      phase={view.phase}
-      isActivePlayer={view.isActivePlayer}
-      {whiteSum}
-      availableMoves={view.availableMoves}
-      {phase2Preview}
-      {phase1Submitted}
-    />
+      <OptionsSummary
+        phase={view.phase}
+        isActivePlayer={view.isActivePlayer}
+        {whiteSum}
+        availableMoves={view.availableMoves}
+        {phase2Preview}
+        {phase1Submitted}
+      />
 
-    <Scoresheet
-      sheet={view.players[view.myIndex].sheet}
-      penalties={view.players[view.myIndex].penalties}
-      score={myScore}
-      lockedRows={view.players[view.myIndex].lockedRows}
-      availableMoves={view.availableMoves}
-      {selectedMove}
-      {phase2Preview}
-      onselect={handleSelect}
-    />
+      <Scoresheet
+        sheet={view.players[view.myIndex].sheet}
+        penalties={view.players[view.myIndex].penalties}
+        score={myScore}
+        lockedRows={view.players[view.myIndex].lockedRows}
+        availableMoves={view.availableMoves}
+        {selectedMove}
+        {phase2Preview}
+        onselect={handleSelect}
+      />
 
+    {/if}
     <PlayerList {view} />
   </div>
 {/if}

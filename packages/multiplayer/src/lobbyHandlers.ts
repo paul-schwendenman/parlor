@@ -12,6 +12,7 @@ export interface LobbyCallbacks {
   onGameReset?: (roomCode: string, io: GameIo) => void;
   /** Called on room deletion after scheduled game work has been invalidated. */
   onRoomDestroyed?: (roomCode: string, io: GameIo) => void;
+  onSpectatorJoin?: (roomCode: string, socketId: string) => void;
   onPlayerDisconnect?: (roomCode: string, playerId: string, io: GameIo) => void | Promise<void>;
   onPlayerReconnect?: (roomCode: string, playerId: string, io: GameIo) => void | Promise<void>;
   /**
@@ -149,6 +150,7 @@ export function setupLobbyHandlers(
     const { roomCode, playerId, wasInGame, newHostId } = previousSeat;
     const room = roomManager.getRoom(roomCode);
     if (!room) {
+      io.to(roomCode).emit('room:closed', roomCode);
       io.in(roomCode).socketsLeave(roomCode);
       return;
     }
@@ -250,6 +252,7 @@ export function setupLobbyHandlers(
   });
 
   socket.on('lobby:spectate', (roomCode, callback) => {
+    let acknowledged = false;
     try {
       if (typeof callback !== 'function') return;
       if (!allowSocketRequest(socket, true)) {
@@ -269,12 +272,21 @@ export function setupLobbyHandlers(
 
       const normalizedCode = roomCode.toUpperCase();
       syncSeat(result.previousSeat, normalizedCode);
+      acknowledged = true;
       callback(true);
       notifySeatReleased(result.previousSeat);
-    } catch (err) {
-      if (typeof callback === 'function') {
-        callback(false, toPublicError(err, 'Failed to spectate', context()).message);
+      const room = roomManager.getRoom(normalizedCode);
+      if (!room) return;
+      socket.emit('lobby:gameSelected', room.gameId);
+      socket.emit('lobby:hostChanged', room.hostId);
+      socket.emit('lobby:state', roomManager.getPlayersInRoom(normalizedCode), roomManager.canStartGame(normalizedCode));
+      if (room.status !== 'waiting') {
+        socket.emit('lobby:gameStarting');
+        callbacks?.onSpectatorJoin?.(normalizedCode, socket.id);
       }
+    } catch (err) {
+      const { message } = toPublicError(err, 'Failed to spectate', context());
+      if (!acknowledged && typeof callback === 'function') callback(false, message);
     }
   });
 
@@ -502,24 +514,30 @@ export function setupLobbyHandlers(
     }
   });
 
-  socket.on('room:leave', (...args: unknown[]) => {
+  socket.on('room:leave', (callback, ...args: unknown[]) => {
+    const ack = safeAck(callback);
     try {
       if (!allowSocketRequest(socket)) {
-        socket.emit('error', RATE_LIMIT_MESSAGE);
+        if (callback) ack(false, RATE_LIMIT_MESSAGE);
+        else socket.emit('error', RATE_LIMIT_MESSAGE);
         return;
       }
-      if (args.length > 0) {
+      if (args.length > 0 || (callback !== undefined && typeof callback !== 'function')) {
         socket.emit('error', UNEXPECTED_ARGUMENTS);
         return;
       }
       const result = roomManager.leaveRoom(socket.id);
-      if (!result) return;
-
-      syncSeat(result);
-      notifySeatReleased(result);
+      if (result) {
+        syncSeat(result);
+        notifySeatReleased(result);
+      }
     } catch (err) {
-      socket.emit('error', toPublicError(err, 'Failed to leave room', context()).message);
+      const message = toPublicError(err, 'Failed to leave room', context()).message;
+      if (callback) ack(false, message);
+      else socket.emit('error', message);
+      return;
     }
+    ack(true);
   });
 
   socket.on('player:reconnect', (roomCode, playerId, token, callback) => {
@@ -578,7 +596,10 @@ export function setupLobbyHandlers(
       const result = roomManager.handleDisconnect(socket.id, (outcome) => {
         // Fired later, when the grace timer expires and the player is really removed.
         try {
-          if (outcome.roomDestroyed) io.in(outcome.roomCode).socketsLeave(outcome.roomCode);
+          if (outcome.roomDestroyed) {
+            io.to(outcome.roomCode).emit('room:closed', outcome.roomCode);
+            io.in(outcome.roomCode).socketsLeave(outcome.roomCode);
+          }
           emitExpiry(io, roomManager, outcome, callbacks);
         } catch (error) {
           logServerError('grace_expiry_broadcast_failed', roomManager.getErrorContext(outcome.roomCode, outcome.playerId), error);

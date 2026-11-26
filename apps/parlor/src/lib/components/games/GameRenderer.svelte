@@ -12,7 +12,7 @@
     state: GameStateEnvelope;
     socket: GameSocket;
     playerId: string;
-    onBackToLobby: () => void;
+    onBackToLobby?: () => void;
   }
 
   let { state, socket, playerId, onBackToLobby }: Props = $props();
@@ -32,8 +32,8 @@
 {:else}
   <div style="text-align: center; padding: 4rem 1rem; color: #a8a29e;">
     <p>Unknown game type</p>
-    <button onclick={onBackToLobby} style="padding: 0.7rem 1.5rem; background: var(--color-terracotta); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+    {#if onBackToLobby}<button onclick={onBackToLobby} style="padding: 0.7rem 1.5rem; background: var(--color-terracotta); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
       Back to Lobby
-    </button>
+    </button>{/if}
   </div>
 {/if}

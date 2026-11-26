@@ -8,6 +8,7 @@
   import { lobbyState } from '$lib/stores/lobbyStore.svelte.js';
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
   import { getSocket } from '$lib/stores/socketClient.js';
+  import LeaveRoomButton from '$lib/components/LeaveRoomButton.svelte';
   import GameRenderer from '$lib/components/games/GameRenderer.svelte';
 
   let roomCode = $derived($page.params.roomCode ?? '');
@@ -18,7 +19,7 @@
   });
 
   $effect(() => {
-    if (gameState.view || playerState.id) {
+    if (playerState.roomCode === roomCode) {
       roomNotFound = false;
       return;
     }
@@ -34,7 +35,7 @@
   $effect(() => {
     if (view) {
       hadView = true;
-    } else if (hadView) {
+    } else if (hadView && playerState.roomCode === roomCode) {
       goto(`/lobby/${roomCode}`).catch(console.error);
     }
   });
@@ -48,6 +49,13 @@
 </script>
 
 <svelte:head><title>Playing - Parlor</title></svelte:head>
+
+{#if playerState.roomCode === roomCode}
+  <div class="room-nav">
+    {#if !playerState.id}<span>Watching as spectator</span>{/if}
+    <LeaveRoomButton />
+  </div>
+{/if}
 
 {#if !view}
   <div class="loading">
@@ -64,11 +72,23 @@
     state={view}
     socket={getSocket()}
     playerId={playerState.id}
-    onBackToLobby={handleBackToLobby}
+    onBackToLobby={playerState.id ? handleBackToLobby : undefined}
   />
 {/if}
 
 <style>
+  .room-nav {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0.75rem 1rem 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: 0.75rem;
+    color: var(--color-espresso);
+  }
+
   .loading {
     text-align: center;
     padding: 64px 16px;
