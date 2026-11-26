@@ -397,16 +397,19 @@ The reasoning:
   - error responses use only the stable codes
   - **Implemented:** `apps/parlor/src/lib/server/socketInputs.test.ts` runs 49 seeded cases across all 13 client-to-server events. It checks the action error code and each lobby event's existing reply format, snapshots the room, engine and socket memberships, then sends a valid lobby request or gameplay action.
   - **Fixed:** start, reset, restart and leave reject unexpected arguments before changing room state.
-- [ ] **4.2 Seeded random playthroughs per engine**: play many games using only legal moves, with a seeded RNG so failures can be reproduced. Pass means:
+- [x] **4.2 Seeded random playthroughs per engine**: play many games using only legal moves, with a seeded RNG so failures can be reproduced. Pass means:
   - nothing throws
   - invariants hold (card count is conserved, turn order is valid)
   - no recipient **receives over the socket** anything hidden from them
   - Start from `docs/audit-repros/security/leakcheck.ts`.
+  - **Implemented:** `apps/parlor/src/lib/server/seededPlaythroughs.test.ts` runs eight seeds for each game. It checks actual Socket.IO deliveries to three players, a spectator and an unseated connection. Quixx runs in player-roll mode for reproducible timing. Kings Corner trials can stop at a repeated position with an empty draw pile, pending the rules decision below.
 - [ ] **4.3 Lifecycle race suite**: randomized interleavings of reset, restart, switch, leave, grace expiry and reconnect against in-flight bot turns, on a virtual clock. Start from `docs/audit-repros/lifecycle/`.
 
 ## Revisit at the end
 
-Rules questions and smaller bugs found during Phase 3. Come back to these once Phase 4 is done.
+Rules questions and smaller bugs found during the work. Come back to these once Phase 4 is done.
+
+- [ ] **Liar’s Dice minimum-bid hint:** after a bid of one wild one, the view advertises a bid of one two, but the engine requires at least three when switching to a non-one face. The seeded driver uses the engine’s legality check. (Found in 4.2.)
 
 - [ ] **Kings Corner empty draw pile:** with the draw pile empty, turns can loop forever with everyone present. The user is checking the official rules; Crazy Eights reshuffles, but Kings Corner may differ. (Found in 3.9.)
 - [ ] **Kings Corner bot-timeout fallback overwrites game over:** when the fallback's auto-play of kings wins the game, it still advances the turn, which overwrites the `game-over` state. This was already there and was left alone in 3.9. (Found in 3.9.)
@@ -435,3 +438,4 @@ Rules questions and smaller bugs found during Phase 3. Come back to these once P
 | 2026-11-26 | 3.1b typed contract (F-20, F-32 casts) | branch `paul-schwendenman/core-hardening-3.1b`. Crazy-eights pilot in `ed0ab25`, then the other four games migrated and the legacy adapter removed. 624 Vitest and 8 Playwright tests; 0 casts in game definitions. Quixx disconnect stall found and moved to 3.9 |
 | 2026-11-26 | 3.9 per-game rule fixes (F-08, F-09, F-30) | branch `paul-schwendenman/core-hardening-3.9`, main work in `9d03032`, then penalty-free grace stand-ins and the Crazy Eights exhausted-piles pass. 650 Vitest and 8 Playwright tests. Three items added to "Revisit at the end" |
 | 2026-11-26 | 3.10 randomness (F-19) | Switched room codes and gameplay draws to Node crypto and added engine RNG injection for Phase 4.2 |
+| 2026-11-26 | 4.2 seeded playthroughs | 40 seeded Socket.IO trials across all five engines |
