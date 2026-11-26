@@ -17,11 +17,13 @@ apps/parlor/node_modules/.bin/tsx docs/audit-repros/<dir>/<file>
 Paths are relative to the repo, so the scripts work from any checkout. A script that "passes" **prints evidence of the bug**. Once the bug is fixed, its output changes, which is what the regression test should assert.
 
 - `crash/parser.cjs` resolves socket.io through a version-pinned pnpm path (`socket.io@4.8.3`). Update the path if socket.io is upgraded.
-- `crash/server.mts` + `crash/client.mjs` / `poison.mjs` / `quixx.mjs` are a pair: start the server with `PORT=<n>`, then run the client with the same `PORT`.
+- `crash/server.mts` + `crash/client.mjs` / `quixx.mjs` are a pair: start the server with `PORT=<n>`, then run the client with the same `PORT`.
 
 ## Index
 
-Converted to tests and removed: `boundary/crash.mjs` (F-01) → `packages/multiplayer/src/malformedAck.test.ts`, `apps/parlor/src/lib/server/socketServer.test.ts`.
+Converted to tests and removed:
+- `boundary/crash.mjs` (F-01) → `packages/multiplayer/src/malformedAck.test.ts`, `apps/parlor/src/lib/server/socketServer.test.ts`.
+- `security/spec.mts` (F-15), `security/err.mts` (F-22) and `crash/poison.mjs` (F-04) → `packages/multiplayer/src/actionBoundary.test.ts` and `apps/parlor/src/lib/server/actionBoundary.test.ts` (3.1a).
 
 | Script | Shows | Findings |
 |---|---|---|
@@ -29,7 +31,6 @@ Converted to tests and removed: `boundary/crash.mjs` (F-01) → `packages/multip
 | `rooms/probe.ts` | Ghost seats, `setMaxPlayers` under occupancy, 1 MB names, code-space size | F-02, F-11, F-13 (E-01, E-03, E-07) |
 | `rooms/mem.ts` | Memory per room, and slowdown as the code space fills | F-02 (E-02) |
 | `rooms/stale.ts` | A late disconnect from the old socket evicts a player who has reconnected, and moves the host | F-10 (E-04, C-07) |
-| `crash/poison.mjs` | A nested card payload breaks every later `game:state` broadcast | F-04 (B-03) |
 | `crash/parser.cjs` | socket.io-parser behaviour at various nesting depths | F-04 (B-03) |
 | `crash/quixx.mjs` | Quixx with 2 bots and auto-roll stalls | F-09 (B-04) |
 | `crash/quixx-coerce.mts` | A string `cellIndex` bypasses the Quixx row rules | F-05 (A-08) |
@@ -43,7 +44,5 @@ Converted to tests and removed: `boundary/crash.mjs` (F-01) → `packages/multip
 | `lifecycle/fake.mts`, `harness.mts`, `vclock.mts` | Harness: fake io and socket around the real `setupLobbyHandlers`; virtual and scaled clocks | (C) |
 | `security/leakcheck.ts` (+ `sanity.ts`) | Fuzzes 400 card games and 300 Liar's Dice games, diffing views against hidden state (0 problems) | Phase 4.2 seed |
 | `security/live.mts` | Live server: code enumeration, a spectator forcing `nextRound`, token reuse, error-string leakage | F-14, F-15, F-10, F-22 (D-01, D-02, D-04, D-07) |
-| `security/spec.mts` | A spectator forces Liar's Dice `nextRound` | F-15 (D-02) |
-| `security/err.mts` | Raw engine exception text reaches the client | F-22 (D-07) |
 
 Last confirmed against the code on 2026-11-25 (branch `paul-schwendenman/core-hardening-phase-0`).

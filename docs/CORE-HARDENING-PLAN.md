@@ -140,24 +140,35 @@ The reasoning:
     - `apps/parlor` now has Vitest (a standalone `vitest.config.ts` and a `test` script), so its tests run in `turbo test` and CI.
 
 ### 3.1 Game contract: boundary first, migration second
-- [ ] **3.1a Core action boundary.** No per-game type changes yet. The core `game:action` router:
-  - **Validates the envelope** (the payload is a plain object with a string `type`, within the size and depth limits), then **checks membership and permission**:
-    - the sender is a seated player in this room
-    - spectators are rejected
-    - the definition may declare which action types any seat may send outside its turn; everything else requires the sender's turn
-    (F-15, F-04 depth)
-  - **Hook for validating each game's actions:** an optional `validateAction(action) → Action | Error` on `ServerGameDefinition`, so games can adopt it one at a time.
-  - **Calls the handler in a try/catch, including async rejections.** On an expected failure, it reports back to the client (below) and leaves state untouched. On an *unexpected* throw, it logs, marks the room broken, and sends it back to the lobby with a notice. It never continues on a possibly half-mutated engine. (F-03, F-17)
-  - **Reporting failures to the client:** add an optional ack to `game:action`:
-    - `ClientToServerEvents['game:action']: (action, ack?: (r: { ok: true } | { ok: false; code: ActionErrorCode; message: string }) => void) => void`
-    - **Stable public error codes** (`NOT_IN_ROOM`, `NOT_YOUR_TURN`, `INVALID_ACTION`, `RATE_LIMITED`, `INTERNAL`) with user-facing messages. Raw `err.message` never goes to clients. (F-22)
-    - **Client side:** `clientRuntime` exposes `sendAction(action): Promise<Result>` with a timeout, and surfaces failures through the existing `actionError` store. GameViews need no change until they want per-action handling.
+- [ ] **3.1a Core action boundary and required action validation.** *(In progress on branch `paul-schwendenman/core-hardening-3.1a`.)* No generic types or wire migration yet; those are 3.1b. Revised after a second external review: every action is validated at runtime in this item, rather than waiting for 3.1b.
+  - **One core dispatcher used by every router:** `dispatchGameAction()` in `packages/multiplayer/src/actionBoundary.ts`, used by all six (the parlor app and the five standalone game servers). In order:
+    1. **Envelope:** a plain object with a string `type`, depth ≤ 4, ≤ 64 keys or elements, strings ≤ 256 characters, no `__proto__` / `constructor` / `prototype` keys → otherwise `INVALID_ACTION`. (F-04)
+    2. **Membership:** a room exists (`NOT_IN_ROOM`), the sender is a seated, non-spectator player bound to this socket (`NOT_A_PLAYER`), and a game is running (`NO_ACTIVE_GAME`). (F-15)
+    3. **Required per-game `validateAction`**, implemented by all five games. It's a hand-written validator for every action type each game's UI sends, checking:
+       - the allowed `type`
+       - required fields and exact types
+       - integers, ranges and enums
+       - that there are no extra keys
+
+       It returns a **sanitized action rebuilt from the validated fields**, so client-supplied extra keys and objects never reach the engine. Card games look up the card in the player's own hand. → `INVALID_ACTION`. (F-05, F-04)
+    4. **Handler call** inside try/catch, also handling a returned promise (`handleGameAction` returns `void | Promise<void>`).
+  - **What counts as success:** a handler that returns normally is acknowledged `{ ok: true }`, so **handlers must never reject an action by returning silently**. Every rejection throws `GameRuleError`, and an unknown action type is `INVALID_ACTION`. The existing silent `return`s in Quixx (for example out-of-turn `roll-dice`) and Booty Dice (wrong player or phase) are converted.
+  - **Error model:**
+    - **`GameRuleError`** (`NOT_YOUR_TURN` / `RULE_VIOLATION` / `INVALID_ACTION`): its message is safe to show, the game keeps running, and it's sent as both an ack and an `error` event.
+    - **Anything else:** logged, the client sees only "Something went wrong" (`INTERNAL`), and the room is sent back to the lobby via `returnRoomToLobby()`. It never continues on a possibly half-mutated engine. (F-03, F-17)
+    - **Lobby handlers:** raw `err.message` never goes to clients from these either (`toPublicError`). (F-22)
+  - **Wire:** `game:action` takes an optional `ack(ActionResult)`. Codes: `NOT_IN_ROOM`, `NOT_A_PLAYER`, `NO_ACTIVE_GAME`, `INVALID_ACTION`, `NOT_YOUR_TURN`, `RULE_VIOLATION`, `RATE_LIMITED` (reserved, 3.3), `INTERNAL`, `TIMEOUT` (client only). `clientRuntime.sendAction()` has a 5s timeout and never rejects. GameViews are unchanged.
+  - **Start rollback:** if `onGameStart` throws during start or restart, the room is rolled back to `waiting`. `lobby:gameStarting` is only sent after a successful start. (F-17, B-08)
+  - **Per-game fixes shipped with the boundary:**
+    - **Liar's Dice:** `nextRound` is limited to players in the game during the reveal (`requestNextRound`), and the auto-advance timer is tied to its round.
+    - **Quixx:** the turn is checked before the phase timer is cleared.
+    - **Booty Dice:** must roll before `endTurn` (F-06, moved up from 3.9 so a scoring bypass doesn't wait for the migration).
 - [ ] **3.1b Typed contract, piloted on one game, then migrated.**
-  - **Design** `ServerGameDefinition<State, Action, View>`, with an action schema (zod or valibot) that feeds `validateAction`.
+  - **Design** `ServerGameDefinition<State, Action, View>`. Optionally replace 3.1a's hand-written validators with schemas (zod or valibot) that infer `Action`; the runtime behaviour must stay identical, and the 3.1a validator tests are the contract.
   - **Wire typing:** the shared socket carries every game, so `game:state` becomes an envelope: `{ gameId, view }`, typed as a union keyed by `gameId` (a `GameViewMap` in `game-types`, extended by each game via module augmentation or a central map). That's what actually removes the 35 `as never` casts rather than moving them.
   - **Lifecycle contract:** add `onPlayerRemoved` (required) and `onRoomDestroyed` to the definition.
   - **Pilot:** migrate **one** game end to end (crazy-eights is the simplest: no bots) and review the shape. Then migrate the other four.
-  - **Remove the duplicated plumbing:** `broadcastViews`, the action switch and catch, the timer maps. (F-04, F-05, F-17, F-20, F-32 casts)
+  - **Remove the duplicated plumbing:** `broadcastViews`, the action switch, the timer maps, and the remaining `as unknown as` action casts. (F-20, F-32 casts)
 
 ### 3.2 Game-instance lifetime and scheduling
 - [ ] **3.2** Give everything a game does a **game-instance lifetime**, separate from the room's lifetime.
@@ -210,6 +221,8 @@ The reasoning:
 ### 3.7 Seat and session lifecycle
 - [ ] **3.7** One seat per socket.
   - Create, join, spectate or reconnect **releases the previous seat**, its room membership and its spectator entry.
+    - **Order of operations:** validate the new seat **first** (the room exists, there's capacity, the status allows it, the token is valid). Release the old seat **only after** the new one is committed. A failed join, spectate or reconnect must leave the socket in its old seat, with no change to either room.
+    - **Regression test:** a seated player tries to join a full or nonexistent room → error, they're still seated in their original room (same playerId, connected, still receiving that room's broadcasts), and the target room is unchanged.
   - **Supersede the old socket on reconnect:** disconnect it, and ignore its late `disconnect` so it can't start a grace timer.
   - **Rotate the reconnect token** on each successful reconnect.
   - **Restart:** don't seat players who are in their grace window as connected.
@@ -218,7 +231,15 @@ The reasoning:
 
 ### 3.8 Lobby lifecycle guards
 - [ ] **3.8**
-  - **Server-side start preconditions:** status is `waiting`, a game is selected, `minPlayers ≤ n ≤ maxPlayers`, and bots are only allowed if `supportsBots`. The same status gate applies to `ready`, `addBot`, `removeBot` and `restart`.
+  - **Server-side start preconditions:** status is `waiting`, a game is selected, `minPlayers ≤ n ≤ maxPlayers`, and bots are only allowed if `supportsBots`. The same `waiting` gate applies to `ready`, `addBot` and `removeBot`.
+  - **Restart has its own transition, not the start gate.**
+    - **Allowed from:** `playing` or `finished` only (from `waiting`, it's a no-op with an error).
+    - **Check preconditions first:** game still selected and definition present, enough connected players for `minPlayers` after excluding anyone in grace (see 3.7), and bots allowed. Do this **before** invalidating the current game instance (3.2) or resetting the room.
+    - **If the checks fail:** reply with an error and **leave the current game untouched**. Today, restart resets first and only then finds it can't start, which destroys the game.
+    - **If they pass:** invalidate the instance → reset → start, with the 3.1a rollback if `onGameStart` throws.
+    - **Regression tests:**
+      - restart with too few players → error, the old game is still running and still broadcasts
+      - restart from `waiting` → rejected
   - **Game switch:** `selectGame` refuses, or explains, when the current occupancy exceeds the new game's `maxPlayers`.
   - **Explicit reset event:** an explicit `game:reset` / `lobby:returned` event, so the client stops treating any mid-game `lobby:state` as a reset.
   - **Finished status:** set `status: 'finished'`.
@@ -226,12 +247,11 @@ The reasoning:
 
 ### 3.9 Per-game rule fixes
 - [ ] **3.9**
-  - **Booty Dice:** must roll before `endTurn`.
   - **All games:** turn order skips removed and absent seats.
   - **Kings Corner:** fix the bot lookup so it uses the engine's seat order, not the lobby's index.
   - **Quixx:** fix auto-roll after a bot follows a bot.
   - **Liar's Dice:** the bot sees only its own dice.
-  - (F-06, F-08, F-09, F-30)
+  - (F-08, F-09, F-30; F-06 moved to 3.1a)
 
 ### 3.10 Infra and randomness
 - [ ] **3.10**
@@ -267,3 +287,4 @@ The reasoning:
 | 2026-11-25 | Plan revised after the audit and an external review | Phase 3 restructured (3.0–3.10, 3.1 split into a/b, 3.6 dropped); log-and-exit safety net; game-instance lifetime; regression tests required in every fix PR; 0.5 added; repros copied to `docs/audit-repros/` |
 | 2026-11-25 | Phase 2 triage: all 32 findings `now` | proposed buckets and order accepted |
 | 2026-11-25 | 3.0 hotfix (F-01) | branch `paul-schwendenman/core-hardening-3.0`, uncommitted |
+| 2026-11-25 | Plan revised after a second external review | 3.1a now requires validators for every action, handlers can't reject by returning silently, Booty Dice F-06 moved to 3.1a; 3.8 restart gets its own transition (check first, keep the game on failure); 3.7 validates the new seat before releasing the old one |
