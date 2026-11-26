@@ -61,6 +61,11 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 				callbacks?.onGameReset?.(roomCode, io);
 			},
 
+			onRoomDestroyed: (roomCode, io) => {
+				const gameId = roomManager.getGameId(roomCode);
+				if (gameId) getCallbacksForGame(gameId, io)?.onRoomDestroyed?.(roomCode, io);
+			},
+
 			onPlayerDisconnect: (roomCode: string, playerId: string, io: AppServer) => {
 				const gameId = roomManager.getGameId(roomCode);
 				if (!gameId) return;

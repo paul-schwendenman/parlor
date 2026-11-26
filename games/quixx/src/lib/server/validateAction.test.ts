@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameRuleError } from '@parlor/multiplayer';
 import { createDispatchHarness } from '@parlor/multiplayer/testing';
-import { quixxDefinition, cleanupRoomTimers } from './definition.js';
+import { quixxDefinition } from './definition.js';
 import { validateQuixxAction } from './validateAction.js';
 import { QuixxEngine } from './game/QuixxEngine.js';
-import { clearBotTimers } from './game/botController.js';
 import { ROW_NUMBERS } from '../types/game.js';
 
 describe('validateQuixxAction: valid actions are rebuilt from validated fields', () => {
@@ -39,17 +38,14 @@ const INVALID: [string, Record<string, unknown>][] = [
 ];
 
 describe('Quixx actions through the boundary', () => {
-  let roomCode = '';
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
-    cleanupRoomTimers(roomCode);
-    clearBotTimers(roomCode);
+    vi.clearAllTimers();
     vi.useRealTimers();
   });
 
   it.each(INVALID)('%s → INVALID_ACTION, state unchanged, valid pass afterward works', async (_label, action) => {
     const h = createDispatchHarness(quixxDefinition);
-    roomCode = h.roomCode;
     vi.advanceTimersByTime(600); // DEFAULT_CONFIG auto-rolls after 500 ms
     const engine = h.roomManager.getGameData<QuixxEngine>(h.roomCode)!;
     expect(engine.getPhase()).toBe('phase1');

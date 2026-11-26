@@ -5,7 +5,7 @@ import type {
   InterServerEvents,
   SocketData,
 } from '@parlor/game-types';
-import type { ServerGameDefinition, AppServer } from '@parlor/multiplayer';
+import type { ServerGameDefinition, AppServer, GameInstance } from '@parlor/multiplayer';
 import { GameRuleError, RoomManager } from '@parlor/multiplayer';
 import { LiarsDiceEngine } from './game/LiarsDiceEngine.js';
 import { createPlayer } from '../types/game.js';
@@ -23,25 +23,25 @@ function broadcastViews(
   roomCode: string,
   engine: LiarsDiceEngine,
   roomManager: RoomManager,
+  advanceLog = true,
 ): void {
-  if (roomManager.getGameData(roomCode) !== engine) return;
-  if (engine.getState().gameOver) roomManager.finishGame(roomCode, engine);
+  const instance = roomManager.getGameInstance(roomCode);
+  if (!instance || roomManager.getGameData(roomCode) !== engine) return;
+  instance.emitIfCurrent(() => {
+    if (engine.getState().gameOver) roomManager.finishGame(roomCode, engine);
+    if (advanceLog) engine.getNewLogEntries();
 
-  engine.getNewLogEntries(); // advance log cursor
-
-  const players = roomManager.getGamePlayers(roomCode);
-  for (const player of players) {
-    if (RoomManager.isBotPlayer(player.id)) continue;
-    io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
-  }
-
-  const spectators = roomManager.getGameSpectators(roomCode);
-  if (spectators.length > 0) {
-    const spectatorView = engine.getSpectatorView();
-    for (const spectatorId of spectators) {
-      io.to(spectatorId).emit('game:state', spectatorView as never);
+    for (const player of roomManager.getGamePlayers(roomCode)) {
+      if (RoomManager.isBotPlayer(player.id)) continue;
+      io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
     }
-  }
+
+    const spectators = roomManager.getGameSpectators(roomCode);
+    if (spectators.length > 0) {
+      const view = engine.getSpectatorView();
+      for (const spectatorId of spectators) io.to(spectatorId).emit('game:state', view as never);
+    }
+  });
 }
 
 function scheduleAITurnIfNeeded(
@@ -50,44 +50,35 @@ function scheduleAITurnIfNeeded(
   engine: LiarsDiceEngine,
   roomManager: RoomManager,
 ): void {
+  const instance = roomManager.getGameInstance(roomCode);
+  if (!instance || roomManager.getGameData(roomCode) !== engine) return;
+
   const state = engine.getState();
-  if (state.gameOver || state.phase !== 'bidding') return;
-
   const activePlayer = state.players[state.activePlayerIndex];
-  if (!activePlayer.isAI || activePlayer.eliminated) return;
+  if (state.gameOver || state.phase !== 'bidding' || !activePlayer.isAI || activePlayer.eliminated) return;
 
-  setImmediate(() => {
-    handleAITurn(io, roomCode, engine, roomManager).catch((err) => {
-      console.error('[AI Turn] Error:', err);
-    });
-  });
+  instance.schedule(() => handleAITurn(io, roomCode, engine, roomManager, instance), 0, 'bot-turn');
 }
 
 const REVEAL_DELAY_MS = 3000;
 
-/**
- * Server-driven advance after a reveal. Bound to the round it was scheduled
- * for: if a player already advanced (via `nextRound`), the stale timer must not
- * cut a later round's reveal short (CORE-AUDIT A-12).
- */
+/** Bind the reveal timer to its round because a player can advance it early. */
 function scheduleNextRound(
   io: AppServer,
   roomCode: string,
   engine: LiarsDiceEngine,
   roomManager: RoomManager,
 ): void {
-  if (engine.getState().gameOver) return;
+  const instance = roomManager.getGameInstance(roomCode);
+  if (!instance || roomManager.getGameData(roomCode) !== engine || engine.getState().gameOver) return;
   const round = engine.getState().round;
-  setTimeout(() => {
-    try {
-      if (engine.getState().round !== round) return;
-      engine.startNextRound();
-      broadcastViews(io, roomCode, engine, roomManager);
-      scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-    } catch {
-      // game may have ended
-    }
-  }, REVEAL_DELAY_MS);
+  instance.schedule(() => {
+    const state = engine.getState();
+    if (state.round !== round || state.gameOver) return;
+    engine.startNextRound();
+    broadcastViews(io, roomCode, engine, roomManager);
+    scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
+  }, REVEAL_DELAY_MS, 'round-reveal');
 }
 
 async function handleAITurn(
@@ -95,71 +86,50 @@ async function handleAITurn(
   roomCode: string,
   engine: LiarsDiceEngine,
   roomManager: RoomManager,
+  instance: GameInstance,
 ): Promise<void> {
   const state = engine.getState();
-  if (state.gameOver || state.phase !== 'bidding') return;
-
   const activePlayer = state.players[state.activePlayerIndex];
-  if (!activePlayer.isAI || activePlayer.eliminated) return;
+  if (state.gameOver || state.phase !== 'bidding' || !activePlayer.isAI || activePlayer.eliminated) return;
 
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('AI turn timed out')), AI_TURN_TIMEOUT),
-  );
+  function canAct(): boolean {
+    if (!instance.isCurrent()) return false;
+    const current = engine.getState();
+    return !current.gameOver && current.phase === 'bidding' && current.round === state.round
+      && current.currentBid === state.currentBid
+      && current.players[current.activePlayerIndex].id === activePlayer.id;
+  }
 
-  try {
-    await Promise.race([
-      aiPlayer.takeTurn(state, {
-        onBid: (quantity, faceValue) => {
-          if (engine.getState().gameOver) return;
-          try {
-            engine.placeBid(activePlayer.id, quantity, faceValue);
-            broadcastViews(io, roomCode, engine, roomManager);
-            // Next player might also be AI
-            scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-          } catch (err) {
-            console.error('[AI Bid] Error:', err);
-          }
-        },
-        onChallenge: () => {
-          if (engine.getState().gameOver) return;
-          try {
-            engine.challenge(activePlayer.id);
-            broadcastViews(io, roomCode, engine, roomManager);
-            // Auto-advance to next round after reveal delay
-            scheduleNextRound(io, roomCode, engine, roomManager);
-          } catch (err) {
-            console.error('[AI Challenge] Error:', err);
-          }
-        },
-        onSpotOn: () => {
-          if (engine.getState().gameOver) return;
-          try {
-            engine.spotOn(activePlayer.id);
-            broadcastViews(io, roomCode, engine, roomManager);
-            scheduleNextRound(io, roomCode, engine, roomManager);
-          } catch (err) {
-            console.error('[AI Spot On] Error:', err);
-          }
-        },
-      }),
-      timeoutPromise,
-    ]);
-  } catch (err) {
-    console.error('[AI Turn] Error/timeout:', err);
-    // Fallback: if AI timed out during bidding, auto-challenge or bid minimally
-    const currentState = engine.getState();
-    if (currentState.phase === 'bidding' && !currentState.gameOver) {
-      try {
-        if (currentState.currentBid) {
-          engine.challenge(activePlayer.id);
-        } else {
-          engine.placeBid(activePlayer.id, 1, 2);
-        }
-        broadcastViews(io, roomCode, engine, roomManager);
-      } catch {
-        // ignore
-      }
-    }
+  const outcome = await instance.runWithTimeout((signal) => aiPlayer.takeTurn(state, {
+    onBid: (quantity, faceValue) => {
+      if (signal.aborted || !canAct()) return;
+      engine.placeBid(activePlayer.id, quantity, faceValue);
+      broadcastViews(io, roomCode, engine, roomManager);
+      scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
+    },
+    onChallenge: () => {
+      if (signal.aborted || !canAct()) return;
+      engine.challenge(activePlayer.id);
+      broadcastViews(io, roomCode, engine, roomManager);
+      scheduleNextRound(io, roomCode, engine, roomManager);
+    },
+    onSpotOn: () => {
+      if (signal.aborted || !canAct()) return;
+      engine.spotOn(activePlayer.id);
+      broadcastViews(io, roomCode, engine, roomManager);
+      scheduleNextRound(io, roomCode, engine, roomManager);
+    },
+  }, signal, instance), AI_TURN_TIMEOUT);
+
+  if (outcome !== 'timed-out' || !canAct()) return;
+  if (engine.getState().currentBid) {
+    engine.challenge(activePlayer.id);
+    broadcastViews(io, roomCode, engine, roomManager);
+    scheduleNextRound(io, roomCode, engine, roomManager);
+  } else {
+    engine.placeBid(activePlayer.id, 1, 2);
+    broadcastViews(io, roomCode, engine, roomManager);
+    scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
   }
 }
 
@@ -182,26 +152,10 @@ export const liarsDiceDefinition: ServerGameDefinition = {
       const engine = new LiarsDiceEngine(gamePlayers, roomCode);
       roomManager.setGameData(roomCode, engine);
 
-      for (const player of players) {
-        if (RoomManager.isBotPlayer(player.id)) continue;
-        const view = engine.getPlayerView(player.id);
-        io.to(player.id).emit('game:state', view as never);
-      }
-
-      const spectators = roomManager.getGameSpectators(roomCode);
-      if (spectators.length > 0) {
-        const spectatorView = engine.getSpectatorView();
-        for (const spectatorId of spectators) {
-          io.to(spectatorId).emit('game:state', spectatorView as never);
-        }
-      }
+      broadcastViews(io, roomCode, engine, roomManager, false);
 
       // If first player is AI, schedule their turn
       scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-    },
-
-    onGameReset: (roomCode) => {
-      roomManager.setGameData(roomCode, null);
     },
 
     onPlayerDisconnect: (roomCode, playerId) => {
@@ -227,10 +181,12 @@ export const liarsDiceDefinition: ServerGameDefinition = {
     onPlayerReconnect: (roomCode, playerId) => {
       const engine = roomManager.getGameData<LiarsDiceEngine>(roomCode);
       if (!engine) return;
-      const view = roomManager.isGameParticipant(roomCode, playerId)
-        ? engine.getPlayerView(playerId)
-        : engine.getSpectatorView();
-      io.to(playerId).emit('game:state', view as never);
+      roomManager.getGameInstance(roomCode)?.emitIfCurrent(() => {
+        const view = roomManager.isGameParticipant(roomCode, playerId)
+          ? engine.getPlayerView(playerId)
+          : engine.getSpectatorView();
+        io.to(playerId).emit('game:state', view as never);
+      });
     },
   }),
 
@@ -277,6 +233,7 @@ export const liarsDiceDefinition: ServerGameDefinition = {
         // Any player at the table (eliminated players included, they still see
         // the reveal) may advance, but only from a reveal phase; the engine checks both.
         engine.requestNextRound(socket.data.playerId);
+        roomManager.getGameInstance(roomCode)?.cancel('round-reveal');
         broadcastViews(io, roomCode, engine, roomManager);
         scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
         break;

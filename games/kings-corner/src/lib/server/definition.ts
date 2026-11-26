@@ -5,8 +5,8 @@ import type {
   InterServerEvents,
   SocketData,
 } from '@parlor/game-types';
-import type { ServerGameDefinition } from '@parlor/multiplayer';
-import { GameRuleError, RoomManager } from '@parlor/multiplayer';
+import type { GameInstance, ServerGameDefinition } from '@parlor/multiplayer';
+import { GameRuleError, isGameRuleError, RoomManager } from '@parlor/multiplayer';
 import { KingsCornerEngine } from './game/KingsCornerEngine.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 import { DEFAULT_CONFIG } from '../types/game.js';
@@ -25,22 +25,21 @@ function broadcastViews(
   roomManager: RoomManager,
 ): void {
   if (roomManager.getGameData(roomCode) !== engine) return;
-  if (engine.isGameOver()) roomManager.finishGame(roomCode, engine);
-
-  const players = roomManager.getGamePlayers(roomCode);
-  for (const player of players) {
-    if (RoomManager.isBotPlayer(player.id)) continue;
-    const view = engine.getPlayerView(player.id);
-    io.to(player.id).emit('game:state', view as never);
-  }
-
-  const spectators = roomManager.getGameSpectators(roomCode);
-  if (spectators.length > 0) {
-    const spectatorView = engine.getSpectatorView();
-    for (const spectatorId of spectators) {
-      io.to(spectatorId).emit('game:state', spectatorView as never);
+  roomManager.getGameInstance(roomCode)?.emitIfCurrent(() => {
+    if (engine.isGameOver()) roomManager.finishGame(roomCode, engine);
+    for (const player of roomManager.getGamePlayers(roomCode)) {
+      if (RoomManager.isBotPlayer(player.id)) continue;
+      io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
     }
-  }
+
+    const spectators = roomManager.getGameSpectators(roomCode);
+    if (spectators.length > 0) {
+      const spectatorView = engine.getSpectatorView();
+      for (const spectatorId of spectators) {
+        io.to(spectatorId).emit('game:state', spectatorView as never);
+      }
+    }
+  });
 }
 
 function scheduleAITurnIfNeeded(
@@ -49,18 +48,19 @@ function scheduleAITurnIfNeeded(
   engine: KingsCornerEngine,
   roomManager: RoomManager,
 ): void {
-  if (engine.isGameOver()) return;
+  const instance = roomManager.getGameInstance(roomCode);
+  if (!instance?.isCurrent() || engine.isGameOver()) return;
 
   const activeIndex = engine.getActivePlayerIndex();
   const players = roomManager.getGamePlayers(roomCode);
   const activePlayer = players[activeIndex];
   if (!activePlayer || !RoomManager.isBotPlayer(activePlayer.id)) return;
 
-  setImmediate(() => {
-    handleAITurn(io, roomCode, engine, roomManager, activePlayer.id).catch((err) => {
-      console.error('[Kings Corner AI] Error:', err);
-    });
-  });
+  instance.schedule(
+    () => handleAITurn(io, roomCode, engine, roomManager, activePlayer.id, instance),
+    0,
+    'bot-turn',
+  );
 }
 
 async function handleAITurn(
@@ -69,74 +69,44 @@ async function handleAITurn(
   engine: KingsCornerEngine,
   roomManager: RoomManager,
   botId: string,
+  instance: GameInstance,
 ): Promise<void> {
-  if (engine.isGameOver()) return;
+  if (!instance.isCurrent() || engine.isGameOver()) return;
 
   const aiPlayer = new AIPlayer();
-
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('AI turn timed out')), AI_TURN_TIMEOUT),
-  );
-
-  try {
-    await Promise.race([
-      aiPlayer.takeTurn({
-        onDrawCard: () => {
-          if (engine.isGameOver()) return;
-          try {
-            engine.drawCard(botId);
-            broadcastViews(io, roomCode, engine, roomManager);
-          } catch {
-            // Phase changed
-          }
-        },
-        onPlayCard: (card, target) => {
-          if (engine.isGameOver()) return;
-          try {
-            engine.playCard(botId, card, target);
-            broadcastViews(io, roomCode, engine, roomManager);
-          } catch {
-            // Invalid move
-          }
-        },
-        onMovePile: (from, to) => {
-          if (engine.isGameOver()) return;
-          try {
-            engine.movePile(botId, from, to);
-            broadcastViews(io, roomCode, engine, roomManager);
-          } catch {
-            // Invalid move
-          }
-        },
-        onEndTurn: () => {
-          if (engine.isGameOver()) return;
-          try {
-            engine.endTurn(botId);
-            broadcastViews(io, roomCode, engine, roomManager);
-            scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-          } catch {
-            // Turn already ended
-          }
-        },
-        getView: () => engine.getPlayerView(botId),
-      }),
-      timeoutPromise,
-    ]);
-  } catch (err) {
-    console.error('[Kings Corner AI] Error/timeout:', err);
-    // Force end turn on timeout
-    if (!engine.isGameOver()) {
+  const result = await instance.runWithTimeout((signal) => {
+    function applyMove(move: () => void): boolean {
+      if (signal.aborted || !instance.isCurrent() || engine.isGameOver()) return false;
       try {
-        // Auto-play mandatory kings then end turn
-        engine.handleDisconnect(botId);
-        engine.handleReconnect(botId);
-        broadcastViews(io, roomCode, engine, roomManager);
-        scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-      } catch {
-        // Already handled
+        move();
+      } catch (err) {
+        if (!isGameRuleError(err)) throw err;
+        return false;
       }
+      broadcastViews(io, roomCode, engine, roomManager);
+      return true;
     }
-  }
+
+    return aiPlayer.takeTurn({
+      onDrawCard: () => applyMove(() => engine.drawCard(botId)),
+      onPlayCard: (card, target) => applyMove(() => engine.playCard(botId, card, target)),
+      onMovePile: (from, to) => applyMove(() => engine.movePile(botId, from, to)),
+      onEndTurn: () => {
+        if (applyMove(() => engine.endTurn(botId))) {
+          scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
+        }
+      },
+      getView: () => engine.getPlayerView(botId),
+    }, signal, instance);
+  }, AI_TURN_TIMEOUT);
+
+  if (result !== 'timed-out' || !instance.isCurrent() || engine.isGameOver()) return;
+
+  // Auto-play mandatory kings, then advance the turn.
+  engine.handleDisconnect(botId);
+  engine.handleReconnect(botId);
+  broadcastViews(io, roomCode, engine, roomManager);
+  scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
 }
 
 export const kingsCornerDefinition: ServerGameDefinition = {
@@ -161,26 +131,8 @@ export const kingsCornerDefinition: ServerGameDefinition = {
       );
       roomManager.setGameData(roomCode, engine);
 
-      for (const player of players) {
-        if (RoomManager.isBotPlayer(player.id)) continue;
-        const view = engine.getPlayerView(player.id);
-        io.to(player.id).emit('game:state', view as never);
-      }
-
-      const spectators = roomManager.getGameSpectators(roomCode);
-      if (spectators.length > 0) {
-        const spectatorView = engine.getSpectatorView();
-        for (const spectatorId of spectators) {
-          io.to(spectatorId).emit('game:state', spectatorView as never);
-        }
-      }
-
-      // If first player is a bot, start AI turn
+      broadcastViews(io, roomCode, engine, roomManager);
       scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-    },
-
-    onGameReset: (roomCode) => {
-      roomManager.setGameData(roomCode, null);
     },
 
     onPlayerDisconnect: (roomCode, playerId) => {
@@ -199,7 +151,9 @@ export const kingsCornerDefinition: ServerGameDefinition = {
       const isParticipant = roomManager.isGameParticipant(roomCode, playerId);
       if (isParticipant) engine.handleReconnect(playerId);
       const view = isParticipant ? engine.getPlayerView(playerId) : engine.getSpectatorView();
-      io.to(playerId).emit('game:state', view as never);
+      roomManager.getGameInstance(roomCode)?.emitIfCurrent(() => {
+        io.to(playerId).emit('game:state', view as never);
+      });
     },
   }),
 

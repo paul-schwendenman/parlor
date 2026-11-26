@@ -24,6 +24,7 @@ function makeSocket(id: string) {
 function makeIo() {
   const emitted: { room: string; event: string; args: unknown[] }[] = [];
   const io = {
+    in: () => ({ socketsLeave: vi.fn() }),
     to: (room: string) => ({
       emit: (event: string, ...args: unknown[]) => {
         emitted.push({ room, event, args });
@@ -299,5 +300,107 @@ describe('lobbyHandlers room:leave', () => {
     expect(io.emitted.some((e) => e.event === 'lobby:playerLeft' && e.args[0] === guestPlayerId)).toBe(
       true,
     );
+  });
+});
+
+
+describe('lobby game instance lifecycle', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function startRoom(rm: RoomManager, callbacks?: LobbyCallbacks, id = 'host') {
+    const io = makeIo();
+    const host = makeSocket(id);
+    wire(rm, io, host, callbacks);
+    host.fire('lobby:create', id, vi.fn());
+    const roomCode = host.data.roomCode!;
+    rm.selectGame(roomCode, gameRules);
+    host.fire('lobby:addBot', vi.fn());
+    host.fire('lobby:ready', true, vi.fn());
+    const ack = vi.fn();
+    host.fire('lobby:startGame', ack);
+    expect(ack).toHaveBeenCalledWith(true);
+    return { io, host, roomCode, instance: rm.getGameInstance(roomCode)! };
+  }
+
+  it.each(['throw', 'reject'])('returns only the failed game to the lobby after a scheduled %s', async (mode) => {
+    vi.useFakeTimers();
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const rm = new RoomManager();
+    const { instance, roomCode, io } = startRoom(rm);
+    const other = startRoom(rm, undefined, 'other');
+    const error = new Error('scheduled failure');
+    instance.schedule(() => {
+      if (mode === 'throw') throw error;
+      return Promise.reject(error);
+    }, 10);
+    const next = vi.fn();
+    instance.schedule(next, 20);
+
+    await vi.advanceTimersByTimeAsync(30);
+    expect(log).toHaveBeenCalledWith(expect.any(String), { roomCode, gameId: 'test', instanceId: instance.id }, error);
+    expect(rm.getRoom(roomCode)?.status).toBe('waiting');
+    expect(io.emitted).toContainEqual({ room: roomCode, event: 'lobby:returned', args: ['test'] });
+    expect(next).not.toHaveBeenCalled();
+    expect(instance.signal.aborted).toBe(true);
+    expect(rm.getGameInstance(other.roomCode)).toBe(other.instance);
+    expect(other.instance.isCurrent()).toBe(true);
+  });
+
+  it('keeps a player grace timer across a game reset', async () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(100);
+    const onRoomDestroyed = vi.fn();
+    const { instance, roomCode, host } = startRoom(rm, { onRoomDestroyed });
+    host.fire('disconnect');
+    expect(rm.getRoom(roomCode)?.players.get(host.data.playerId!)?.connected).toBe(false);
+
+    const scheduled = vi.fn();
+    instance.schedule(scheduled, 100);
+    expect(rm.resetGame(roomCode)).toBe(true);
+    expect(instance.signal.aborted).toBe(true);
+    expect(rm.getRoom(roomCode)?.status).toBe('waiting');
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(rm.getRoom(roomCode)).toBeUndefined();
+    expect(onRoomDestroyed).toHaveBeenCalledExactlyOnceWith(roomCode, expect.anything());
+    expect(scheduled).not.toHaveBeenCalled();
+  });
+
+  it.each(['leave', 'expiry'])('invalidates running work before destroying a room on %s', async (method) => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(100);
+    const onRoomDestroyed = vi.fn((roomCode: string) => {
+      expect(rm.getGameInstance(roomCode)).toBeUndefined();
+    });
+    const { instance, roomCode, host } = startRoom(rm, { onRoomDestroyed });
+    const mutate = vi.fn();
+    const emit = vi.fn();
+    let resume!: () => void;
+    const wait = new Promise<void>((resolve) => { resume = resolve; });
+    const started = vi.fn();
+    instance.schedule(async () => {
+      started();
+      await wait;
+      if (instance.isCurrent()) mutate();
+      instance.emitIfCurrent(emit);
+    }, 5);
+    await vi.advanceTimersByTimeAsync(5);
+    expect(started).toHaveBeenCalledOnce();
+
+    if (method === 'leave') host.fire('room:leave');
+    else {
+      host.fire('disconnect');
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    expect(rm.getRoom(roomCode)).toBeUndefined();
+    expect(instance.signal.aborted).toBe(true);
+    expect(onRoomDestroyed).toHaveBeenCalledExactlyOnceWith(roomCode, expect.anything());
+    resume();
+    await wait;
+    expect(mutate).not.toHaveBeenCalled();
+    expect(emit).not.toHaveBeenCalled();
   });
 });

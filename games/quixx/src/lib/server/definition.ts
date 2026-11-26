@@ -17,18 +17,21 @@ type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerE
 import type { QuixxAction } from '../types/game.js';
 import { QuixxEngine } from './game/QuixxEngine.js';
 import { DEFAULT_CONFIG } from '../types/game.js';
-import { scheduleBotActions, clearBotTimers } from './game/botController.js';
+import { scheduleBotActions } from './game/botController.js';
 import { validateQuixxAction } from './validateAction.js';
 
-// Per-room timer handles
-const roomTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const PHASE_TIMER = 'phase';
+const AUTO_ROLL = 'auto-roll';
 
-function clearRoomTimer(roomCode: string): void {
-  const existing = roomTimers.get(roomCode);
-  if (existing) {
-    clearTimeout(existing);
-    roomTimers.delete(roomCode);
-  }
+function scheduleBots(
+  io: AppServer,
+  roomCode: string,
+  engine: QuixxEngine,
+  roomManager: RoomManager,
+): void {
+  const instance = roomManager.getGameInstance(roomCode);
+  if (!instance || roomManager.getGameData(roomCode) !== engine) return;
+  scheduleBotActions(instance, engine, () => broadcastViews(io, roomCode, engine, roomManager));
 }
 
 function startPhase1Timer(
@@ -37,37 +40,27 @@ function startPhase1Timer(
   engine: QuixxEngine,
   roomManager: RoomManager,
 ): void {
-  const config = engine.getConfig();
-  if (!config.phase1Timer) return;
+  const { phase1Timer } = engine.getConfig();
+  if (!phase1Timer) return;
 
-  clearRoomTimer(roomCode);
-  roomTimers.set(
-    roomCode,
-    setTimeout(() => {
-      roomTimers.delete(roomCode);
-      if (engine.getPhase() !== 'phase1' || engine.isGameOver()) return;
+  roomManager.getGameInstance(roomCode)?.schedule(() => {
+    if (engine.getPhase() !== 'phase1' || engine.isGameOver()) return;
 
-      // Auto-pass all players who haven't submitted
-      for (const player of engine.getPlayers()) {
-        if (player.phase1Decision === null) {
-          try {
-            engine.submitPhase1(player.id, { type: 'phase1-pass' });
-          } catch {
-            // Already submitted
-          }
-        }
+    for (const player of engine.getPlayers()) {
+      if (player.phase1Decision === null) {
+        engine.submitPhase1(player.id, { type: 'phase1-pass' });
       }
+    }
 
-      if (engine.allPhase1Submitted()) {
-        engine.resolvePhase1();
-        broadcastViews(io, roomCode, engine, roomManager);
-        if (!engine.isGameOver()) {
-          startPhase2Timer(io, roomCode, engine, roomManager);
-          scheduleBotActions(io, roomCode, engine, roomManager);
-        }
+    if (engine.allPhase1Submitted()) {
+      engine.resolvePhase1();
+      broadcastViews(io, roomCode, engine, roomManager);
+      if (!engine.isGameOver()) {
+        startPhase2Timer(io, roomCode, engine, roomManager);
+        scheduleBots(io, roomCode, engine, roomManager);
       }
-    }, config.phase1Timer * 1000),
-  );
+    }
+  }, phase1Timer * 1000, PHASE_TIMER);
 }
 
 function startPhase2Timer(
@@ -76,36 +69,26 @@ function startPhase2Timer(
   engine: QuixxEngine,
   roomManager: RoomManager,
 ): void {
-  const config = engine.getConfig();
-  if (!config.turnTimer) return;
+  const { turnTimer } = engine.getConfig();
+  if (!turnTimer) return;
 
-  clearRoomTimer(roomCode);
-  roomTimers.set(
-    roomCode,
-    setTimeout(() => {
-      roomTimers.delete(roomCode);
-      if (engine.getPhase() !== 'phase2' || engine.isGameOver()) return;
+  roomManager.getGameInstance(roomCode)?.schedule(() => {
+    if (engine.getPhase() !== 'phase2' || engine.isGameOver()) return;
 
-      const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
-      try {
-        engine.submitPhase2(activePlayer.id, { type: 'phase2-pass' });
-      } catch {
-        return;
-      }
+    const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
+    engine.submitPhase2(activePlayer.id, { type: 'phase2-pass' });
+    if (engine.isGameOver()) {
+      broadcastViews(io, roomCode, engine, roomManager);
+      return;
+    }
 
-      if (engine.isGameOver()) {
-        broadcastViews(io, roomCode, engine, roomManager);
-      } else {
-        engine.advanceTurn();
-        broadcastViews(io, roomCode, engine, roomManager);
-
-        if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) {
-          autoRollIfNeeded(io, roomCode, engine, roomManager);
-        }
-        scheduleBotActions(io, roomCode, engine, roomManager);
-      }
-    }, config.turnTimer * 1000),
-  );
+    engine.advanceTurn();
+    broadcastViews(io, roomCode, engine, roomManager);
+    if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) {
+      autoRollIfNeeded(io, roomCode, engine, roomManager);
+    }
+    scheduleBots(io, roomCode, engine, roomManager);
+  }, turnTimer * 1000, PHASE_TIMER);
 }
 
 function autoRollIfNeeded(
@@ -114,18 +97,14 @@ function autoRollIfNeeded(
   engine: QuixxEngine,
   roomManager: RoomManager,
 ): void {
-  setTimeout(() => {
-    if (engine.getPhase() === 'rolling' && !engine.isGameOver()) {
-      try {
-        engine.rollDice();
-        broadcastViews(io, roomCode, engine, roomManager);
-        startPhase1Timer(io, roomCode, engine, roomManager);
-        scheduleBotActions(io, roomCode, engine, roomManager);
-      } catch {
-        // Ignore if phase changed
-      }
-    }
-  }, 500);
+  roomManager.getGameInstance(roomCode)?.schedule(() => {
+    if (engine.getPhase() !== 'rolling' || engine.isGameOver()) return;
+
+    engine.rollDice();
+    broadcastViews(io, roomCode, engine, roomManager);
+    startPhase1Timer(io, roomCode, engine, roomManager);
+    scheduleBots(io, roomCode, engine, roomManager);
+  }, 500, AUTO_ROLL);
 }
 
 function broadcastViews(
@@ -135,26 +114,23 @@ function broadcastViews(
   roomManager: RoomManager,
 ): void {
   if (roomManager.getGameData(roomCode) !== engine) return;
-  if (engine.isGameOver()) roomManager.finishGame(roomCode, engine);
+  roomManager.getGameInstance(roomCode)?.emitIfCurrent(() => {
+    if (engine.isGameOver()) roomManager.finishGame(roomCode, engine);
 
-  const players = roomManager.getGamePlayers(roomCode);
-  for (const player of players) {
-    if (RoomManager.isBotPlayer(player.id)) continue;
-    const view = engine.getPlayerView(player.id);
-    io.to(player.id).emit('game:state', view as never);
-  }
-
-  const spectators = roomManager.getGameSpectators(roomCode);
-  if (spectators.length > 0) {
-    const spectatorView = engine.getSpectatorView();
-    for (const spectatorId of spectators) {
-      io.to(spectatorId).emit('game:state', spectatorView as never);
+    for (const player of roomManager.getGamePlayers(roomCode)) {
+      if (RoomManager.isBotPlayer(player.id)) continue;
+      const view = engine.getPlayerView(player.id);
+      io.to(player.id).emit('game:state', view as never);
     }
-  }
-}
 
-export function cleanupRoomTimers(roomCode: string): void {
-  clearRoomTimer(roomCode);
+    const spectators = roomManager.getGameSpectators(roomCode);
+    if (spectators.length > 0) {
+      const spectatorView = engine.getSpectatorView();
+      for (const spectatorId of spectators) {
+        io.to(spectatorId).emit('game:state', spectatorView as never);
+      }
+    }
+  });
 }
 
 const meta: GameMeta = {
@@ -181,44 +157,12 @@ export const quixxDefinition: ServerGameDefinition = {
       );
       roomManager.setGameData(roomCode, engine);
 
-      // Send initial views to each player (skip bots)
-      for (const player of players) {
-        if (RoomManager.isBotPlayer(player.id)) continue;
-        const view = engine.getPlayerView(player.id);
-        io.to(player.id).emit('game:state', view as never);
-      }
-
-      // Send initial view to spectators
-      const spectators = roomManager.getGameSpectators(roomCode);
-      if (spectators.length > 0) {
-        const spectatorView = engine.getSpectatorView();
-        for (const spectatorId of spectators) {
-          io.to(spectatorId).emit('game:state', spectatorView as never);
-        }
-      }
-
-      // Auto-roll if configured
-      if (DEFAULT_CONFIG.diceRolling === 'auto') {
-        setTimeout(() => {
-          if (engine.getPhase() === 'rolling') {
-            try {
-              engine.rollDice();
-              broadcastViews(io, roomCode, engine, roomManager);
-            } catch {
-              // Ignore
-            }
-          }
-          scheduleBotActions(io, roomCode, engine, roomManager);
-        }, 500);
+      broadcastViews(io, roomCode, engine, roomManager);
+      if (engine.shouldAutoRoll()) {
+        autoRollIfNeeded(io, roomCode, engine, roomManager);
       } else {
-        scheduleBotActions(io, roomCode, engine, roomManager);
+        scheduleBots(io, roomCode, engine, roomManager);
       }
-    },
-
-    onGameReset: (roomCode) => {
-      cleanupRoomTimers(roomCode);
-      clearBotTimers(roomCode);
-      roomManager.setGameData(roomCode, null);
     },
 
     onPlayerDisconnect: (roomCode, playerId) => {
@@ -261,7 +205,9 @@ export const quixxDefinition: ServerGameDefinition = {
       const view = roomManager.isGameParticipant(roomCode, playerId)
         ? engine.getPlayerView(playerId)
         : engine.getSpectatorView();
-      io.to(playerId).emit('game:state', view as never);
+      roomManager.getGameInstance(roomCode)?.emitIfCurrent(() => {
+        io.to(playerId).emit('game:state', view as never);
+      });
     },
   }),
 
@@ -290,7 +236,7 @@ export const quixxDefinition: ServerGameDefinition = {
         engine.rollDice();
         broadcastViews(io, roomCode, engine, roomManager);
         startPhase1Timer(io, roomCode, engine, roomManager);
-        scheduleBotActions(io, roomCode, engine, roomManager);
+        scheduleBots(io, roomCode, engine, roomManager);
         break;
       }
 
@@ -300,16 +246,16 @@ export const quixxDefinition: ServerGameDefinition = {
         broadcastViews(io, roomCode, engine, roomManager);
 
         if (engine.allPhase1Submitted()) {
-          clearRoomTimer(roomCode);
+          roomManager.getGameInstance(roomCode)?.cancel(PHASE_TIMER);
           engine.resolvePhase1();
           broadcastViews(io, roomCode, engine, roomManager);
 
           if (!engine.isGameOver()) {
             startPhase2Timer(io, roomCode, engine, roomManager);
-            scheduleBotActions(io, roomCode, engine, roomManager);
+            scheduleBots(io, roomCode, engine, roomManager);
           }
         } else {
-          scheduleBotActions(io, roomCode, engine, roomManager);
+          scheduleBots(io, roomCode, engine, roomManager);
         }
         break;
       }
@@ -319,7 +265,7 @@ export const quixxDefinition: ServerGameDefinition = {
         // submitPhase2 validates phase + active player before mutating; only a
         // successful submit may cancel the turn timer (CORE-AUDIT A-12).
         engine.submitPhase2(socket.data.playerId, action);
-        clearRoomTimer(roomCode);
+        roomManager.getGameInstance(roomCode)?.cancel(PHASE_TIMER);
 
         if (engine.isGameOver()) {
           broadcastViews(io, roomCode, engine, roomManager);
@@ -331,7 +277,7 @@ export const quixxDefinition: ServerGameDefinition = {
           if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) {
             autoRollIfNeeded(io, roomCode, engine, roomManager);
           }
-          scheduleBotActions(io, roomCode, engine, roomManager);
+          scheduleBots(io, roomCode, engine, roomManager);
         }
         break;
       }

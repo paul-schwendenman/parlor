@@ -5,7 +5,7 @@ import type {
   InterServerEvents,
   SocketData,
 } from '@parlor/game-types';
-import type { ServerGameDefinition, AppServer } from '@parlor/multiplayer';
+import type { ServerGameDefinition, AppServer, GameInstance } from '@parlor/multiplayer';
 import { GameRuleError, RoomManager } from '@parlor/multiplayer';
 import { GameEngine } from './game/GameEngine.js';
 import { createPlayer } from '../types/game.js';
@@ -23,37 +23,44 @@ function broadcastViews(
   roomCode: string,
   engine: GameEngine,
   roomManager: RoomManager,
+  advanceLog = true,
 ): void {
-  if (roomManager.getGameData(roomCode) !== engine) return;
-  if (engine.getState().phase === 'ended') roomManager.finishGame(roomCode, engine);
+  const instance = roomManager.getGameInstance(roomCode);
+  if (!instance || roomManager.getGameData(roomCode) !== engine) return;
+  instance.emitIfCurrent(() => {
+    if (engine.getState().phase === 'ended') roomManager.finishGame(roomCode, engine);
 
-  // Send new log entries first
-  const newEntries = engine.getNewLogEntries();
-  for (const entry of newEntries) {
-    // Send to all humans in the room
+    const viewCount = advanceLog ? Math.max(1, engine.getNewLogEntries().length) : 1;
     const players = roomManager.getGamePlayers(roomCode);
-    for (const player of players) {
-      if (RoomManager.isBotPlayer(player.id)) continue;
-      io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
+    for (let index = 0; index < viewCount; index++) {
+      for (const player of players) {
+        if (RoomManager.isBotPlayer(player.id)) continue;
+        io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
+      }
     }
-  }
 
-  // If no new log entries, just broadcast state
-  if (newEntries.length === 0) {
-    const players = roomManager.getGamePlayers(roomCode);
-    for (const player of players) {
-      if (RoomManager.isBotPlayer(player.id)) continue;
-      io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
+    const spectators = roomManager.getGameSpectators(roomCode);
+    if (spectators.length > 0) {
+      const view = engine.getSpectatorView();
+      for (const spectatorId of spectators) io.to(spectatorId).emit('game:state', view as never);
     }
-  }
+  });
+}
 
-  const spectators = roomManager.getGameSpectators(roomCode);
-  if (spectators.length > 0) {
-    const spectatorView = engine.getSpectatorView();
-    for (const spectatorId of spectators) {
-      io.to(spectatorId).emit('game:state', spectatorView as never);
-    }
-  }
+function scheduleAITurnIfNeeded(
+  io: AppServer,
+  roomCode: string,
+  engine: GameEngine,
+  roomManager: RoomManager,
+): void {
+  const instance = roomManager.getGameInstance(roomCode);
+  if (!instance || roomManager.getGameData(roomCode) !== engine) return;
+
+  const state = engine.getState();
+  const player = state.players[state.currentPlayerIndex];
+  if (state.phase === 'ended' || !player.isAI || player.isEliminated) return;
+
+  instance.schedule(() => handleAITurn(io, roomCode, engine, roomManager, instance), 0, 'bot-turn');
 }
 
 function handleEndTurn(
@@ -74,20 +81,7 @@ function handleEndTurn(
 
   engine.endTurn();
   broadcastViews(io, roomCode, engine, roomManager);
-
-  // Don't continue if game ended during endTurn
-  const newState = engine.getState();
-  if (newState.phase === 'ended') return;
-
-  // Check if next player is AI
-  const nextPlayer = newState.players[newState.currentPlayerIndex];
-  if (nextPlayer.isAI && !nextPlayer.isEliminated) {
-    setImmediate(() => {
-      handleAITurn(io, roomCode, engine, roomManager).catch((err) => {
-        console.error('[AI Turn] Error:', err);
-      });
-    });
-  }
+  scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
 }
 
 async function handleAITurn(
@@ -95,55 +89,50 @@ async function handleAITurn(
   roomCode: string,
   engine: GameEngine,
   roomManager: RoomManager,
+  instance: GameInstance,
 ): Promise<void> {
   const state = engine.getState();
-
-  if (state.phase === 'ended') return;
-
   const currentPlayer = state.players[state.currentPlayerIndex];
-  if (!currentPlayer.isAI || currentPlayer.isEliminated) return;
+  if (state.phase === 'ended' || !currentPlayer.isAI || currentPlayer.isEliminated) return;
 
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('AI turn timed out')), AI_TURN_TIMEOUT),
-  );
+  function canAct(): boolean {
+    if (!instance.isCurrent()) return false;
+    const current = engine.getState();
+    return current.phase !== 'ended' && current.turnNumber === state.turnNumber
+      && current.players[current.currentPlayerIndex].id === currentPlayer.id;
+  }
 
-  try {
-    await Promise.race([
-      aiPlayer.takeTurn(state, {
-        onLockDice: (indices) => {
-          if (engine.getState().phase === 'ended') return;
-          engine.lockDice(indices);
-          broadcastViews(io, roomCode, engine, roomManager);
-        },
-        onRoll: () => {
-          if (engine.getState().phase === 'ended') return Promise.resolve(state.dice);
-          const result = engine.roll();
-          broadcastViews(io, roomCode, engine, roomManager);
-          return Promise.resolve(result.dice);
-        },
-        onFinishRolling: () => {
-          if (engine.getState().phase === 'ended') return;
-          engine.finishRolling();
-          broadcastViews(io, roomCode, engine, roomManager);
-        },
-        onSelectTarget: (dieIndex, targetId) => {
-          if (engine.getState().phase === 'ended') return;
-          engine.selectTarget(dieIndex, targetId);
-          broadcastViews(io, roomCode, engine, roomManager);
-        },
-        onEndTurn: () => {
-          if (engine.getState().phase === 'ended') return;
-          handleEndTurn(io, roomCode, engine, roomManager);
-        },
-      }),
-      timeoutPromise,
-    ]);
-  } catch (err) {
-    console.error('[AI Turn] Error/timeout:', err);
-    if (engine.getState().phase !== 'ended') {
+  const outcome = await instance.runWithTimeout((signal) => aiPlayer.takeTurn(state, {
+    onLockDice: (indices) => {
+      if (signal.aborted || !canAct()) return;
+      engine.lockDice(indices);
+      broadcastViews(io, roomCode, engine, roomManager);
+    },
+    onRoll: () => {
+      if (signal.aborted || !canAct()) return Promise.resolve(state.dice);
+      const result = engine.roll();
+      broadcastViews(io, roomCode, engine, roomManager);
+      return Promise.resolve(result.dice);
+    },
+    onFinishRolling: () => {
+      if (signal.aborted || !canAct()) return;
       engine.finishRolling();
+      broadcastViews(io, roomCode, engine, roomManager);
+    },
+    onSelectTarget: (dieIndex, targetId) => {
+      if (signal.aborted || !canAct()) return;
+      engine.selectTarget(dieIndex, targetId);
+      broadcastViews(io, roomCode, engine, roomManager);
+    },
+    onEndTurn: () => {
+      if (signal.aborted || !canAct()) return;
       handleEndTurn(io, roomCode, engine, roomManager);
-    }
+    },
+  }, signal, instance), AI_TURN_TIMEOUT);
+
+  if (outcome === 'timed-out' && canAct()) {
+    engine.finishRolling();
+    handleEndTurn(io, roomCode, engine, roomManager);
   }
 }
 
@@ -176,36 +165,8 @@ export const bootyDiceDefinition: ServerGameDefinition = {
       const engine = new GameEngine(gamePlayers, roomCode);
       roomManager.setGameData(roomCode, engine);
 
-      // Send initial views to each player (skip bots)
-      for (const player of players) {
-        if (RoomManager.isBotPlayer(player.id)) continue;
-        const view = engine.getPlayerView(player.id);
-        io.to(player.id).emit('game:state', view as never);
-      }
-
-      // Send initial view to spectators
-      const spectators = roomManager.getGameSpectators(roomCode);
-      if (spectators.length > 0) {
-        const spectatorView = engine.getSpectatorView();
-        for (const spectatorId of spectators) {
-          io.to(spectatorId).emit('game:state', spectatorView as never);
-        }
-      }
-
-      // If first player is AI, schedule their turn
-      const state = engine.getState();
-      const firstPlayer = state.players[state.currentPlayerIndex];
-      if (firstPlayer.isAI) {
-        setImmediate(() => {
-          handleAITurn(io, roomCode, engine, roomManager).catch((err) => {
-            console.error('[AI Turn] Error:', err);
-          });
-        });
-      }
-    },
-
-    onGameReset: (roomCode) => {
-      roomManager.setGameData(roomCode, null);
+      broadcastViews(io, roomCode, engine, roomManager, false);
+      scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
     },
 
     onPlayerDisconnect: (roomCode, playerId) => {
@@ -241,18 +202,7 @@ export const bootyDiceDefinition: ServerGameDefinition = {
 
         broadcastViews(io, roomCode, engine, roomManager);
 
-        // Check if next player is AI
-        if (!resolution.winner) {
-          const newState = engine.getState();
-          const nextPlayer = newState.players[newState.currentPlayerIndex];
-          if (nextPlayer.isAI && !nextPlayer.isEliminated) {
-            setImmediate(() => {
-              handleAITurn(io, roomCode, engine, roomManager).catch((err) => {
-                console.error('[AI Turn] Error:', err);
-              });
-            });
-          }
-        }
+        if (!resolution.winner) scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
       }
     },
 
@@ -260,10 +210,12 @@ export const bootyDiceDefinition: ServerGameDefinition = {
       const engine = roomManager.getGameData<GameEngine>(roomCode);
       if (!engine) return;
 
-      const view = roomManager.isGameParticipant(roomCode, playerId)
-        ? engine.getPlayerView(playerId)
-        : engine.getSpectatorView();
-      io.to(playerId).emit('game:state', view as never);
+      roomManager.getGameInstance(roomCode)?.emitIfCurrent(() => {
+        const view = roomManager.isGameParticipant(roomCode, playerId)
+          ? engine.getPlayerView(playerId)
+          : engine.getSpectatorView();
+        io.to(playerId).emit('game:state', view as never);
+      });
     },
   }),
 

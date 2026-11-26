@@ -144,7 +144,8 @@ export function dispatchGameAction(opts: DispatchGameActionOptions): Promise<Act
       return Promise.resolve(reject('NOT_A_PLAYER', 'Only seated players can do that'));
     }
 
-    if (room.status !== 'playing' || room.gameData == null || !definition) {
+    const instance = roomManager.getGameInstance(roomCode);
+    if (!instance || room.status !== 'playing' || room.gameData == null || !definition) {
       return Promise.resolve(reject('NO_ACTIVE_GAME', 'No game is in progress'));
     }
     if (!roomManager.isGameParticipant(roomCode, playerId)) {
@@ -155,9 +156,11 @@ export function dispatchGameAction(opts: DispatchGameActionOptions): Promise<Act
     if (!checked.ok) return Promise.resolve(reject('INVALID_ACTION', checked.message));
     const sanitized = checked.action;
 
-    const logContext = { roomCode, gameId: definition.meta.id, playerId, actionType: payload.type };
+    const logContext = { roomCode, instanceId: instance.id, gameId: definition.meta.id, playerId, actionType: payload.type };
 
+    const stale = () => reject('NO_ACTIVE_GAME', 'That game is no longer in progress');
     const fail = (err: unknown): ActionResult => {
+      if (!instance.isCurrent()) return stale();
       const pub = toPublicError(err, INTERNAL_ERROR_MESSAGE, logContext);
       // `error` first: same transport, so it reaches the client before the ack does.
       socket.emit('error', pub.message);
@@ -181,7 +184,7 @@ export function dispatchGameAction(opts: DispatchGameActionOptions): Promise<Act
 
     if (isThenable(returned)) {
       return Promise.resolve(returned).then(
-        () => reply({ ok: true }),
+        () => instance.isCurrent() ? reply({ ok: true }) : stale(),
         (err: unknown) => fail(err),
       );
     }

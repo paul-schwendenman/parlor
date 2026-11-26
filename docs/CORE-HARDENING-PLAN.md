@@ -194,12 +194,12 @@ The reasoning:
 - [ ] **3.1b Typed contract, piloted on one game, then migrated.**
   - **Design** `ServerGameDefinition<State, Action, View>`. Optionally replace 3.1a's hand-written validators with schemas (zod or valibot) that infer `Action`; the runtime behaviour must stay identical, and the 3.1a validator tests are the contract.
   - **Wire typing:** the shared socket carries every game, so `game:state` becomes an envelope: `{ gameId, view }`, typed as a union keyed by `gameId` (a `GameViewMap` in `game-types`, extended by each game via module augmentation or a central map). That's what actually removes the 35 `as never` casts rather than moving them.
-  - **Lifecycle contract:** add `onPlayerRemoved` (required) and `onRoomDestroyed` to the definition.
+  - **Lifecycle contract:** require `onPlayerRemoved` and carry the `onRoomDestroyed` callback from 3.2 into the typed definition.
   - **Pilot:** migrate **one** game end to end (crazy-eights is the simplest: no bots) and review the shape. Then migrate the other four.
-  - **Remove the duplicated plumbing:** `broadcastViews`, the action switch, the timer maps, and the remaining `as unknown as` action casts. (F-20, F-32 casts)
+  - **Remove the duplicated plumbing:** `broadcastViews`, the action switch, and the remaining `as unknown as` action casts. (F-20, F-32 casts)
 
 ### 3.2 Game-instance lifetime and scheduling
-- [ ] **3.2** Give everything a game does a **game-instance lifetime**, separate from the room's lifetime.
+- [x] **3.2** Give everything a game does a **game-instance lifetime**, separate from the room's lifetime.
   - **One handle per started game:** each started game gets a `GameInstance` handle (id, `AbortSignal`). Reset, restart, game switch and room deletion **invalidate** the old instance: they abort its signal, cancel its timers, and mark it stale.
   - **Scheduler:** `instance.schedule(fn, ms)` replaces the per-game `roomTimers` / `botTimers` maps and the untracked `setTimeout`s. Callbacks are wrapped (an error → log and send the room back to the lobby, never a process crash), and are skipped if the instance is stale.
   - **Work already running is covered, not just pending timers.**
@@ -213,6 +213,7 @@ The reasoning:
     - a Quixx restart doesn't lose the new bot timer
     - a player in grace keeps their timer across a reset
   - (F-07, F-16, F-31, F-03 timers)
+  - **Implemented:** all five games use the per-instance scheduler and guard game-view emissions. Reset and room deletion invalidate pending and running game work, and restart creates a fresh instance after its lobby checks pass. Timer failures return only the current room to the lobby. Late action rejections cannot reset a replacement game.
 
 ### 3.3 Limits at the boundary
 - [ ] **3.3**
@@ -343,3 +344,4 @@ The reasoning:
 | 2026-11-25 | 3.1a core action boundary + validators (F-15, F-05, F-04, F-03, F-17, F-22, F-06) | branch `paul-schwendenman/core-hardening-3.1a`, commits `5fbd189`..`66003c8`; 532 tests |
 | 2026-11-25 | 0.5 type-aware lint everywhere + 3.10 infra half | built in a worktree (`paul-schwendenman/core-hardening-0.5-infra`), merged onto the committed 3.1a branch in `e0371d8` |
 | 2026-11-26 | 3.7 seat lifecycle + 3.8 lobby guards | 549 Vitest tests and 7 Playwright tests passed |
+| 2026-11-26 | 3.2 game-instance lifetime and scheduling | Covered by regressions for in-flight bot work, bot deadlines, restart, room destruction, scheduler failures, and reconnect grace |

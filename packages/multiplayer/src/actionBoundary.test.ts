@@ -313,6 +313,24 @@ describe('dispatchGameAction', () => {
     }
   });
 
+  it('does not reset the replacement game when a stale action rejects', async () => {
+    let rejectAction!: (error: Error) => void;
+    const t = setup(() => new Promise<void>((_resolve, reject) => { rejectAction = reject; }));
+    const pending = t.send(t.player, { type: 'x' });
+    const previous = t.rm.getGameInstance(t.roomCode);
+
+    expect(t.rm.restartGame(t.roomCode, vi.fn())).not.toBeNull();
+    const engine = { replacement: true };
+    t.rm.setGameData(t.roomCode, engine);
+    rejectAction(new Error('old failure'));
+
+    expect(previous?.signal.aborted).toBe(true);
+    expect(await pending).toMatchObject({ ok: false, code: 'NO_ACTIVE_GAME' });
+    expect(t.onRoomFailure).not.toHaveBeenCalled();
+    expect(t.player.emit).not.toHaveBeenCalled();
+    expect(t.rm.getGameData(t.roomCode)).toBe(engine);
+  });
+
   it('acks ok only after an async handler resolves', async () => {
     let release!: () => void;
     const t = setup(() => new Promise<void>((r) => (release = r)));

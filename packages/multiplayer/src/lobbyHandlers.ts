@@ -17,6 +17,8 @@ type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerE
 export interface LobbyCallbacks {
   onGameStart?: (roomCode: string, players: LobbyPlayer[], io: AppServer) => void;
   onGameReset?: (roomCode: string, io: AppServer) => void;
+  /** Called on room deletion after scheduled game work has been invalidated. */
+  onRoomDestroyed?: (roomCode: string, io: AppServer) => void;
   onPlayerDisconnect?: (roomCode: string, playerId: string, io: AppServer) => void;
   onPlayerReconnect?: (roomCode: string, playerId: string, io: AppServer) => void;
   /**
@@ -146,6 +148,7 @@ export function setupLobbyHandlers(
         socket.id,
         playerName.trim(),
         options?.defaultMaxPlayers,
+        (code) => callbacks?.onRoomDestroyed?.(code, io),
       );
       if (options?.defaultGame) roomManager.selectGame(roomCode, options.defaultGame);
       syncSeat(previousSeat, roomCode, playerId, playerName.trim());
@@ -344,7 +347,7 @@ export function setupLobbyHandlers(
         return;
       }
 
-      const players = roomManager.startGame(roomCode);
+      const players = roomManager.startGame(roomCode, () => returnRoomToLobby(io, roomManager, roomCode, callbacks));
       if (!players) {
         ack(false, 'Cannot start the game yet');
         return;
@@ -389,7 +392,11 @@ export function setupLobbyHandlers(
         return;
       }
       try {
-        const players = roomManager.restartGame(roomCode, () => callbacks?.onGameReset?.(roomCode, io));
+        const players = roomManager.restartGame(
+          roomCode,
+          () => callbacks?.onGameReset?.(roomCode, io),
+          () => returnRoomToLobby(io, roomManager, roomCode, callbacks),
+        );
         if (!players) {
           socket.emit('error', 'Cannot restart the game yet');
           return;

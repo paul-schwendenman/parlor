@@ -6,24 +6,28 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameRuleError, RoomManager, type AppServer } from '@parlor/multiplayer';
-import { quixxDefinition, cleanupRoomTimers } from './definition.js';
+import { quixxDefinition } from './definition.js';
 import { QuixxEngine } from './game/QuixxEngine.js';
 
 const io = { to: () => ({ emit: () => {} }) } as unknown as AppServer;
 
-let roomCode: string;
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
-  cleanupRoomTimers(roomCode);
+  vi.clearAllTimers();
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
 function setup() {
   const rm = new RoomManager();
   const created = rm.createRoom('sa', 'A');
-  roomCode = created.roomCode;
+  const roomCode = created.roomCode;
   const b = rm.joinRoom(roomCode, 'sb', 'B').playerId!;
   const a = created.playerId;
+  rm.selectGame(roomCode, quixxDefinition.meta);
+  rm.setPlayerReady(a, true);
+  rm.setPlayerReady(b, true);
+  rm.startGame(roomCode);
   const engine = new QuixxEngine(
     [
       { id: a, name: 'A', isBot: false },
@@ -90,4 +94,60 @@ describe('Quixx phase-2 timer ordering', () => {
     }
     expect(t.engine.getPhase()).toBe('rolling');
   });
+});
+
+it('keeps the restarted game bot timer when the previous bot recheck becomes due', () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0.2);
+  const rm = new RoomManager();
+  const { roomCode, playerId } = rm.createRoom('host', 'Host');
+  rm.selectGame(roomCode, quixxDefinition.meta);
+  expect(rm.addBot(roomCode, 'Bot').success).toBe(true);
+  rm.setPlayerReady(playerId, true);
+
+  const emit = vi.fn();
+  const gameIo = { to: (recipient: string) => ({
+    emit: (event: string, view: unknown) => emit(recipient, event, view),
+  }) } as never as AppServer;
+  const callbacks = quixxDefinition.createLobbyCallbacks(rm, gameIo);
+  const players = rm.startGame(roomCode);
+  expect(players).not.toBeNull();
+  callbacks.onGameStart?.(roomCode, players!, gameIo);
+  const originalEngine = rm.getGameData<QuixxEngine>(roomCode)!;
+  const originalInstance = rm.getGameInstance(roomCode)!;
+  const act = (type: 'phase1-pass' | 'phase2-pass') => {
+    void quixxDefinition.handleGameAction(
+      gameIo, { data: { roomCode, playerId } } as never, rm, { type },
+    );
+  };
+
+  vi.advanceTimersByTime(500);
+  act('phase1-pass');
+  vi.advanceTimersByTime(800);
+  expect(originalEngine.getPhase()).toBe('phase2');
+  act('phase2-pass');
+
+  vi.advanceTimersByTime(500);
+  act('phase1-pass');
+  vi.advanceTimersByTime(1_600);
+  expect(originalEngine.getActivePlayerIndex()).toBe(0);
+  expect(originalEngine.getPhase()).toBe('rolling');
+  expect(originalEngine.getRound()).toBe(2);
+
+  const restartedPlayers = rm.restartGame(roomCode, () => callbacks.onGameReset?.(roomCode, gameIo));
+  expect(restartedPlayers).not.toBeNull();
+  expect(originalInstance.signal.aborted).toBe(true);
+  callbacks.onGameStart?.(roomCode, restartedPlayers!, gameIo);
+  const restartedEngine = rm.getGameData<QuixxEngine>(roomCode)!;
+  const originalView = originalEngine.getPlayerView(playerId);
+  vi.advanceTimersByTime(500);
+  act('phase1-pass');
+  expect(restartedEngine.getPhase()).toBe('phase1');
+
+  emit.mockClear();
+  vi.advanceTimersByTime(800);
+  expect(restartedEngine.getPhase()).toBe('phase2');
+  expect(originalEngine.getPlayerView(playerId)).toEqual(originalView);
+  expect(emit).toHaveBeenLastCalledWith(
+    playerId, 'game:state', expect.objectContaining({ phase: 'phase2', round: 1 }),
+  );
 });

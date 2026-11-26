@@ -29,7 +29,9 @@ export interface ServerGameDefinition {
    * Apply one action. Called only through `dispatchGameAction`, which has
    * already checked that the sender is a seated player in a room playing this
    * game, and with the output of `validateAction`. Throw `GameRuleError` (before mutating) for a user-facing rejection;
-   * anything else thrown or rejected sends the room back to the lobby.
+   * an unexpected error sends the current game back to the lobby. Async handlers
+   * must capture the room's GameInstance before awaiting, then check it before
+   * mutating the engine or emitting any views.
    */
   handleGameAction: (
     io: AppServer,

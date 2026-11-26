@@ -15,20 +15,6 @@ import { validateCrazyEightsAction } from './validateAction.js';
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
-const roomTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-function clearRoomTimer(roomCode: string): void {
-  const existing = roomTimers.get(roomCode);
-  if (existing) {
-    clearTimeout(existing);
-    roomTimers.delete(roomCode);
-  }
-}
-
-export function cleanupRoomTimers(roomCode: string): void {
-  clearRoomTimer(roomCode);
-}
-
 function broadcastViews(
   io: AppServer,
   roomCode: string,
@@ -36,22 +22,21 @@ function broadcastViews(
   roomManager: RoomManager,
 ): void {
   if (roomManager.getGameData(roomCode) !== engine) return;
-  if (engine.isGameOver()) roomManager.finishGame(roomCode, engine);
-
-  const players = roomManager.getGamePlayers(roomCode);
-  for (const player of players) {
-    if (RoomManager.isBotPlayer(player.id)) continue;
-    const view = engine.getPlayerView(player.id);
-    io.to(player.id).emit('game:state', view as never);
-  }
-
-  const spectators = roomManager.getGameSpectators(roomCode);
-  if (spectators.length > 0) {
-    const spectatorView = engine.getSpectatorView();
-    for (const spectatorId of spectators) {
-      io.to(spectatorId).emit('game:state', spectatorView as never);
+  roomManager.getGameInstance(roomCode)?.emitIfCurrent(() => {
+    if (engine.isGameOver()) roomManager.finishGame(roomCode, engine);
+    for (const player of roomManager.getGamePlayers(roomCode)) {
+      if (RoomManager.isBotPlayer(player.id)) continue;
+      io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
     }
-  }
+
+    const spectators = roomManager.getGameSpectators(roomCode);
+    if (spectators.length > 0) {
+      const spectatorView = engine.getSpectatorView();
+      for (const spectatorId of spectators) {
+        io.to(spectatorId).emit('game:state', spectatorView as never);
+      }
+    }
+  });
 }
 
 export const crazyEightsDefinition: ServerGameDefinition = {
@@ -75,24 +60,7 @@ export const crazyEightsDefinition: ServerGameDefinition = {
       );
       roomManager.setGameData(roomCode, engine);
 
-      for (const player of players) {
-        if (RoomManager.isBotPlayer(player.id)) continue;
-        const view = engine.getPlayerView(player.id);
-        io.to(player.id).emit('game:state', view as never);
-      }
-
-      const spectators = roomManager.getGameSpectators(roomCode);
-      if (spectators.length > 0) {
-        const spectatorView = engine.getSpectatorView();
-        for (const spectatorId of spectators) {
-          io.to(spectatorId).emit('game:state', spectatorView as never);
-        }
-      }
-    },
-
-    onGameReset: (roomCode) => {
-      cleanupRoomTimers(roomCode);
-      roomManager.setGameData(roomCode, null);
+      broadcastViews(io, roomCode, engine, roomManager);
     },
 
     onPlayerDisconnect: (roomCode, playerId) => {
@@ -110,7 +78,9 @@ export const crazyEightsDefinition: ServerGameDefinition = {
       const isParticipant = roomManager.isGameParticipant(roomCode, playerId);
       if (isParticipant) engine.handleReconnect(playerId);
       const view = isParticipant ? engine.getPlayerView(playerId) : engine.getSpectatorView();
-      io.to(playerId).emit('game:state', view as never);
+      roomManager.getGameInstance(roomCode)?.emitIfCurrent(() => {
+        io.to(playerId).emit('game:state', view as never);
+      });
     },
   }),
 

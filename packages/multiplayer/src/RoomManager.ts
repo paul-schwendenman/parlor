@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { GameMeta, LobbyPlayer } from '@parlor/game-types';
+import { GameInstance } from './gameInstance.js';
 import { generateRoomCode } from './utils.js';
 
 type GameRules = Pick<GameMeta, 'id' | 'minPlayers' | 'maxPlayers' | 'supportsBots'>;
@@ -68,6 +69,8 @@ export interface ReconnectResult {
 
 export class RoomManager {
   private rooms = new Map<string, GameRoom>();
+  private readonly instances = new WeakMap<GameRoom, GameInstance>();
+  private readonly roomDestroyCallbacks = new WeakMap<GameRoom, () => void>();
   /** stable playerId -> roomCode */
   private playerToRoom = new Map<string, string>();
   /** socketId -> stable playerId */
@@ -85,7 +88,12 @@ export class RoomManager {
     return id.startsWith('bot-');
   }
 
-  createRoom(hostSocketId: string, hostName: string, maxPlayers = 8): CreateRoomResult {
+  createRoom(
+    hostSocketId: string,
+    hostName: string,
+    maxPlayers = 8,
+    onDestroyed?: (roomCode: string) => void,
+  ): CreateRoomResult {
     let code = generateRoomCode();
     while (this.rooms.has(code)) {
       code = generateRoomCode();
@@ -102,7 +110,7 @@ export class RoomManager {
       isBot: false,
     };
 
-    this.rooms.set(code, {
+    const room: GameRoom = {
       code,
       hostId: playerId,
       players: new Map([[playerId, host]]),
@@ -116,7 +124,9 @@ export class RoomManager {
       status: 'waiting',
       createdAt: Date.now(),
       reconnectTokens: new Map([[playerId, reconnectToken]]),
-    });
+    };
+    this.rooms.set(code, room);
+    if (onDestroyed) this.roomDestroyCallbacks.set(room, () => onDestroyed(code));
 
     this.playerToRoom.set(playerId, code);
     const previousSeat = this.replaceSeat(hostSocketId, playerId);
@@ -209,15 +219,15 @@ export class RoomManager {
     return this.meetsGameRequirements(room, players) && players.every((p) => p.connected && p.isReady);
   }
 
-  startGame(roomCode: string): LobbyPlayer[] | null {
+  startGame(roomCode: string, onFailure?: () => void): LobbyPlayer[] | null {
     const room = this.getRoom(roomCode);
     if (!room || !this.canStartGame(roomCode)) return null;
 
-    return this.beginGame(room, [...room.players.values()]);
+    return this.beginGame(room, [...room.players.values()], onFailure);
   }
 
   /** Validate before resetting or asking the game to clean up the old engine. */
-  restartGame(roomCode: string, onReset: () => void): LobbyPlayer[] | null {
+  restartGame(roomCode: string, onReset: () => void, onFailure?: () => void): LobbyPlayer[] | null {
     const room = this.getRoom(roomCode);
     if (!room || room.status === 'waiting') return null;
     const players = [...room.players.values()].filter((player) => player.connected);
@@ -226,7 +236,7 @@ export class RoomManager {
     this.resetGame(roomCode);
     onReset();
     for (const player of players) player.isReady = true;
-    return this.beginGame(room, players);
+    return this.beginGame(room, players, onFailure);
   }
 
   private meetsGameRequirements(room: GameRoom, players: LobbyPlayer[]): boolean {
@@ -238,7 +248,15 @@ export class RoomManager {
       && (!!rules.supportsBots || players.every((player) => !player.isBot));
   }
 
-  private beginGame(room: GameRoom, players: LobbyPlayer[]): LobbyPlayer[] {
+  private beginGame(room: GameRoom, players: LobbyPlayer[], onFailure?: () => void): LobbyPlayer[] {
+    const instance = new GameInstance((error) => {
+      console.error('[parlor] scheduled game task failed', {
+        roomCode: room.code, gameId: room.gameId, instanceId: instance.id,
+      }, error);
+      if (onFailure) onFailure();
+      else this.resetGame(room.code);
+    });
+    this.instances.set(room, instance);
     room.status = 'playing';
     room.gameParticipants = new Set(players.map((player) => player.id));
     return players;
@@ -248,6 +266,7 @@ export class RoomManager {
     const room = this.rooms.get(roomCode.toUpperCase());
     if (!room) return false;
 
+    this.invalidateGame(room);
     room.gameData = null;
     room.status = 'waiting';
     room.gameParticipants.clear();
@@ -257,6 +276,17 @@ export class RoomManager {
     }
 
     return true;
+  }
+
+  getGameInstance(roomCode: string): GameInstance | undefined {
+    const room = this.getRoom(roomCode);
+    return room && this.instances.get(room);
+  }
+
+  private invalidateGame(room: GameRoom): void {
+    const instance = this.instances.get(room);
+    this.instances.delete(room);
+    instance?.invalidate();
   }
 
   finishGame(roomCode: string, engine: unknown): void {
@@ -368,6 +398,7 @@ export class RoomManager {
   selectGame(roomCode: string, rules: GameRules | null): boolean {
     const room = this.getRoom(roomCode);
     if (!room || room.status !== 'waiting' || (rules && room.players.size > rules.maxPlayers)) return false;
+    if (room.gameId !== (rules?.id ?? null)) this.invalidateGame(room);
     room.gameId = rules?.id ?? null;
     room.gameRules = rules;
     room.maxPlayers = rules?.maxPlayers ?? room.defaultMaxPlayers;
@@ -424,6 +455,14 @@ export class RoomManager {
 
   /** Destroy a room, clearing every pending disconnect timer bound to its players. */
   private destroyRoom(room: GameRoom): void {
+    this.invalidateGame(room);
+    const onDestroyed = this.roomDestroyCallbacks.get(room);
+    this.roomDestroyCallbacks.delete(room);
+    try {
+      onDestroyed?.();
+    } catch (error) {
+      console.error('[parlor] onRoomDestroyed failed', { roomCode: room.code, gameId: room.gameId }, error);
+    }
     for (const pid of room.players.keys()) {
       this.clearDisconnectTimer(pid);
       this.playerToRoom.delete(pid);
