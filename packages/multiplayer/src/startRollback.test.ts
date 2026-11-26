@@ -78,6 +78,7 @@ afterEach(async () => {
 
 async function seatAndReady(): Promise<string> {
   const [{ roomCode }] = await ackOnce<[{ roomCode: string }]>((cb) => host.emit('lobby:create', 'Host', cb));
+  rm.selectGame(roomCode, { id: 'test', minPlayers: 2, maxPlayers: 4 });
   await ackOnce((cb) => guest.emit('lobby:join', roomCode, 'Guest', cb));
   await ackOnce((cb) => host.emit('lobby:ready', true, cb));
   await ackOnce((cb) => guest.emit('lobby:ready', true, cb));

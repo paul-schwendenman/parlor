@@ -10,7 +10,6 @@ import {
   isOriginAllowed,
   DEFAULT_PING_INTERVAL,
   DEFAULT_PING_TIMEOUT,
-  DEFAULT_RECOVERY_DURATION,
 } from './server.js';
 
 describe('parseCorsOrigin', () => {
@@ -55,10 +54,7 @@ describe('buildSocketServerOptions', () => {
     expect(opts.allowRequest).toBeUndefined();
     expect(opts.pingInterval).toBe(DEFAULT_PING_INTERVAL);
     expect(opts.pingTimeout).toBe(DEFAULT_PING_TIMEOUT);
-    expect(opts.connectionStateRecovery).toEqual({
-      maxDisconnectionDuration: DEFAULT_RECOVERY_DURATION,
-      skipMiddlewares: true,
-    });
+    expect(opts.connectionStateRecovery).toBeUndefined();
   });
 
   it('reads CORS_ORIGIN from the environment', () => {
@@ -73,12 +69,10 @@ describe('buildSocketServerOptions', () => {
       corsOrigin: 'https://explicit.example',
       pingInterval: 1000,
       pingTimeout: 500,
-      recoveryDurationMs: 42,
     });
     expect(opts.cors).toEqual({ origin: 'https://explicit.example' });
     expect(opts.pingInterval).toBe(1000);
     expect(opts.pingTimeout).toBe(500);
-    expect(opts.connectionStateRecovery?.maxDisconnectionDuration).toBe(42);
   });
 });
 

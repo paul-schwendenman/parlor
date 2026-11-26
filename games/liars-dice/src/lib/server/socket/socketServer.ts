@@ -20,7 +20,7 @@ const roomManager = new RoomManager();
 export function setupLiarsDiceSocketHandlers(io: AppServer): void {
   const callbacks = liarsDiceDefinition.createLobbyCallbacks(roomManager, io);
   io.on('connection', (socket) => {
-    setupLobbyHandlers(io, socket, roomManager, callbacks, { defaultMaxPlayers: liarsDiceDefinition.meta.maxPlayers });
+    setupLobbyHandlers(io, socket, roomManager, callbacks, { defaultGame: liarsDiceDefinition.meta });
     socket.on('game:action', (action, ack) => {
       void dispatchGameAction({
         io,

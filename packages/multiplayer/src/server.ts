@@ -13,9 +13,6 @@ import { setupLobbyHandlers, type LobbyCallbacks } from './lobbyHandlers.js';
 export const DEFAULT_PING_INTERVAL = 25_000;
 /** Heartbeat: how long the server waits for a pong before dropping the socket. */
 export const DEFAULT_PING_TIMEOUT = 20_000;
-/** connectionStateRecovery window: how long a briefly-dropped socket can recover. */
-export const DEFAULT_RECOVERY_DURATION = 2 * 60_000;
-
 /**
  * Parse a comma-separated CORS allowlist (typically from `process.env.CORS_ORIGIN`).
  * Falls back to `'*'` (permissive) when unset/empty — convenient for dev, but a real
@@ -88,18 +85,15 @@ export interface SocketServerOptionsInput {
   corsOrigin?: string | string[];
   pingInterval?: number;
   pingTimeout?: number;
-  /** connectionStateRecovery max disconnection duration (ms). */
-  recoveryDurationMs?: number;
 }
 
 /**
  * Build the Socket.io server options shared by every Parlor server (the 6 prod
  * `server/index.ts` files and the 6 `vite.config.ts` dev servers). Centralizing
- * this keeps CORS, heartbeats, and connection-state recovery identical everywhere.
+ * this keeps CORS and heartbeats identical everywhere.
  *
- * `connectionStateRecovery` is an optimization for short blips only — the app-level
- * `player:reconnect` + token flow remains the source of truth for identity. Recovered
- * sockets are re-bound in the RoomManager by `setupLobbyHandlers` (see `socket.recovered`).
+ * Reconnects restore seats through the application token handshake. Socket.IO
+ * recovery would replay packets for a seat before the current token is validated.
  *
  * When an allowlist is configured, an `allowRequest` origin check is installed too
  * (see `createOriginCheck`). With no allowlist (`'*'`), every origin is accepted, so
@@ -116,11 +110,6 @@ export function buildSocketServerOptions(input: SocketServerOptionsInput = {}): 
     ...(permissive ? {} : { allowRequest: createOriginCheck(corsOrigin) }),
     pingInterval: input.pingInterval ?? DEFAULT_PING_INTERVAL,
     pingTimeout: input.pingTimeout ?? DEFAULT_PING_TIMEOUT,
-    connectionStateRecovery: {
-      maxDisconnectionDuration: input.recoveryDurationMs ?? DEFAULT_RECOVERY_DURATION,
-      // Identity is re-validated via player:reconnect, so recovery can skip middlewares.
-      skipMiddlewares: true,
-    },
   };
 }
 

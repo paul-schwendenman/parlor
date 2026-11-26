@@ -136,7 +136,7 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
       session.roomCode,
       session.playerId,
       session.reconnectToken ?? '',
-      (success: boolean) => {
+      (success: boolean, reconnectToken?: string) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
@@ -146,7 +146,7 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
         if (success) {
           authedForConnection = true;
           // playerId is stable; re-persist to refresh the stored session.
-          saveSession(session);
+          saveSession({ ...session, reconnectToken: reconnectToken ?? session.reconnectToken });
           if (adapter.restorePlayerOnReconnect) {
             playerState.set({
               id: session.playerId,
@@ -204,12 +204,14 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
 
       // Lobby events
       socket.on('lobby:state', (players, canStart) => {
-        // If we had an active game and receive lobby state, the game was reset
-        if (gameState.view && lobbyState.gameStarting) {
-          gameState.reset();
-          lobbyState.gameStarting = false;
-        }
         lobbyState.setLobbyState(players, canStart);
+      });
+
+      socket.on('lobby:returned', (gameId) => {
+        gameState.reset();
+        lobbyState.gameStarting = false;
+        lobbyState.setSelectedGame?.(gameId);
+        gameState.setGameId?.(gameId);
       });
 
       socket.on('lobby:hostChanged', (newHostId) => {
@@ -285,6 +287,8 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
     return new Promise((resolve) => {
       s.emit('lobby:create', playerName, (result) => {
         const { roomCode, playerId, reconnectToken } = result;
+        gameState.reset();
+        lobbyState.reset();
         playerState.set({ id: playerId, name: playerName, roomCode });
         lobbyState.setHost(playerId);
         saveSession({ playerId, playerName, roomCode, reconnectToken });
@@ -311,6 +315,8 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
         const { success, error } = result;
         if (success && result.playerId) {
           const normalizedCode = result.roomCode ?? roomCode.toUpperCase();
+          gameState.reset();
+          lobbyState.reset();
           playerState.set({ id: result.playerId, name: playerName, roomCode: normalizedCode });
           saveSession({
             playerId: result.playerId,

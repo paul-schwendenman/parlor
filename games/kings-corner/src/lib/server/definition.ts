@@ -24,14 +24,17 @@ function broadcastViews(
   engine: KingsCornerEngine,
   roomManager: RoomManager,
 ): void {
-  const players = roomManager.getPlayersInRoom(roomCode);
+  if (roomManager.getGameData(roomCode) !== engine) return;
+  if (engine.isGameOver()) roomManager.finishGame(roomCode, engine);
+
+  const players = roomManager.getGamePlayers(roomCode);
   for (const player of players) {
     if (RoomManager.isBotPlayer(player.id)) continue;
     const view = engine.getPlayerView(player.id);
     io.to(player.id).emit('game:state', view as never);
   }
 
-  const spectators = roomManager.getSpectatorsInRoom(roomCode);
+  const spectators = roomManager.getGameSpectators(roomCode);
   if (spectators.length > 0) {
     const spectatorView = engine.getSpectatorView();
     for (const spectatorId of spectators) {
@@ -49,7 +52,7 @@ function scheduleAITurnIfNeeded(
   if (engine.isGameOver()) return;
 
   const activeIndex = engine.getActivePlayerIndex();
-  const players = roomManager.getPlayersInRoom(roomCode);
+  const players = roomManager.getGamePlayers(roomCode);
   const activePlayer = players[activeIndex];
   if (!activePlayer || !RoomManager.isBotPlayer(activePlayer.id)) return;
 
@@ -164,7 +167,7 @@ export const kingsCornerDefinition: ServerGameDefinition = {
         io.to(player.id).emit('game:state', view as never);
       }
 
-      const spectators = roomManager.getSpectatorsInRoom(roomCode);
+      const spectators = roomManager.getGameSpectators(roomCode);
       if (spectators.length > 0) {
         const spectatorView = engine.getSpectatorView();
         for (const spectatorId of spectators) {
@@ -193,8 +196,9 @@ export const kingsCornerDefinition: ServerGameDefinition = {
       const engine = roomManager.getGameData<KingsCornerEngine>(roomCode);
       if (!engine) return;
 
-      engine.handleReconnect(playerId);
-      const view = engine.getPlayerView(playerId);
+      const isParticipant = roomManager.isGameParticipant(roomCode, playerId);
+      if (isParticipant) engine.handleReconnect(playerId);
+      const view = isParticipant ? engine.getPlayerView(playerId) : engine.getSpectatorView();
       io.to(playerId).emit('game:state', view as never);
     },
   }),

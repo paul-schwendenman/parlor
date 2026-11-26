@@ -24,15 +24,18 @@ function broadcastViews(
   engine: LiarsDiceEngine,
   roomManager: RoomManager,
 ): void {
+  if (roomManager.getGameData(roomCode) !== engine) return;
+  if (engine.getState().gameOver) roomManager.finishGame(roomCode, engine);
+
   engine.getNewLogEntries(); // advance log cursor
 
-  const players = roomManager.getPlayersInRoom(roomCode);
+  const players = roomManager.getGamePlayers(roomCode);
   for (const player of players) {
     if (RoomManager.isBotPlayer(player.id)) continue;
     io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
   }
 
-  const spectators = roomManager.getSpectatorsInRoom(roomCode);
+  const spectators = roomManager.getGameSpectators(roomCode);
   if (spectators.length > 0) {
     const spectatorView = engine.getSpectatorView();
     for (const spectatorId of spectators) {
@@ -185,7 +188,7 @@ export const liarsDiceDefinition: ServerGameDefinition = {
         io.to(player.id).emit('game:state', view as never);
       }
 
-      const spectators = roomManager.getSpectatorsInRoom(roomCode);
+      const spectators = roomManager.getGameSpectators(roomCode);
       if (spectators.length > 0) {
         const spectatorView = engine.getSpectatorView();
         for (const spectatorId of spectators) {
@@ -224,7 +227,10 @@ export const liarsDiceDefinition: ServerGameDefinition = {
     onPlayerReconnect: (roomCode, playerId) => {
       const engine = roomManager.getGameData<LiarsDiceEngine>(roomCode);
       if (!engine) return;
-      io.to(playerId).emit('game:state', engine.getPlayerView(playerId) as never);
+      const view = roomManager.isGameParticipant(roomCode, playerId)
+        ? engine.getPlayerView(playerId)
+        : engine.getSpectatorView();
+      io.to(playerId).emit('game:state', view as never);
     },
   }),
 

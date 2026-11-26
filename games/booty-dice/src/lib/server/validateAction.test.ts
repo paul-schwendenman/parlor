@@ -165,6 +165,7 @@ describe('Booty Dice bots still take turns', () => {
     try {
       const rm = new RoomManager();
       const { roomCode, playerId } = rm.createRoom('s0', 'Human');
+      rm.selectGame(roomCode, bootyDiceDefinition.meta);
       rm.addBot(roomCode, 'Bot Alice');
       rm.setPlayerReady(playerId, true);
       const players = rm.startGame(roomCode)!;

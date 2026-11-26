@@ -23,6 +23,7 @@ export function createDispatchHarness(definition: ServerGameDefinition, playerCo
   const io = { to: () => ({ emit: () => undefined }) } as never as AppServer;
   const roomManager = new RoomManager();
   const host = roomManager.createRoom('sock-0', 'P0');
+  roomManager.selectGame(host.roomCode, definition.meta);
   const playerIds = [host.playerId];
   for (let i = 1; i < playerCount; i++) {
     playerIds.push(roomManager.joinRoom(host.roomCode, `sock-${i}`, `P${i}`).playerId!);

@@ -21,7 +21,7 @@ export function setupCrazyEightsSocketHandlers(io: AppServer): void {
   const callbacks = crazyEightsDefinition.createLobbyCallbacks(roomManager, io);
 
   io.on('connection', (socket) => {
-    setupLobbyHandlers(io, socket, roomManager, callbacks, { defaultMaxPlayers: crazyEightsDefinition.meta.maxPlayers });
+    setupLobbyHandlers(io, socket, roomManager, callbacks, { defaultGame: crazyEightsDefinition.meta });
 
     socket.on('game:action', (action, ack) => {
       void dispatchGameAction({

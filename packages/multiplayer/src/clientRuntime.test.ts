@@ -55,10 +55,10 @@ function latestSocket(): MockSocket {
 }
 
 /** Pull the (success) ack callback from the last player:reconnect emit. */
-function reconnectCb(socket: MockSocket): (success: boolean) => void {
+function reconnectCb(socket: MockSocket): (success: boolean, reconnectToken?: string) => void {
   const calls = socket.emit.mock.calls.filter((c) => c[0] === 'player:reconnect');
   const last = calls[calls.length - 1];
-  return last[last.length - 1] as (success: boolean) => void;
+  return last[last.length - 1] as (success: boolean, reconnectToken?: string) => void;
 }
 
 /** Pull the (success, error) ack from the last emit of the given event. */
@@ -173,6 +173,20 @@ describe('createParlorRuntime', () => {
     runtime.getSocket();
     latestSocket().trigger('connect_error');
     expect(adapter.connectionState.setError).not.toHaveBeenCalled();
+  });
+
+  it('uses the rotated reconnect token on the next connection', () => {
+    storeSession();
+    const runtime = createParlorRuntime(makeAdapter());
+    runtime.getSocket();
+    const mock = latestSocket();
+    mock.trigger('connect');
+    reconnectCb(mock)(true, 'rotated-token');
+
+    mock.trigger('disconnect');
+    mock.trigger('connect');
+    expect(reconnectEmits(mock).at(-1)?.[3]).toBe('rotated-token');
+    reconnectCb(mock)(true);
   });
 
   it('re-emits player:reconnect on EVERY connect (not just the first)', () => {
@@ -427,7 +441,7 @@ describe('createParlorRuntime', () => {
     await expect(pending).resolves.toMatchObject({ ok: false, code: 'INTERNAL' });
   });
 
-  it('resets game view when lobby:state arrives during gameStarting', () => {
+  it('preserves the active game through a lobby update and clears it on lobby:returned', () => {
     const adapter = makeAdapter();
     adapter.gameState = { view: { some: 'view' }, setGameId: vi.fn(), reset: vi.fn() };
     adapter.lobbyState.gameStarting = true;
@@ -437,9 +451,15 @@ describe('createParlorRuntime', () => {
 
     socket.trigger('lobby:state', [], false);
 
+    expect(adapter.gameState.reset).not.toHaveBeenCalled();
+    expect(adapter.lobbyState.gameStarting).toBe(true);
+    expect(adapter.lobbyState.setLobbyState).toHaveBeenCalledWith([], false);
+
+    socket.trigger('lobby:returned', 'crazy-eights');
+
     expect(adapter.gameState.reset).toHaveBeenCalledTimes(1);
     expect(adapter.lobbyState.gameStarting).toBe(false);
-    expect(adapter.lobbyState.setLobbyState).toHaveBeenCalledWith([], false);
+    expect(adapter.gameState.setGameId).toHaveBeenCalledWith('crazy-eights');
   });
 
   it('applies incoming game:state via onView', () => {

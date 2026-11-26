@@ -134,14 +134,17 @@ function broadcastViews(
   engine: QuixxEngine,
   roomManager: RoomManager,
 ): void {
-  const players = roomManager.getPlayersInRoom(roomCode);
+  if (roomManager.getGameData(roomCode) !== engine) return;
+  if (engine.isGameOver()) roomManager.finishGame(roomCode, engine);
+
+  const players = roomManager.getGamePlayers(roomCode);
   for (const player of players) {
     if (RoomManager.isBotPlayer(player.id)) continue;
     const view = engine.getPlayerView(player.id);
     io.to(player.id).emit('game:state', view as never);
   }
 
-  const spectators = roomManager.getSpectatorsInRoom(roomCode);
+  const spectators = roomManager.getGameSpectators(roomCode);
   if (spectators.length > 0) {
     const spectatorView = engine.getSpectatorView();
     for (const spectatorId of spectators) {
@@ -186,7 +189,7 @@ export const quixxDefinition: ServerGameDefinition = {
       }
 
       // Send initial view to spectators
-      const spectators = roomManager.getSpectatorsInRoom(roomCode);
+      const spectators = roomManager.getGameSpectators(roomCode);
       if (spectators.length > 0) {
         const spectatorView = engine.getSpectatorView();
         for (const spectatorId of spectators) {
@@ -200,18 +203,7 @@ export const quixxDefinition: ServerGameDefinition = {
           if (engine.getPhase() === 'rolling') {
             try {
               engine.rollDice();
-              for (const player of players) {
-                if (RoomManager.isBotPlayer(player.id)) continue;
-                const view = engine.getPlayerView(player.id);
-                io.to(player.id).emit('game:state', view as never);
-              }
-              const specs = roomManager.getSpectatorsInRoom(roomCode);
-              if (specs.length > 0) {
-                const specView = engine.getSpectatorView();
-                for (const specId of specs) {
-                  io.to(specId).emit('game:state', specView as never);
-                }
-              }
+              broadcastViews(io, roomCode, engine, roomManager);
             } catch {
               // Ignore
             }
@@ -266,7 +258,9 @@ export const quixxDefinition: ServerGameDefinition = {
       const engine = roomManager.getGameData<QuixxEngine>(roomCode);
       if (!engine) return;
 
-      const view = engine.getPlayerView(playerId);
+      const view = roomManager.isGameParticipant(roomCode, playerId)
+        ? engine.getPlayerView(playerId)
+        : engine.getSpectatorView();
       io.to(playerId).emit('game:state', view as never);
     },
   }),

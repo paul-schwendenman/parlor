@@ -95,7 +95,8 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 					ack(false, 'Not in a room');
 					return;
 				}
-				if (!roomManager.isHost(roomCode, socket.data.playerId)) {
+				if (!roomManager.isHost(roomCode, socket.data.playerId)
+					|| !roomManager.isSeatedPlayer(roomCode, socket.data.playerId, socket.id)) {
 					ack(false, 'Only the host can select the game');
 					return;
 				}
@@ -108,8 +109,9 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 
 				// null clears the current selection (host pressed "Change").
 				if (gameId === null) {
-					roomManager.setGameId(roomCode, null);
+					roomManager.selectGame(roomCode, null);
 					io.to(roomCode).emit('lobby:gameSelected', null);
+					io.to(roomCode).emit('lobby:state', roomManager.getPlayersInRoom(roomCode), false);
 					ack(true);
 					return;
 				}
@@ -126,9 +128,12 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 					return;
 				}
 
-				roomManager.setGameId(roomCode, gameId);
-				roomManager.setMaxPlayers(roomCode, definition.meta.maxPlayers);
+				if (!roomManager.selectGame(roomCode, definition.meta)) {
+					ack(false, `This game supports up to ${definition.meta.maxPlayers} players`);
+					return;
+				}
 				io.to(roomCode).emit('lobby:gameSelected', gameId);
+				io.to(roomCode).emit('lobby:state', roomManager.getPlayersInRoom(roomCode), roomManager.canStartGame(roomCode));
 				ack(true);
 			} catch (err) {
 				ack(false, toPublicError(err, 'Failed to select game', { roomCode: socket.data.roomCode }).message);

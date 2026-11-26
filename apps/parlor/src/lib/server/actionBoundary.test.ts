@@ -12,7 +12,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Server } from 'socket.io';
 import { io as ioc, type Socket as ClientSocket } from 'socket.io-client';
-import type { ActionResult } from '@parlor/game-types';
+import type { ActionResult, JoinRoomResult } from '@parlor/game-types';
 
 type View = any;
 
@@ -300,6 +300,97 @@ describe('game:action envelope (F-04 / B-03 poison payload)', () => {
 	});
 });
 
+describe('lobby transitions over the real parlor wiring (F-11, F-12)', () => {
+	it('keeps the original game broadcasting when a restart has too few connected seats', async () => {
+		const { host, guest } = await startGame('crazy-eights');
+		const disconnected = host.lobbyStates;
+		guest.socket.disconnect();
+		await waitFor(() => host.lobbyStates > disconnected, 'guest disconnect');
+
+		const returns = vi.fn();
+		host.socket.on('lobby:returned', returns);
+		const before = host.last();
+		const stateCount = host.states.length;
+		host.socket.emit('lobby:restartGame');
+		await waitFor(() => host.errors.length > 0, 'restart error');
+		expect(host.errors.at(-1)).toBe('Cannot restart the game yet');
+		expect(returns).not.toHaveBeenCalled();
+		expect(host.states).toHaveLength(stateCount);
+		expect(host.last()).toEqual(before);
+		expect(await roomIsWaiting(host, 'crazy-eights')).toBe(false);
+
+		expect(await send(host, { type: 'draw-card' })).toEqual({ ok: true });
+		await waitFor(() => host.states.length > stateCount, 'view from original game');
+		expect(host.last().drawPileCount).toBe(before.drawPileCount - 1);
+	});
+
+	it('restarts with connected seats and sends a returning excluded seat only spectator views', async () => {
+		const host = await connect();
+		const guest = await connect();
+		const away = await connect();
+		const [{ roomCode }] = await ackOnce<[{ roomCode: string }]>((cb) =>
+			host.socket.emit('lobby:create', 'Host', cb)
+		);
+		await ackOnce((cb) => host.socket.emit('lobby:selectGame', 'crazy-eights', cb));
+		await ackOnce((cb) => guest.socket.emit('lobby:join', roomCode, 'Guest', cb));
+		const [{ playerId, reconnectToken }] = await ackOnce<[JoinRoomResult]>((cb) =>
+			away.socket.emit('lobby:join', roomCode, 'Away', cb)
+		);
+		await ackOnce((cb) => away.socket.emit('lobby:ready', true, cb));
+		await readyAndStart(host, guest);
+		expect(host.last().players).toHaveLength(3);
+
+		const disconnected = host.lobbyStates;
+		away.socket.disconnect();
+		await waitFor(() => host.lobbyStates > disconnected, 'third seat disconnect');
+		host.socket.emit('lobby:restartGame');
+		await waitFor(() => host.last().players.length === 2, 'restart view');
+
+		const returned = await connect();
+		const [ok] = await ackOnce<[boolean]>((cb) =>
+			returned.socket.emit('player:reconnect', roomCode, playerId, reconnectToken, cb)
+		);
+		expect(ok).toBe(true);
+		await waitFor(() => returned.states.length > 0, 'returned seat view');
+		expect(returned.last()).toMatchObject({ myHand: [], myIndex: -1 });
+		expect(await send(returned, { type: 'draw-card' })).toMatchObject({ ok: false, code: 'NOT_A_PLAYER' });
+
+		const stateCount = returned.states.length;
+		const [active] = c8ActiveAndOther(host, guest);
+		expect(await send(active, { type: 'draw-card' })).toEqual({ ok: true });
+		await waitFor(() => returned.states.length > stateCount, 'subsequent spectator view');
+		expect(returned.states.every((view) => view.myHand.length === 0)).toBe(true);
+	});
+
+	it('rejects a game selection below the current occupancy and accepts a valid selection', async () => {
+		const host = await connect();
+		const [{ roomCode }] = await ackOnce<[{ roomCode: string }]>((cb) =>
+			host.socket.emit('lobby:create', 'Host', cb)
+		);
+		for (const name of ['A', 'B', 'C', 'D']) {
+			const guest = await connect();
+			const [result] = await ackOnce<[JoinRoomResult]>((cb) =>
+				guest.socket.emit('lobby:join', roomCode, name, cb)
+			);
+			expect(result.success).toBe(true);
+		}
+
+		const selected = vi.fn();
+		host.socket.on('lobby:gameSelected', selected);
+		const rejected = await ackOnce<[boolean, string]>((cb) =>
+			host.socket.emit('lobby:selectGame', 'kings-corner', cb)
+		);
+		expect(rejected).toEqual([false, 'This game supports up to 4 players']);
+		expect(selected).not.toHaveBeenCalled();
+
+		const sixth = await connect();
+		const [joined] = await ackOnce<[JoinRoomResult]>((cb) => sixth.socket.emit('lobby:join', roomCode, 'E', cb));
+		expect(joined.success).toBe(true);
+		expect(await roomIsWaiting(host, 'liars-dice')).toBe(true);
+		expect(selected).toHaveBeenCalledWith('liars-dice');
+	});
+});
+
 describe('game:action errors (F-03 / F-17 / F-22)', () => {
 	it('acting out of turn → NOT_YOUR_TURN with the engine message, state unchanged', async () => {
 		const { host, guest } = await startGame('crazy-eights');
@@ -428,8 +519,8 @@ describe('per-game validateAction over the real wiring (F-05)', () => {
 	});
 });
 
-describe('lobby:startGame rollback (B-08)', () => {
-	it('starting with no game selected rolls back to waiting with a generic message', async () => {
+describe('lobby:startGame preconditions (F-11)', () => {
+	it('rejects a start without a game selection before changing the room', async () => {
 		const host = await connect();
 		const guest = await connect();
 		const [{ roomCode }] = await ackOnce<[{ roomCode: string }]>((cb) =>
@@ -440,13 +531,15 @@ describe('lobby:startGame rollback (B-08)', () => {
 		await ackOnce((cb) => guest.socket.emit('lobby:ready', true, cb));
 		let starting = 0;
 		guest.socket.on('lobby:gameStarting', () => starting++);
+		const returned = vi.fn();
+		guest.socket.on('lobby:returned', returned);
 
 		const [ok, message] = await ackOnce<[boolean, string?]>((cb) => host.socket.emit('lobby:startGame', cb));
 		expect(ok).toBe(false);
-		expect(message).toBe('Failed to start game');
-		expect(message).not.toMatch(/No game selected|room/i);
+		expect(message).toBe('Cannot start the game yet');
 		await settle();
 		expect(starting).toBe(0);
+		expect(returned).not.toHaveBeenCalled();
 
 		// Still in the lobby: a game can be selected and started.
 		expect(await roomIsWaiting(host, 'liars-dice')).toBe(true);

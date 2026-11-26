@@ -16,6 +16,7 @@ afterEach(() => vi.useRealTimers());
 function setup() {
   const rm = new RoomManager();
   const { roomCode, playerId: a } = rm.createRoom('sa', 'A');
+  rm.selectGame(roomCode, liarsDiceDefinition.meta);
   const b = rm.joinRoom(roomCode, 'sb', 'B').playerId!;
   rm.setPlayerReady(a, true);
   rm.setPlayerReady(b, true);
@@ -73,4 +74,21 @@ describe("Liar's Dice auto-advance timer", () => {
     expect(() => t.act(t.a, { type: 'nextRound' })).toThrow('Cannot start next round from this phase');
     expect(t.engine.getState()).toEqual(before);
   });
+});
+
+it('marks the room finished when the last reveal ends the game', () => {
+  const t = setup();
+  const startingDice = t.engine.getState().players[0].diceCount;
+
+  for (let round = 0; round < startingDice; round++) {
+    t.act(t.active(), { type: 'bid', quantity: 30, faceValue: 2 });
+    t.act(t.active(), { type: 'challenge' });
+    if (round + 1 < startingDice) {
+      expect(t.rm.getRoom(t.roomCode)?.status).toBe('playing');
+      t.act(t.a, { type: 'nextRound' });
+    }
+  }
+
+  expect(t.engine.getState().gameOver).toBe(true);
+  expect(t.rm.getRoom(t.roomCode)?.status).toBe('finished');
 });

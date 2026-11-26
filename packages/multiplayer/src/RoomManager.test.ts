@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RoomManager, type ExpiryOutcome } from './RoomManager.js';
 
+const gameRules = { id: 'test', minPlayers: 2, maxPlayers: 8, supportsBots: true };
+
 function seatTwoInGame(rm: RoomManager) {
   const host = rm.createRoom('sockA', 'Ann');
   const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
   rm.setPlayerReady(host.playerId, true);
   rm.setPlayerReady(guest.playerId!, true);
+  rm.selectGame(host.roomCode, gameRules);
   rm.startGame(host.roomCode);
   return { host, guest };
 }
@@ -54,7 +57,7 @@ describe('RoomManager reconnect + token', () => {
     rm.handleDisconnect('sockB');
 
     const ok = rm.handleReconnect(host.roomCode, guest.playerId!, guest.reconnectToken!, 'sockC');
-    expect(ok).toBe(true);
+    expect(ok?.reconnectToken).toEqual(expect.any(String));
     expect(rm.getPlayerIdBySocket('sockC')).toBe(guest.playerId);
 
     const players = rm.getPlayersInRoom(host.roomCode);
@@ -71,7 +74,7 @@ describe('RoomManager reconnect + token', () => {
     rm.handleDisconnect('sockB');
 
     const ok = rm.handleReconnect(host.roomCode, guest.playerId!, 'not-the-token', 'sockC');
-    expect(ok).toBe(false);
+    expect(ok).toBeNull();
     expect(rm.getPlayerIdBySocket('sockC')).toBeUndefined();
   });
 
@@ -79,7 +82,7 @@ describe('RoomManager reconnect + token', () => {
     const rm = new RoomManager();
     const { host } = seatTwoInGame(rm);
     const ok = rm.handleReconnect(host.roomCode, 'ghost-id', 'whatever', 'sockC');
-    expect(ok).toBe(false);
+    expect(ok).toBeNull();
   });
 });
 
@@ -100,6 +103,7 @@ describe('RoomManager maxPlayers', () => {
     const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
     rm.setPlayerReady(host.playerId, true);
     rm.setPlayerReady(guest.playerId!, true);
+    rm.selectGame(host.roomCode, gameRules);
     // Shrink the cap below the seated count.
     rm.setMaxPlayers(host.roomCode, 1);
     expect(rm.canStartGame(host.roomCode)).toBe(false);
@@ -117,8 +121,8 @@ describe('RoomManager disconnect + leave', () => {
     expect(result?.wasHost).toBe(true);
     expect(result?.retained).toBe(true);
     expect(result?.playerId).toBe(host.playerId);
-    // Host is NOT reassigned yet — the seat is kept until the timer expires.
-    expect(rm.getRoom(host.roomCode)?.hostId).toBe(host.playerId);
+    expect(result?.newHostId).toBe(guest.playerId);
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
     const stillThere = rm.getPlayersInRoom(host.roomCode).find((p) => p.id === host.playerId);
     expect(stillThere?.connected).toBe(false);
     // Silence the second host's would-be reassign so the room isn't left dangling.
@@ -158,6 +162,7 @@ describe('RoomManager disconnect grace', () => {
     const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
     rm.setPlayerReady(host.playerId, true);
     rm.setPlayerReady(guest.playerId!, true);
+    rm.selectGame(host.roomCode, gameRules);
     rm.startGame(host.roomCode);
     return { host, guest };
   }
@@ -172,7 +177,7 @@ describe('RoomManager disconnect grace', () => {
     // Reconnect before the window elapses.
     vi.advanceTimersByTime(30_000);
     const ok = rm.handleReconnect(host.roomCode, guest.playerId!, guest.reconnectToken!, 'sockC');
-    expect(ok).toBe(true);
+    expect(ok?.reconnectToken).toEqual(expect.any(String));
 
     // Let the original window fully pass — the timer must have been cleared.
     vi.advanceTimersByTime(60_000);
@@ -184,7 +189,7 @@ describe('RoomManager disconnect grace', () => {
     expect(rm.getRoom(host.roomCode)?.hostId).toBe(host.playerId);
   });
 
-  it('lobby expiry removes the player, reassigns host, keeps the room', () => {
+  it('lobby expiry removes the player and preserves the transferred host', () => {
     vi.useFakeTimers();
     const rm = new RoomManager(1_000);
     const host = rm.createRoom('sockA', 'Ann');
@@ -197,9 +202,8 @@ describe('RoomManager disconnect grace', () => {
     expect(outcomes).toHaveLength(1);
     expect(outcomes[0]).toMatchObject({
       playerId: host.playerId,
-      wasHost: true,
+      wasHost: false,
       wasInGame: false,
-      newHostId: guest.playerId,
       roomDestroyed: false,
     });
     expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
@@ -210,6 +214,7 @@ describe('RoomManager disconnect grace', () => {
     vi.useFakeTimers();
     const rm = new RoomManager(1_000);
     const host = rm.createRoom('sockA', 'Ann');
+    rm.selectGame(host.roomCode, gameRules);
     rm.addBot(host.roomCode, 'Bot Bob');
     const outcomes: ExpiryOutcome[] = [];
 
@@ -220,13 +225,14 @@ describe('RoomManager disconnect grace', () => {
     expect(rm.getRoom(host.roomCode)).toBeUndefined();
   });
 
-  it('in-game expiry reports wasInGame and reassigns host among connected humans', () => {
+  it('in-game expiry reports wasInGame and preserves the transferred host', () => {
     vi.useFakeTimers();
     const rm = new RoomManager(1_000);
     const host = rm.createRoom('sockA', 'Ann');
     const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
     rm.setPlayerReady(host.playerId, true);
     rm.setPlayerReady(guest.playerId!, true);
+    rm.selectGame(host.roomCode, gameRules);
     rm.startGame(host.roomCode);
     const outcomes: ExpiryOutcome[] = [];
 
@@ -237,8 +243,7 @@ describe('RoomManager disconnect grace', () => {
     expect(outcomes[0]).toMatchObject({
       playerId: host.playerId,
       wasInGame: true,
-      wasHost: true,
-      newHostId: guest.playerId,
+      wasHost: false,
       roomDestroyed: false,
     });
     expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
@@ -251,6 +256,7 @@ describe('RoomManager disconnect grace', () => {
     const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
     rm.setPlayerReady(host.playerId, true);
     rm.setPlayerReady(guest.playerId!, true);
+    rm.selectGame(host.roomCode, gameRules);
     rm.startGame(host.roomCode);
     const outcomes: ExpiryOutcome[] = [];
 
@@ -263,38 +269,6 @@ describe('RoomManager disconnect grace', () => {
     expect(rm.getRoom(host.roomCode)).toBeUndefined();
     // No dangling timers — advancing further does nothing.
     expect(() => vi.advanceTimersByTime(10_000)).not.toThrow();
-  });
-});
-
-describe('RoomManager.rebindSocket (connectionStateRecovery)', () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('re-binds a recovered socket, clears the grace timer, and restores connected', () => {
-    vi.useFakeTimers();
-    const rm = new RoomManager(1_000);
-    const { host } = seatTwoInGame(rm);
-    const outcomes: ExpiryOutcome[] = [];
-
-    // Original socket drops; a grace timer is scheduled and the seat greys out.
-    rm.handleDisconnect('sockA', (o) => outcomes.push(o));
-    expect(rm.getRoom(host.roomCode)?.players.get(host.playerId)?.connected).toBe(false);
-
-    // Socket.io recovers the connection under a new id before the client's reconnect.
-    expect(rm.rebindSocket('sockA-recovered', host.playerId)).toBe(true);
-    expect(rm.getRoom(host.roomCode)?.players.get(host.playerId)?.connected).toBe(true);
-    expect(rm.getPlayerIdBySocket('sockA-recovered')).toBe(host.playerId);
-
-    // The pending removal was cancelled — the timer must not fire.
-    vi.advanceTimersByTime(5_000);
-    expect(outcomes).toHaveLength(0);
-    expect(rm.getRoom(host.roomCode)?.players.has(host.playerId)).toBe(true);
-  });
-
-  it('returns false for an unknown player', () => {
-    const rm = new RoomManager();
-    expect(rm.rebindSocket('sock', 'nope')).toBe(false);
   });
 });
 
@@ -327,6 +301,7 @@ describe('RoomManager.isSeatedPlayer', () => {
   it('rejects spectators and bots', () => {
     const rm = new RoomManager();
     const host = rm.createRoom('sockA', 'Ann');
+    rm.selectGame(host.roomCode, gameRules);
     const bot = rm.addBot(host.roomCode, 'Bot Alice');
     rm.addSpectator(host.roomCode, 'sockS');
     expect(rm.isSpectator('sockS')).toBe(true);

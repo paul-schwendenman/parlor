@@ -24,11 +24,14 @@ function broadcastViews(
   engine: GameEngine,
   roomManager: RoomManager,
 ): void {
+  if (roomManager.getGameData(roomCode) !== engine) return;
+  if (engine.getState().phase === 'ended') roomManager.finishGame(roomCode, engine);
+
   // Send new log entries first
   const newEntries = engine.getNewLogEntries();
   for (const entry of newEntries) {
     // Send to all humans in the room
-    const players = roomManager.getPlayersInRoom(roomCode);
+    const players = roomManager.getGamePlayers(roomCode);
     for (const player of players) {
       if (RoomManager.isBotPlayer(player.id)) continue;
       io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
@@ -37,14 +40,14 @@ function broadcastViews(
 
   // If no new log entries, just broadcast state
   if (newEntries.length === 0) {
-    const players = roomManager.getPlayersInRoom(roomCode);
+    const players = roomManager.getGamePlayers(roomCode);
     for (const player of players) {
       if (RoomManager.isBotPlayer(player.id)) continue;
       io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
     }
   }
 
-  const spectators = roomManager.getSpectatorsInRoom(roomCode);
+  const spectators = roomManager.getGameSpectators(roomCode);
   if (spectators.length > 0) {
     const spectatorView = engine.getSpectatorView();
     for (const spectatorId of spectators) {
@@ -181,7 +184,7 @@ export const bootyDiceDefinition: ServerGameDefinition = {
       }
 
       // Send initial view to spectators
-      const spectators = roomManager.getSpectatorsInRoom(roomCode);
+      const spectators = roomManager.getGameSpectators(roomCode);
       if (spectators.length > 0) {
         const spectatorView = engine.getSpectatorView();
         for (const spectatorId of spectators) {
@@ -257,7 +260,9 @@ export const bootyDiceDefinition: ServerGameDefinition = {
       const engine = roomManager.getGameData<GameEngine>(roomCode);
       if (!engine) return;
 
-      const view = engine.getPlayerView(playerId);
+      const view = roomManager.isGameParticipant(roomCode, playerId)
+        ? engine.getPlayerView(playerId)
+        : engine.getSpectatorView();
       io.to(playerId).emit('game:state', view as never);
     },
   }),

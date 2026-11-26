@@ -62,7 +62,7 @@ test.describe('Multiplayer Flow', () => {
 
 		await hostPage.goto('/');
 		await hostPage.getByRole('button', { name: 'Start Game' }).first().click();
-		await hostPage.getByPlaceholder('Enter your name').fill('Host');
+		await hostPage.getByPlaceholder('Enter your name').fill('Alex');
 		await hostPage.getByRole('button', { name: 'Create Room' }).click();
 
 		await expect(hostPage).toHaveURL(/\/lobby\/[A-Z0-9]{4}$/);
@@ -83,7 +83,7 @@ test.describe('Multiplayer Flow', () => {
 
 		// Both players see each other
 		await expect(hostPage.getByText('Guest')).toBeVisible();
-		await expect(guestPage.getByText('Host', { exact: true })).toBeVisible();
+		await expect(guestPage.getByText('Alex', { exact: true })).toBeVisible();
 
 		await hostContext.close();
 		await guestContext.close();

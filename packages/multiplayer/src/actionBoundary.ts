@@ -147,6 +147,9 @@ export function dispatchGameAction(opts: DispatchGameActionOptions): Promise<Act
     if (room.status !== 'playing' || room.gameData == null || !definition) {
       return Promise.resolve(reject('NO_ACTIVE_GAME', 'No game is in progress'));
     }
+    if (!roomManager.isGameParticipant(roomCode, playerId)) {
+      return Promise.resolve(reject('NOT_A_PLAYER', 'Only players in this game can do that'));
+    }
 
     const checked = definition.validateAction(payload);
     if (!checked.ok) return Promise.resolve(reject('INVALID_ACTION', checked.message));

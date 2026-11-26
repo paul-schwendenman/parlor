@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RoomManager } from './RoomManager.js';
 import { setupLobbyHandlers, type LobbyCallbacks } from './lobbyHandlers.js';
 
+const gameRules = { id: 'test', minPlayers: 2, maxPlayers: 4, supportsBots: true };
+
 type Handler = (...args: unknown[]) => void;
 
 function makeSocket(id: string) {
@@ -108,13 +110,101 @@ describe('lobbyHandlers host gates', () => {
     expect(onGameStart).not.toHaveBeenCalled();
   });
 
-  it('restartGame from the host actually starts the game', () => {
+  it('rejects restart from waiting and accepts a subsequent valid start', () => {
     const onGameStart = vi.fn();
     const onGameReset = vi.fn();
-    const { host, io } = twoPlayers({ onGameStart, onGameReset });
+    const { rm, host, guest, roomCode } = twoPlayers({ onGameStart, onGameReset });
+    rm.selectGame(roomCode, gameRules);
+    host.fire('lobby:restartGame');
+    expect(host.emit).toHaveBeenCalledWith('error', 'Cannot restart the game yet');
+    expect(onGameReset).not.toHaveBeenCalled();
+    expect(rm.getRoom(roomCode)?.status).toBe('waiting');
+
+    host.fire('lobby:ready', true, vi.fn());
+    guest.fire('lobby:ready', true, vi.fn());
+    const started = vi.fn();
+    host.fire('lobby:startGame', started);
+    expect(started).toHaveBeenCalledWith(true);
+    expect(onGameStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('enforces selection, minimum players and bot support before starting', () => {
+    const onGameStart = vi.fn();
+    const { rm, host, guest, roomCode } = twoPlayers({ onGameStart });
+    const ack = vi.fn();
+    host.fire('lobby:ready', true, vi.fn());
+    guest.fire('lobby:ready', true, vi.fn());
+
+    host.fire('lobby:startGame', ack);
+    expect(ack).toHaveBeenLastCalledWith(false, 'Cannot start the game yet');
+    ack.mockClear();
+    rm.selectGame(roomCode, { ...gameRules, minPlayers: 3 });
+    host.fire('lobby:startGame', ack);
+    expect(ack).toHaveBeenLastCalledWith(false, 'Cannot start the game yet');
+    host.fire('lobby:addBot', ack);
+    expect(ack).toHaveBeenLastCalledWith(true);
+    const bot = rm.getPlayersInRoom(roomCode).find((player) => player.isBot)!;
+    rm.selectGame(roomCode, { ...gameRules, supportsBots: false });
+    host.fire('lobby:startGame', ack);
+    expect(ack).toHaveBeenLastCalledWith(false, 'Cannot start the game yet');
+    expect(onGameStart).not.toHaveBeenCalled();
+
+    host.fire('lobby:removeBot', bot.id, ack);
+    expect(ack).toHaveBeenLastCalledWith(true);
+    host.fire('lobby:startGame', ack);
+    expect(ack).toHaveBeenLastCalledWith(true);
+    expect(onGameStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks start, readiness changes and bot changes during play', () => {
+    const onGameStart = vi.fn((roomCode: string) => rm.setGameData(roomCode, { id: 'original' }));
+    const { rm, host, roomCode } = twoPlayers({ onGameStart });
+    const ack = vi.fn();
+    rm.selectGame(roomCode, gameRules);
+    host.fire('lobby:addBot', ack);
+    const bot = rm.getPlayersInRoom(roomCode).find((player) => player.isBot)!;
+    rm.getPlayersInRoom(roomCode).filter((player) => !player.isBot)
+      .forEach((player) => rm.setPlayerReady(player.id, true));
+    host.fire('lobby:startGame', ack);
+    expect(ack).toHaveBeenLastCalledWith(true);
+    const engine = rm.getGameData(roomCode);
+    const before = structuredClone(rm.getRoom(roomCode));
+
+    for (const [event, ...args] of [
+      ['lobby:startGame'],
+      ['lobby:ready', false],
+      ['lobby:addBot'],
+      ['lobby:removeBot', bot.id],
+    ] as const) {
+      ack.mockClear();
+      host.fire(event, ...args, ack);
+      expect(ack).toHaveBeenCalledExactlyOnceWith(false, expect.any(String));
+    }
+    expect(rm.getRoom(roomCode)).toEqual(before);
+    expect(rm.getGameData(roomCode)).toBe(engine);
+    expect(onGameStart).toHaveBeenCalledTimes(1);
+
+    host.fire('lobby:resetGame');
+    host.fire('lobby:ready', true, ack);
+    expect(ack).toHaveBeenLastCalledWith(true);
+  });
+
+  it('restarts a finished game without requiring players to ready up', () => {
+    const onGameStart = vi.fn();
+    const onGameReset = vi.fn();
+    const { rm, host, io, roomCode } = twoPlayers({ onGameStart, onGameReset });
+    rm.selectGame(roomCode, gameRules);
+    for (const player of rm.getPlayersInRoom(roomCode)) rm.setPlayerReady(player.id, true);
+    rm.startGame(roomCode);
+    const engine = {};
+    rm.setGameData(roomCode, engine);
+    rm.finishGame(roomCode, engine);
+    expect(rm.getRoom(roomCode)?.status).toBe('finished');
+
     host.fire('lobby:restartGame');
     expect(onGameReset).toHaveBeenCalledTimes(1);
     expect(onGameStart).toHaveBeenCalledTimes(1);
+    expect(rm.getRoom(roomCode)?.status).toBe('playing');
     expect(io.emitted.some((e) => e.event === 'lobby:gameStarting')).toBe(true);
   });
 });
@@ -171,6 +261,7 @@ describe('lobbyHandlers disconnect grace', () => {
     const guestId = guest.data.playerId!;
     const roomCode = host.data.roomCode!;
 
+    rm.selectGame(roomCode, gameRules);
     rm.setPlayerReady(hostId, true);
     rm.setPlayerReady(guestId, true);
     rm.startGame(roomCode);

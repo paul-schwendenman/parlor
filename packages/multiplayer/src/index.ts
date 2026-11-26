@@ -10,7 +10,6 @@ export {
   type GracefulShutdownOptions,
   DEFAULT_PING_INTERVAL,
   DEFAULT_PING_TIMEOUT,
-  DEFAULT_RECOVERY_DURATION,
 } from './server.js';
 export {
   createGameClient,

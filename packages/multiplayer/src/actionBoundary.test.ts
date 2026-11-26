@@ -123,8 +123,6 @@ function setup(handler: ServerGameDefinition['handleGameAction'], extra: Partial
   const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
   rm.setPlayerReady(host.playerId, true);
   rm.setPlayerReady(guest.playerId!, true);
-  rm.startGame(host.roomCode);
-  rm.setGameData(host.roomCode, { engine: true });
 
   const handle = vi.fn(handler);
   const definition: ServerGameDefinition = {
@@ -143,6 +141,9 @@ function setup(handler: ServerGameDefinition['handleGameAction'], extra: Partial
     handleGameAction: handle,
     ...extra,
   };
+  rm.selectGame(host.roomCode, definition.meta);
+  rm.startGame(host.roomCode);
+  rm.setGameData(host.roomCode, { engine: true });
   const onRoomFailure = vi.fn();
   const player: FakeSocket = { id: 'sockA', data: { roomCode: host.roomCode, playerId: host.playerId }, emit: vi.fn() };
 

@@ -5,8 +5,9 @@ import type {
   InterServerEvents,
   SocketData,
   LobbyPlayer,
+  GameMeta,
 } from '@parlor/game-types';
-import type { RoomManager, ExpiryOutcome } from './RoomManager.js';
+import type { RoomManager, DisconnectResult, ExpiryOutcome } from './RoomManager.js';
 import { safeAck } from './ack.js';
 import { toPublicError } from './errors.js';
 
@@ -28,6 +29,8 @@ export interface LobbyCallbacks {
 export interface LobbyHandlerOptions {
   /** Max players for rooms created through this server (e.g. a game's meta.maxPlayers). */
   defaultMaxPlayers?: number;
+  /** Standalone servers create rooms with their only game selected. */
+  defaultGame?: GameMeta;
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -41,10 +44,10 @@ function emitExpiry(
   outcome: ExpiryOutcome,
   callbacks?: LobbyCallbacks,
 ): void {
-  // Real removal: this is the only place (besides room:leave) that emits playerLeft.
+  // A seat was released or its grace period expired.
   io.to(outcome.roomCode).emit('lobby:playerLeft', outcome.playerId);
 
-  if (outcome.wasInGame) {
+  if (outcome.wasInGame && roomManager.isGameParticipant(outcome.roomCode, outcome.playerId)) {
     // Let the game layer forfeit / clean up the seat in the engine.
     callbacks?.onPlayerRemoved?.(outcome.roomCode, outcome.playerId, io);
   }
@@ -82,6 +85,7 @@ export function returnRoomToLobby(
   }
   try {
     const players = roomManager.getPlayersInRoom(roomCode);
+    io.to(roomCode).emit('lobby:returned', roomManager.getGameId(roomCode));
     io.to(roomCode).emit('lobby:state', players, roomManager.canStartGame(roomCode));
   } catch (err) {
     console.error('[parlor] lobby:state broadcast failed', { roomCode }, err);
@@ -96,12 +100,38 @@ export function setupLobbyHandlers(
   callbacks?: LobbyCallbacks,
   options?: LobbyHandlerOptions,
 ): void {
-  // connectionStateRecovery restored this socket's data + rooms after a short blip.
-  // Re-bind it in the RoomManager so disconnect/grace-timer resolution stays consistent
-  // even before the client's authoritative player:reconnect arrives. Identity is still
-  // re-validated by player:reconnect (the source of truth); this is only an optimization.
-  if (socket.recovered && isNonEmptyString(socket.data.playerId)) {
-    roomManager.rebindSocket(socket.id, socket.data.playerId);
+  function syncSeat(
+    previousSeat: DisconnectResult | null | undefined,
+    roomCode = '',
+    playerId = '',
+    playerName = '',
+  ): void {
+    if (previousSeat) {
+      if (previousSeat.roomCode !== roomCode) void socket.leave(previousSeat.roomCode);
+      if (previousSeat.playerId !== socket.id) void socket.leave(previousSeat.playerId);
+    }
+
+    socket.data.roomCode = roomCode;
+    socket.data.playerId = playerId;
+    socket.data.playerName = playerName;
+    if (roomCode) void socket.join(roomCode);
+    if (playerId) void socket.join(playerId);
+  }
+
+  function notifySeatReleased(previousSeat: DisconnectResult | null | undefined): void {
+    if (!previousSeat) return;
+    const { roomCode, playerId, wasInGame, newHostId } = previousSeat;
+    const room = roomManager.getRoom(roomCode);
+    if (!room) {
+      io.in(roomCode).socketsLeave(roomCode);
+      return;
+    }
+    if (playerId === socket.id) return;
+
+    emitExpiry(io, roomManager, {
+      roomCode, playerId, wasInGame, newHostId,
+      wasHost: previousSeat.wasHost, roomDestroyed: false,
+    }, callbacks);
   }
 
   socket.on('lobby:create', (playerName, callback) => {
@@ -112,17 +142,15 @@ export function setupLobbyHandlers(
         return;
       }
 
-      const { roomCode, playerId, reconnectToken } = roomManager.createRoom(
+      const { roomCode, playerId, reconnectToken, previousSeat } = roomManager.createRoom(
         socket.id,
         playerName.trim(),
         options?.defaultMaxPlayers,
       );
-      socket.join(roomCode);
-      socket.join(playerId);
-      socket.data.roomCode = roomCode;
-      socket.data.playerId = playerId;
-      socket.data.playerName = playerName.trim();
+      if (options?.defaultGame) roomManager.selectGame(roomCode, options.defaultGame);
+      syncSeat(previousSeat, roomCode, playerId, playerName.trim());
       callback({ roomCode, playerId, reconnectToken });
+      notifySeatReleased(previousSeat);
 
       const players = roomManager.getPlayersInRoom(roomCode);
       io.to(roomCode).emit('lobby:state', players, false);
@@ -146,18 +174,24 @@ export function setupLobbyHandlers(
       }
 
       const normalizedCode = roomCode.toUpperCase();
-      socket.join(normalizedCode);
-      socket.join(result.playerId);
-      socket.data.roomCode = normalizedCode;
-      socket.data.playerId = result.playerId;
-      socket.data.playerName = playerName.trim();
+      syncSeat(result.previousSeat, normalizedCode, result.playerId, playerName.trim());
       callback({
         success: true,
         roomCode: normalizedCode,
         playerId: result.playerId,
         reconnectToken: result.reconnectToken,
       });
+      notifySeatReleased(result.previousSeat);
 
+      const room = roomManager.getRoom(normalizedCode);
+      if (room) {
+        socket.emit('lobby:gameSelected', room.gameId);
+        if (result.newHostId) {
+          io.to(normalizedCode).emit('lobby:hostChanged', result.newHostId);
+        } else {
+          socket.emit('lobby:hostChanged', room.hostId);
+        }
+      }
       const players = roomManager.getPlayersInRoom(normalizedCode);
       const player = players.find((p) => p.id === result.playerId);
       if (player) {
@@ -189,9 +223,9 @@ export function setupLobbyHandlers(
       }
 
       const normalizedCode = roomCode.toUpperCase();
-      socket.join(normalizedCode);
-      socket.data.roomCode = normalizedCode;
+      syncSeat(result.previousSeat, normalizedCode);
       callback(true);
+      notifySeatReleased(result.previousSeat);
     } catch (err) {
       if (typeof callback === 'function') {
         callback(false, toPublicError(err, 'Failed to spectate', { roomCode: socket.data.roomCode }).message);
@@ -213,7 +247,11 @@ export function setupLobbyHandlers(
         return;
       }
 
-      roomManager.setPlayerReady(playerId, isReady);
+      if (!roomManager.isSeatedPlayer(roomCode, playerId, socket.id)
+          || !roomManager.setPlayerReady(playerId, isReady)) {
+        ack(false, 'Cannot change readiness outside the lobby');
+        return;
+      }
       const players = roomManager.getPlayersInRoom(roomCode);
       io.to(roomCode).emit('lobby:state', players, roomManager.canStartGame(roomCode));
       ack(true);
@@ -232,7 +270,8 @@ export function setupLobbyHandlers(
         callback(false, 'Not in a room');
         return;
       }
-      if (!roomManager.isHost(roomCode, socket.data.playerId)) {
+      if (!roomManager.isHost(roomCode, socket.data.playerId)
+          || !roomManager.isSeatedPlayer(roomCode, socket.data.playerId, socket.id)) {
         callback(false, 'Only the host can add bots');
         return;
       }
@@ -265,7 +304,8 @@ export function setupLobbyHandlers(
         callback(false, 'Not in a room');
         return;
       }
-      if (!roomManager.isHost(roomCode, socket.data.playerId)) {
+      if (!roomManager.isHost(roomCode, socket.data.playerId)
+          || !roomManager.isSeatedPlayer(roomCode, socket.data.playerId, socket.id)) {
         callback(false, 'Only the host can remove bots');
         return;
       }
@@ -298,7 +338,8 @@ export function setupLobbyHandlers(
         ack(false, 'Not in a room');
         return;
       }
-      if (!roomManager.isHost(roomCode, socket.data.playerId)) {
+      if (!roomManager.isHost(roomCode, socket.data.playerId)
+          || !roomManager.isSeatedPlayer(roomCode, socket.data.playerId, socket.id)) {
         ack(false, 'Only the host can start the game');
         return;
       }
@@ -330,7 +371,8 @@ export function setupLobbyHandlers(
     try {
       const roomCode = socket.data.roomCode;
       if (!roomCode) return;
-      if (!roomManager.isHost(roomCode, socket.data.playerId)) return;
+      if (!roomManager.isHost(roomCode, socket.data.playerId)
+          || !roomManager.isSeatedPlayer(roomCode, socket.data.playerId, socket.id)) return;
 
       returnRoomToLobby(io, roomManager, roomCode, callbacks);
     } catch (err) {
@@ -341,30 +383,25 @@ export function setupLobbyHandlers(
   socket.on('lobby:restartGame', () => {
     try {
       const roomCode = socket.data.roomCode;
-      if (!roomCode) return;
-      if (!roomManager.isHost(roomCode, socket.data.playerId)) return;
-
-      if (!roomManager.resetGame(roomCode)) return;
-      callbacks?.onGameReset?.(roomCode, io);
-
-      // resetGame un-readies humans; re-ready them so an explicit restart can start.
-      roomManager.readyAllHumans(roomCode);
-
-      const players = roomManager.startGame(roomCode);
-      if (players) {
-        try {
-          callbacks?.onGameStart?.(roomCode, players, io);
-        } catch (err) {
-          const message = toPublicError(err, 'Failed to restart game', { roomCode }).message;
-          returnRoomToLobby(io, roomManager, roomCode, callbacks);
-          socket.emit('error', message);
+      if (!roomCode || !roomManager.isHost(roomCode, socket.data.playerId)
+          || !roomManager.isSeatedPlayer(roomCode, socket.data.playerId, socket.id)) {
+        socket.emit('error', 'Only the host can restart the game');
+        return;
+      }
+      try {
+        const players = roomManager.restartGame(roomCode, () => callbacks?.onGameReset?.(roomCode, io));
+        if (!players) {
+          socket.emit('error', 'Cannot restart the game yet');
           return;
         }
-        io.to(roomCode).emit('lobby:gameStarting');
-      } else {
-        const current = roomManager.getPlayersInRoom(roomCode);
-        io.to(roomCode).emit('lobby:state', current, roomManager.canStartGame(roomCode));
+        callbacks?.onGameStart?.(roomCode, players, io);
+      } catch (err) {
+        const message = toPublicError(err, 'Failed to restart game', { roomCode }).message;
+        returnRoomToLobby(io, roomManager, roomCode, callbacks);
+        socket.emit('error', message);
+        return;
       }
+      io.to(roomCode).emit('lobby:gameStarting');
     } catch (err) {
       socket.emit('error', toPublicError(err, 'Failed to restart game', { roomCode: socket.data.roomCode }).message);
     }
@@ -375,49 +412,57 @@ export function setupLobbyHandlers(
       const result = roomManager.leaveRoom(socket.id);
       if (!result) return;
 
-      socket.leave(result.roomCode);
-      socket.leave(result.playerId);
-      socket.data.roomCode = '';
-      socket.data.playerId = '';
-
-      io.to(result.roomCode).emit('lobby:playerLeft', result.playerId);
-      const players = roomManager.getPlayersInRoom(result.roomCode);
-      if (players.length > 0) {
-        io.to(result.roomCode).emit('lobby:state', players, roomManager.canStartGame(result.roomCode));
-        if (result.wasHost) {
-          const room = roomManager.getRoom(result.roomCode);
-          if (room) io.to(result.roomCode).emit('lobby:hostChanged', room.hostId);
-        }
-      }
+      syncSeat(result);
+      notifySeatReleased(result);
     } catch (err) {
       socket.emit('error', toPublicError(err, 'Failed to leave room', { roomCode: socket.data.roomCode }).message);
     }
   });
 
   socket.on('player:reconnect', (roomCode, playerId, token, callback) => {
+    const ack = safeAck(callback);
+    let acknowledged = false;
     try {
       if (typeof callback !== 'function') return;
       if (!isNonEmptyString(roomCode) || !isNonEmptyString(playerId) || !isNonEmptyString(token)) {
-        callback(false);
+        ack(false);
         return;
       }
 
-      const success = roomManager.handleReconnect(roomCode, playerId, token, socket.id);
-      if (success) {
-        const normalizedCode = roomCode.toUpperCase();
-        socket.join(normalizedCode);
-        socket.join(playerId);
-        socket.data.roomCode = normalizedCode;
-        socket.data.playerId = playerId;
-
-        const players = roomManager.getPlayersInRoom(normalizedCode);
-        io.to(normalizedCode).emit('player:reconnected', playerId);
-        io.to(normalizedCode).emit('lobby:state', players, roomManager.canStartGame(normalizedCode));
-        callbacks?.onPlayerReconnect?.(normalizedCode, playerId, io);
+      const result = roomManager.handleReconnect(roomCode, playerId, token, socket.id);
+      if (!result) {
+        ack(false);
+        return;
       }
-      callback(success);
-    } catch {
-      if (typeof callback === 'function') callback(false);
+
+      if (result.supersededSocketId) {
+        io.sockets.sockets.get(result.supersededSocketId)?.disconnect(true);
+      }
+      const normalizedCode = roomCode.toUpperCase();
+      const room = roomManager.getRoom(normalizedCode);
+      syncSeat(result.previousSeat, normalizedCode, playerId, room?.players.get(playerId)?.name);
+      acknowledged = true;
+      ack(true, result.reconnectToken);
+      notifySeatReleased(result.previousSeat);
+
+      if (room?.status === 'waiting') {
+        socket.emit('lobby:returned', room.gameId);
+      } else if (room) {
+        socket.emit('lobby:gameSelected', room.gameId);
+        socket.emit('lobby:gameStarting');
+      }
+      const players = roomManager.getPlayersInRoom(normalizedCode);
+      io.to(normalizedCode).emit('player:reconnected', playerId);
+      io.to(normalizedCode).emit('lobby:state', players, roomManager.canStartGame(normalizedCode));
+      if (result.newHostId) {
+        io.to(normalizedCode).emit('lobby:hostChanged', result.newHostId);
+      } else if (room) {
+        socket.emit('lobby:hostChanged', room.hostId);
+      }
+      callbacks?.onPlayerReconnect?.(normalizedCode, playerId, io);
+    } catch (err) {
+      if (!acknowledged) ack(false);
+      console.error('[parlor] reconnect failed', { roomCode }, err);
     }
   });
 
@@ -425,6 +470,7 @@ export function setupLobbyHandlers(
     try {
       const result = roomManager.handleDisconnect(socket.id, (outcome) => {
         // Fired later, when the grace timer expires and the player is really removed.
+        if (outcome.roomDestroyed) io.in(outcome.roomCode).socketsLeave(outcome.roomCode);
         emitExpiry(io, roomManager, outcome, callbacks);
       });
       if (!result) return;
@@ -441,7 +487,9 @@ export function setupLobbyHandlers(
         roomManager.canStartGame(result.roomCode),
       );
 
-      if (result.wasInGame) {
+      if (result.newHostId) io.to(result.roomCode).emit('lobby:hostChanged', result.newHostId);
+
+      if (result.wasInGame && roomManager.isGameParticipant(result.roomCode, result.playerId)) {
         // Tell the engine the seat went dark (view greys the player); removal waits for expiry.
         callbacks?.onPlayerDisconnect?.(result.roomCode, result.playerId, io);
       }

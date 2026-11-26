@@ -247,7 +247,7 @@ The reasoning:
 - ~~**3.6**~~ Audit D found no view leaks. View-recipient regression tests are still required by the workflow testing rule, and F-30 has moved to 3.9.
 
 ### 3.7 Seat and session lifecycle
-- [ ] **3.7** One seat per socket.
+- [x] **3.7** One seat per socket.
   - Create, join, spectate or reconnect **releases the previous seat**, its room membership and its spectator entry.
     - **Order of operations:** validate the new seat **first** (the room exists, there's capacity, the status allows it, the token is valid). Release the old seat **only after** the new one is committed. A failed join, spectate or reconnect must leave the socket in its old seat, with no change to either room.
     - **Regression test:** a seated player tries to join a full or nonexistent room → error, they're still seated in their original room (same playerId, connected, still receiving that room's broadcasts), and the target room is unchanged.
@@ -256,9 +256,10 @@ The reasoning:
   - **Restart:** don't seat players who are in their grace window as connected.
   - **Host:** transfer host while the host is in grace, or allow host actions to proceed.
   - (F-02, F-10, F-18, F-28, F-29)
+  - **Implemented:** seat changes release public and private room memberships after validation. Token reconnect restores the latest view through the application handshake and replaces Socket.IO packet replay. A connected human takes over when the host disconnects into grace.
 
 ### 3.8 Lobby lifecycle guards
-- [ ] **3.8**
+- [x] **3.8**
   - **Server-side start preconditions:** status is `waiting`, a game is selected, `minPlayers ≤ n ≤ maxPlayers`, and bots are only allowed if `supportsBots`. The same `waiting` gate applies to `ready`, `addBot` and `removeBot`.
   - **Restart has its own transition, not the start gate.**
     - **Allowed from:** `playing` or `finished` only (from `waiting`, it's a no-op with an error).
@@ -272,6 +273,7 @@ The reasoning:
   - **Explicit reset event:** an explicit `game:reset` / `lobby:returned` event, so the client stops treating any mid-game `lobby:state` as a reset.
   - **Finished status:** set `status: 'finished'`.
   - (F-11, F-12, F-27)
+  - **Implemented:** game metadata drives start requirements, restart excludes grace seats from the new engine, and returning players excluded from a restart receive spectator views. The client resets on `lobby:returned`. Each game marks its room finished when the engine ends.
 
 ### 3.9 Per-game rule fixes
 - [ ] **3.9**
@@ -339,4 +341,5 @@ The reasoning:
 | 2026-11-25 | 3.0 hotfix (F-01) | branch `paul-schwendenman/core-hardening-3.0`, uncommitted |
 | 2026-11-25 | Plan revised after a second external review | 3.1a now requires validators for every action, handlers can't reject by returning silently, Booty Dice F-06 moved to 3.1a; 3.8 restart gets its own transition (check first, keep the game on failure); 3.7 validates the new seat before releasing the old one |
 | 2026-11-25 | 3.1a core action boundary + validators (F-15, F-05, F-04, F-03, F-17, F-22, F-06) | branch `paul-schwendenman/core-hardening-3.1a`, commits `5fbd189`..`66003c8`; 532 tests |
-| 2026-11-25 | 0.5 type-aware lint everywhere + 3.10 infra half | built in a worktree (`paul-schwendenman/core-hardening-0.5-infra`), merged onto the committed 3.1a branch, uncommitted |
+| 2026-11-25 | 0.5 type-aware lint everywhere + 3.10 infra half | built in a worktree (`paul-schwendenman/core-hardening-0.5-infra`), merged onto the committed 3.1a branch in `e0371d8` |
+| 2026-11-26 | 3.7 seat lifecycle + 3.8 lobby guards | 549 Vitest tests and 7 Playwright tests passed |
