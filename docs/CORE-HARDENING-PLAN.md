@@ -403,7 +403,8 @@ The reasoning:
   - no recipient **receives over the socket** anything hidden from them
   - Start from `docs/audit-repros/security/leakcheck.ts`.
   - **Implemented:** `apps/parlor/src/lib/server/seededPlaythroughs.test.ts` runs eight seeds for each game. It checks actual Socket.IO deliveries to three players, a spectator and an unseated connection. Quixx runs in player-roll mode for reproducible timing. Kings Corner trials can stop at a repeated position with an empty draw pile, pending the rules decision below.
-- [ ] **4.3 Lifecycle race suite**: randomized interleavings of reset, restart, switch, leave, grace expiry and reconnect against in-flight bot turns, on a virtual clock. Start from `docs/audit-repros/lifecycle/`.
+- [x] **4.3 Lifecycle race suite**: randomized interleavings of reset, restart, switch, leave, grace expiry and reconnect against in-flight bot turns, on a virtual clock. Start from `docs/audit-repros/lifecycle/`.
+  - **Implemented:** `apps/parlor/src/lib/server/lifecycleRaces.test.ts` runs 36 seeded cases through the Parlor socket handlers on a virtual clock. A held Kings Corner bot resumes after restart, reset, a switch to Quixx, or room deletion by leave or grace expiry. Reconnects land on both sides of the grace deadline. The suite checks that stale completions and rejections leave state and outbound traffic alone, that replacement games accept a move, and that a bot can still act when its instance survives.
 
 ## Revisit at the end
 
@@ -439,3 +440,4 @@ Rules questions and smaller bugs found during the work. Come back to these once 
 | 2026-11-26 | 3.9 per-game rule fixes (F-08, F-09, F-30) | branch `paul-schwendenman/core-hardening-3.9`, main work in `9d03032`, then penalty-free grace stand-ins and the Crazy Eights exhausted-piles pass. 650 Vitest and 8 Playwright tests. Three items added to "Revisit at the end" |
 | 2026-11-26 | 3.10 randomness (F-19) | Switched room codes and gameplay draws to Node crypto and added engine RNG injection for Phase 4.2 |
 | 2026-11-26 | 4.2 seeded playthroughs | 40 seeded Socket.IO trials across all five engines |
+| 2026-11-26 | 4.3 lifecycle races | 36 seeded Socket.IO cases on a virtual clock |
