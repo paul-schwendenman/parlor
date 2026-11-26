@@ -1,3 +1,4 @@
+import { getMetrics } from './observability.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RoomManager } from './RoomManager.js';
 import { setupLobbyHandlers, type LobbyCallbacks } from './lobbyHandlers.js';
@@ -408,6 +409,7 @@ describe('lobby game instance lifecycle', () => {
     vi.useFakeTimers();
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const rm = new RoomManager();
+    const before = getMetrics();
     const { instance, roomCode, io } = startRoom(rm);
     const other = startRoom(rm, undefined, 'other');
     const error = new Error('scheduled failure');
@@ -419,13 +421,50 @@ describe('lobby game instance lifecycle', () => {
     instance.schedule(next, 20);
 
     await vi.advanceTimersByTimeAsync(30);
-    expect(log).toHaveBeenCalledWith(expect.any(String), { roomCode, gameId: 'test', instanceId: instance.id }, error);
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      event: 'scheduled_game_task_failed', roomCode, gameId: 'test',
+      instanceId: instance.id, error: { message: error.message },
+    });
+    expect(getMetrics()).toMatchObject({
+      rooms: before.rooms + 2,
+      gamesStarted: before.gamesStarted + 2,
+      caughtRoomFailures: before.caughtRoomFailures + 1,
+    });
     expect(rm.getRoom(roomCode)?.status).toBe('waiting');
     expect(io.emitted).toContainEqual({ room: roomCode, event: 'lobby:returned', args: ['test'] });
     expect(next).not.toHaveBeenCalled();
     expect(instance.signal.aborted).toBe(true);
     expect(rm.getGameInstance(other.roomCode)).toBe(other.instance);
     expect(other.instance.isCurrent()).toBe(true);
+  });
+
+  it('contains a rejected player removal callback when grace expires', async () => {
+    vi.useFakeTimers();
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const rm = new RoomManager(100);
+    const callbacks: LobbyCallbacks = {
+      onPlayerRemoved: vi.fn(() => Promise.reject(new Error('remove failed'))),
+    };
+    const { io, host, roomCode } = startRoom(rm, callbacks);
+    host.fire('lobby:resetGame');
+    const guest = makeSocket('guest');
+    wire(rm, io, guest, callbacks);
+    guest.fire('lobby:join', roomCode, 'Guest', vi.fn());
+    host.fire('lobby:ready', true, vi.fn());
+    guest.fire('lobby:ready', true, vi.fn());
+    host.fire('lobby:startGame', vi.fn());
+    const before = getMetrics();
+    const instanceId = rm.getGameInstance(roomCode)?.id;
+
+    guest.fire('disconnect');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(callbacks.onPlayerRemoved).toHaveBeenCalledExactlyOnceWith(roomCode, guest.data.playerId, expect.anything());
+    expect(rm.getRoom(roomCode)?.status).toBe('waiting');
+    expect(getMetrics().caughtRoomFailures).toBe(before.caughtRoomFailures + 1);
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      event: 'player_lifecycle_callback_failed', roomCode, gameId: 'test',
+      playerId: guest.data.playerId, instanceId,
+    });
   });
 
   it('keeps a player grace timer across a game reset', async () => {

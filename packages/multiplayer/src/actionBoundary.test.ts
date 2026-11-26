@@ -1,3 +1,4 @@
+import { getMetrics } from './observability.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActionResult } from '@parlor/game-types';
 import { RoomManager } from './RoomManager.js';
@@ -103,7 +104,14 @@ describe('GameRuleError / toPublicError', () => {
       message: 'Failed to join room',
     });
     expect(toPublicError('a string')).toEqual({ code: 'INTERNAL', message: INTERNAL_ERROR_MESSAGE });
-    expect(errorSpy).toHaveBeenCalledWith('[parlor] unexpected error', { roomCode: 'ABCD' }, raw);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"event":"unexpected_error"'));
+    expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toMatchObject({
+      roomCode: 'ABCD',
+      gameId: null,
+      instanceId: null,
+      playerId: null,
+      error: { message: raw.message, stack: expect.any(String) },
+    });
   });
 });
 
@@ -306,12 +314,22 @@ describe('dispatchGameAction', () => {
     const t = setup(() => {
       throw new TypeError("Cannot read properties of null (reading 'suit')");
     });
+    const before = getMetrics();
     const result = await t.send(t.player, { type: 'play-card', card: null });
     expect(result).toEqual({ ok: false, code: 'INTERNAL', message: 'Something went wrong' });
     expect(t.player.emit).toHaveBeenCalledWith('error', 'Something went wrong');
     expect(JSON.stringify(t.player.emit.mock.calls)).not.toMatch(/Cannot read/);
     expect(t.onRoomFailure).toHaveBeenCalledWith(t.roomCode);
-    expect(errorSpy).toHaveBeenCalled();
+    expect(getMetrics()).toMatchObject({
+      rejectedActions: before.rejectedActions + 1,
+      caughtRoomFailures: before.caughtRoomFailures + 1,
+    });
+    expect(JSON.parse(String(errorSpy.mock.calls[0]?.[0]))).toMatchObject({
+      roomCode: t.roomCode,
+      gameId: 'fake',
+      playerId: t.host.playerId,
+      instanceId: t.rm.getGameInstance(t.roomCode)?.id,
+    });
   });
 
   it('an async rejection → INTERNAL and onRoomFailure (no unhandled rejection)', async () => {

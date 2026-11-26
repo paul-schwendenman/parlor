@@ -72,21 +72,21 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 				const gameId = roomManager.getGameId(roomCode);
 				if (!gameId) return;
 				const callbacks = getCallbacksForGame(gameId, io);
-				callbacks?.onPlayerDisconnect?.(roomCode, playerId, io);
+				return callbacks?.onPlayerDisconnect?.(roomCode, playerId, io);
 			},
 
 			onPlayerReconnect: (roomCode: string, playerId: string, io: AppServer) => {
 				const gameId = roomManager.getGameId(roomCode);
 				if (!gameId) return;
 				const callbacks = getCallbacksForGame(gameId, io);
-				callbacks?.onPlayerReconnect?.(roomCode, playerId, io);
+				return callbacks?.onPlayerReconnect?.(roomCode, playerId, io);
 			},
 
 			onPlayerRemoved: (roomCode: string, playerId: string, io: AppServer) => {
 				const gameId = roomManager.getGameId(roomCode);
 				if (!gameId) return;
 				const callbacks = getCallbacksForGame(gameId, io);
-				callbacks?.onPlayerRemoved?.(roomCode, playerId, io);
+				return callbacks?.onPlayerRemoved?.(roomCode, playerId, io);
 			}
 		};
 
@@ -147,7 +147,7 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 				io.to(roomCode).emit('lobby:state', roomManager.getPlayersInRoom(roomCode), roomManager.canStartGame(roomCode));
 				ack(true);
 			} catch (err) {
-				ack(false, toPublicError(err, 'Failed to select game', { roomCode: socket.data.roomCode }).message);
+				ack(false, toPublicError(err, 'Failed to select game', roomManager.getErrorContext(socket.data.roomCode, socket.data.playerId)).message);
 			}
 		});
 

@@ -2,11 +2,13 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as ioc, type Socket as ClientSocket } from 'socket.io-client';
+import { getMetrics } from './observability.js';
 import {
   parseCorsOrigin,
   buildSocketServerOptions,
   createOriginCheck,
   createSocketServer,
+  registerHealthCheck,
   type AppServer,
   type SocketServerInput,
   MAX_SOCKET_MESSAGE_BYTES,
@@ -183,6 +185,14 @@ describe('Socket.IO transport limits', () => {
 
   async function start(input: SocketServerInput = {}) {
     const http = createServer();
+    registerHealthCheck({
+      get(path, handler) {
+        http.on('request', (req, res) => {
+          if (req.url === path) handler(req, res);
+          else res.writeHead(404).end();
+        });
+      },
+    });
     const socketServer = createSocketServer(http, { corsOrigin: '*', ...input });
     io = socketServer;
     await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
@@ -203,6 +213,27 @@ describe('Socket.IO transport limits', () => {
     });
     return { client, connected };
   }
+
+  it('reports current sockets and process counters in the health response', async () => {
+    const { socketServer, url } = await start();
+    const before = getMetrics();
+    const { client, connected } = connect(url, 'websocket');
+    expect(await connected).toBe(true);
+
+    const health = await fetch(`${url}/healthz`);
+    expect(health.status).toBe(200);
+    expect(health.headers.get('content-type')).toBe('application/json');
+    expect(await health.json()).toMatchObject({
+      status: 'ok',
+      uptime: expect.any(Number),
+      metrics: { ...before, sockets: before.sockets + 1 },
+    });
+
+    client.disconnect();
+    await vi.waitFor(() => expect(socketServer.engine.clientsCount).toBe(0));
+    const after = await fetch(`${url}/healthz`);
+    expect(await after.json()).toMatchObject({ metrics: before });
+  });
 
   it('counts raw polling sessions toward the total cap before namespace connect', async () => {
     const { socketServer, url } = await start({ maxConnections: 1, maxConnectionsPerIp: 5 });

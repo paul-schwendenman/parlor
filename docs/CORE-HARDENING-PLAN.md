@@ -231,7 +231,7 @@ The reasoning:
   - **Names:** 1–24 Unicode code points after trimming and NFC normalization, with a character allowlist and uniqueness checks that fold case, accents, compatibility forms and common Greek and Cyrillic lookalikes. The Bot name prefix is reserved.
 
 ### 3.4 Process safety net and observability
-- [ ] **3.4**
+- [x] **3.4**
   - **Expected failures are caught at the boundaries.** That's the socket boundary (3.0 / 3.1a) and the scheduler boundary (3.2), including rejected promises, and it keeps the failure to one room.
   - **Process level: log, then exit.** On `uncaughtException` or `unhandledRejection`, log with full context and **exit non-zero**, letting the supervisor (k8s) restart the process. Don't keep running after an unknown failure: a half-applied change makes every room's state untrustworthy.
   - **Document the restart cost:** rooms live in memory, so a crash or restart **loses every active game**. Add this to `docs/DEPLOYMENT.md` and `k8s/README.md`, along with the restart policy and how clients reconnect to a server that has lost their room ("room not found" → back to home).
@@ -239,6 +239,7 @@ The reasoning:
     - structured logs tagged with room code, game id, player id and instance id
     - counters for rooms, sockets, games started, rejected actions and caught room failures, on `/healthz` or `/metrics`
   - (F-03, F-21, F-22)
+  - **Implemented:** production servers emit a fatal JSON record to stderr and exit with status 1. Room failures use structured logs and the health endpoint reports live room and socket gauges plus process totals. A refused reconnect clears the lost room from the client.
 
 ### 3.5 Clean up the types
 - [ ] **3.5**
@@ -349,3 +350,4 @@ The reasoning:
 | 2026-11-26 | 3.7 seat lifecycle + 3.8 lobby guards | 549 Vitest tests and 7 Playwright tests passed |
 | 2026-11-26 | 3.2 game-instance lifetime and scheduling | Covered by regressions for in-flight bot work, bot deadlines, restart, room destruction, scheduler failures, and reconnect grace |
 | 2026-11-26 | 3.3 boundary limits | Added socket, room, name and log limits with regression tests |
+| 2026-11-26 | 3.4 process safety and observability | Added fatal exit handlers, room failure context, health metrics, and restart recovery coverage |

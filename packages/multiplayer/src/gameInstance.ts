@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { logServerError } from './observability.js';
 import { runWithTimeout } from './gameTimeout.js';
 
 type Timer = ReturnType<typeof setTimeout>;
@@ -66,7 +67,7 @@ export class GameInstance {
     try {
       this.onFailure(error);
     } catch (failureError) {
-      console.error('[parlor] game failure handler threw', { instanceId: this.id }, failureError);
+      logServerError('game_failure_handler_failed', { instanceId: this.id }, failureError);
     }
   }
 }

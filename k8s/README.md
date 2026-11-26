@@ -12,6 +12,26 @@ kubectl rollout restart deployment/parlor -n parlor
 kubectl rollout status deployment/parlor -n parlor
 ```
 
+## Crashes and restarts
+
+The Deployment uses Kubernetes' `restartPolicy: Always`. When the server logs an
+uncaught exception or unhandled promise rejection and exits non-zero, the kubelet
+restarts the container. During a rollout, the pod has a 30-second termination
+grace period to drain connections after `SIGTERM`.
+
+**Every room and active game is lost when the process exits.** Room state and
+reconnect credentials are held in process memory. After the replacement server
+starts, it rejects reconnect requests for lost rooms. Clients clear their saved
+session and show a room or game unavailable message with a **Back to home** link.
+Players can create or join a room from there.
+
+To inspect the logs from the previous container after a crash, use the affected
+pod's name from `kubectl get pods -n parlor`:
+
+```bash
+kubectl logs -n parlor <pod-name> --previous
+```
+
 ## First deploy (or after manifest changes)
 
 ```bash

@@ -159,6 +159,8 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
           authedForConnection = true;
           clearSession();
           playerState.reset();
+          lobbyState.reset();
+          gameState.reset();
         }
       },
     );

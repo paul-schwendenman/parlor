@@ -63,3 +63,4 @@ export {
 export { appendGameLog, MAX_GAME_LOG_ENTRIES } from './gameLog.js';
 
 export { allowSocketRequest, RATE_LIMIT_MESSAGE } from './rateLimit.js';
+export { setupFatalProcessHandlers } from './processSafety.js';

@@ -3,6 +3,7 @@ import type { GameMeta, LobbyPlayer } from '@parlor/game-types';
 import { GameInstance } from './gameInstance.js';
 import { foldPlayerName } from './playerNames.js';
 import { GameRuleError } from './errors.js';
+import { logServerError, recordMetric } from './observability.js';
 import { generateRoomCode } from './utils.js';
 
 const MAX_ROOMS = 512;
@@ -135,6 +136,7 @@ export class RoomManager {
       reconnectTokens: new Map([[playerId, reconnectToken]]),
     };
     this.rooms.set(code, room);
+    recordMetric('rooms');
     if (onDestroyed) this.roomDestroyCallbacks.set(room, () => onDestroyed(code));
 
     this.playerToRoom.set(playerId, code);
@@ -261,7 +263,8 @@ export class RoomManager {
 
   private beginGame(room: GameRoom, players: LobbyPlayer[], onFailure?: () => void): LobbyPlayer[] {
     const instance = new GameInstance((error) => {
-      console.error('[parlor] scheduled game task failed', {
+      recordMetric('caughtRoomFailures');
+      logServerError('scheduled_game_task_failed', {
         roomCode: room.code, gameId: room.gameId, instanceId: instance.id,
       }, error);
       if (onFailure) onFailure();
@@ -292,6 +295,16 @@ export class RoomManager {
   getGameInstance(roomCode: string): GameInstance | undefined {
     const room = this.getRoom(roomCode);
     return room && this.instances.get(room);
+  }
+
+  getErrorContext(roomCode?: string, playerId?: string) {
+    const room = typeof roomCode === 'string' ? this.getRoom(roomCode) : undefined;
+    return {
+      roomCode: room?.code ?? roomCode,
+      gameId: room?.gameId,
+      playerId,
+      instanceId: room && this.instances.get(room)?.id,
+    };
   }
 
   private invalidateGame(room: GameRoom): void {
@@ -470,13 +483,15 @@ export class RoomManager {
 
   /** Destroy a room, clearing every pending disconnect timer bound to its players. */
   private destroyRoom(room: GameRoom): void {
+    const context = this.getErrorContext(room.code);
     this.invalidateGame(room);
     const onDestroyed = this.roomDestroyCallbacks.get(room);
     this.roomDestroyCallbacks.delete(room);
     try {
       onDestroyed?.();
     } catch (error) {
-      console.error('[parlor] onRoomDestroyed failed', { roomCode: room.code, gameId: room.gameId }, error);
+      recordMetric('caughtRoomFailures');
+      logServerError('room_destroy_callback_failed', context, error);
     }
     for (const pid of room.players.keys()) {
       this.clearDisconnectTimer(pid);
@@ -489,6 +504,7 @@ export class RoomManager {
       }
     }
     this.rooms.delete(room.code);
+    recordMetric('rooms', -1);
   }
 
   private clearDisconnectTimer(playerId: string): void {

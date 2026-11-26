@@ -8,6 +8,7 @@ import type {
   InterServerEvents,
   SocketData,
 } from '@parlor/game-types';
+import { getMetrics, recordMetric } from './observability.js';
 import { RoomManager } from './RoomManager.js';
 import { setupLobbyHandlers, type LobbyCallbacks } from './lobbyHandlers.js';
 
@@ -141,7 +142,7 @@ export function registerHealthCheck(app: HealthAppLike, path = '/healthz'): void
   app.get(path, (_req, res) => {
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+    res.end(JSON.stringify({ status: 'ok', uptime: process.uptime(), metrics: getMetrics() }));
   });
 }
 
@@ -258,9 +259,11 @@ export function createSocketServer(
       return;
     }
     active++;
+    recordMetric('sockets');
     byIp.set(ip, (byIp.get(ip) ?? 0) + 1);
     connection.once('close', () => {
       active--;
+      recordMetric('sockets', -1);
       const remaining = (byIp.get(ip) ?? 1) - 1;
       if (remaining === 0) byIp.delete(ip);
       else byIp.set(ip, remaining);

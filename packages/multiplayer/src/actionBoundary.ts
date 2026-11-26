@@ -1,6 +1,7 @@
 import type { ActionErrorCode, ActionResult } from '@parlor/game-types';
 import type { RoomManager } from './RoomManager.js';
 import type { AppServer, AppSocket, ServerGameDefinition } from './gameDefinition.js';
+import { logServerError, recordMetric } from './observability.js';
 import { safeAck } from './ack.js';
 import { allowSocketRequest, RATE_LIMIT_MESSAGE } from './rateLimit.js';
 import { INTERNAL_ERROR_MESSAGE, toPublicError } from './errors.js';
@@ -119,11 +120,13 @@ export function dispatchGameAction(opts: DispatchGameActionOptions): Promise<Act
   const { io, socket, roomManager, definition, action, onRoomFailure } = opts;
   const ack = safeAck(opts.ack as ((result: ActionResult) => void) | undefined);
 
+  const context = () => roomManager.getErrorContext(socket.data.roomCode, socket.data.playerId);
   const reply = (result: ActionResult): ActionResult => {
+    if (!result.ok) recordMetric('rejectedActions');
     try {
       ack(result);
     } catch (err) {
-      console.error('[parlor] game:action ack threw', err);
+      logServerError('action_ack_failed', context(), err);
     }
     return result;
   };
@@ -158,7 +161,7 @@ export function dispatchGameAction(opts: DispatchGameActionOptions): Promise<Act
     if (!checked.ok) return Promise.resolve(reject('INVALID_ACTION', checked.message));
     const sanitized = checked.action;
 
-    const logContext = { roomCode, instanceId: instance.id, gameId: definition.meta.id, playerId, actionType: payload.type };
+    const logContext = { roomCode, playerId, gameId: room.gameId, instanceId: instance.id, actionType: payload.type };
 
     const stale = () => reject('NO_ACTIVE_GAME', 'That game is no longer in progress');
     const fail = (err: unknown): ActionResult => {
@@ -168,10 +171,11 @@ export function dispatchGameAction(opts: DispatchGameActionOptions): Promise<Act
       socket.emit('error', pub.message);
       const result = reject(pub.code, pub.message);
       if (pub.code === 'INTERNAL') {
+        recordMetric('caughtRoomFailures');
         try {
           onRoomFailure(roomCode);
         } catch (failureErr) {
-          console.error('[parlor] onRoomFailure threw', { roomCode }, failureErr);
+          logServerError('room_failure_callback_failed', logContext, failureErr);
         }
       }
       return result;
@@ -193,7 +197,7 @@ export function dispatchGameAction(opts: DispatchGameActionOptions): Promise<Act
     return Promise.resolve(reply({ ok: true }));
   } catch (err) {
     // Only reachable if a check above (or RoomManager) throws. Nothing ran in the game.
-    const pub = toPublicError(err, INTERNAL_ERROR_MESSAGE, { roomCode: socket.data.roomCode });
+    const pub = toPublicError(err, INTERNAL_ERROR_MESSAGE, context());
     return Promise.resolve(reject(pub.code, pub.message));
   }
 }

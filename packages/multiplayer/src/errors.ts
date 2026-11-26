@@ -1,4 +1,5 @@
 import type { ActionErrorCode } from '@parlor/game-types';
+import { logServerError, type ErrorLogContext } from './observability.js';
 
 /** Codes a game may attach to a rule rejection. */
 export type GameRuleErrorCode = Extract<ActionErrorCode, 'NOT_YOUR_TURN' | 'RULE_VIOLATION' | 'INVALID_ACTION'>;
@@ -37,12 +38,6 @@ export interface PublicError {
   message: string;
 }
 
-/** Context included in the server log line for an unexpected error. */
-export interface ErrorLogContext {
-  roomCode?: string;
-  [key: string]: unknown;
-}
-
 /** The generic message sent to clients for any unexpected error. */
 export const INTERNAL_ERROR_MESSAGE = 'Something went wrong';
 
@@ -60,6 +55,6 @@ export function toPublicError(
   if (isGameRuleError(err)) {
     return { code: err.code, message: err.message };
   }
-  console.error('[parlor] unexpected error', context, err);
+  logServerError('unexpected_error', context, err);
   return { code: 'INTERNAL', message: fallbackMessage };
 }

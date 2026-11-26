@@ -281,18 +281,26 @@ describe('createParlorRuntime', () => {
     expect(adapter.playerState.set).not.toHaveBeenCalled();
   });
 
-  it('room-gone rejection clears the session and resets player', () => {
+  it('clears the session and stale lobby and game state when the room is gone', () => {
     storeSession();
     const adapter = makeAdapter({ restorePlayerOnReconnect: true });
     const runtime = createParlorRuntime(adapter);
     runtime.getSocket();
     const socket = latestSocket();
     socket.trigger('connect');
+    reconnectCb(socket)(true);
+    socket.trigger('lobby:state', [{ id: 'p1', name: 'Ann', connected: true }], false);
+    socket.trigger('lobby:gameStarting');
+    socket.trigger('game:state', { phase: 'playing' });
+    socket.trigger('disconnect');
+    socket.trigger('connect');
     reconnectCb(socket)(false);
 
-    expect(adapter.playerState.set).not.toHaveBeenCalled();
     expect(adapter.playerState.reset).toHaveBeenCalledTimes(1);
+    expect(adapter.lobbyState.reset).toHaveBeenCalledTimes(1);
+    expect(adapter.gameState.reset).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem(SESSION_KEY)).toBeNull();
+    expect(adapter.connectionState.setReconnectPending).toHaveBeenLastCalledWith(false);
   });
 
   it('ack timeout does NOT clear the session and retries on the next connect', () => {
@@ -309,6 +317,8 @@ describe('createParlorRuntime', () => {
       vi.advanceTimersByTime(5000);
 
       expect(adapter.playerState.reset).not.toHaveBeenCalled();
+      expect(adapter.lobbyState.reset).not.toHaveBeenCalled();
+      expect(adapter.gameState.reset).not.toHaveBeenCalled();
       expect(localStorage.getItem(SESSION_KEY)).toContain('ABCD');
       expect(adapter.connectionState.setReconnectPending).toHaveBeenLastCalledWith(false);
 

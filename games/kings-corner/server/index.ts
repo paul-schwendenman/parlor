@@ -1,8 +1,10 @@
 import express from 'express';
 import { createServer } from 'http';
-import { createSocketServer, registerHealthCheck, setupGracefulShutdown } from '@parlor/multiplayer';
+import { createSocketServer, registerHealthCheck, setupFatalProcessHandlers, setupGracefulShutdown } from '@parlor/multiplayer';
 import { handler } from '../build/handler.js';
 import { setupKingsCornerSocketHandlers } from '../src/lib/server/socket/socketServer.js';
+
+setupFatalProcessHandlers();
 
 const app = express();
 const server = createServer(app);

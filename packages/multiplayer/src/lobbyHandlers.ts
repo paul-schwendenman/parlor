@@ -11,6 +11,7 @@ import type { RoomManager, DisconnectResult, ExpiryOutcome } from './RoomManager
 import { safeAck } from './ack.js';
 import { foldPlayerName, validatePlayerName } from './playerNames.js';
 import { toPublicError } from './errors.js';
+import { logServerError, recordMetric } from './observability.js';
 import { allowSocketRequest, RATE_LIMIT_MESSAGE } from './rateLimit.js';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -21,13 +22,13 @@ export interface LobbyCallbacks {
   onGameReset?: (roomCode: string, io: AppServer) => void;
   /** Called on room deletion after scheduled game work has been invalidated. */
   onRoomDestroyed?: (roomCode: string, io: AppServer) => void;
-  onPlayerDisconnect?: (roomCode: string, playerId: string, io: AppServer) => void;
-  onPlayerReconnect?: (roomCode: string, playerId: string, io: AppServer) => void;
+  onPlayerDisconnect?: (roomCode: string, playerId: string, io: AppServer) => void | Promise<void>;
+  onPlayerReconnect?: (roomCode: string, playerId: string, io: AppServer) => void | Promise<void>;
   /**
    * Fired when an in-game player is really removed after the disconnect grace
    * window expires, so the game layer can forfeit / clean up in the engine.
    */
-  onPlayerRemoved?: (roomCode: string, playerId: string, io: AppServer) => void;
+  onPlayerRemoved?: (roomCode: string, playerId: string, io: AppServer) => void | Promise<void>;
 }
 
 export interface LobbyHandlerOptions {
@@ -39,6 +40,34 @@ export interface LobbyHandlerOptions {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function runPlayerCallback(
+  io: AppServer,
+  roomManager: RoomManager,
+  callbacks: LobbyCallbacks | undefined,
+  event: 'onPlayerRemoved' | 'onPlayerReconnect' | 'onPlayerDisconnect',
+  roomCode: string,
+  playerId: string,
+): void {
+  const callback = callbacks?.[event];
+  if (!callback) return;
+  const instance = roomManager.getGameInstance(roomCode);
+  const context = roomManager.getErrorContext(roomCode, playerId);
+  const fail = (error: unknown) => {
+    if (instance && !instance.isCurrent()) return;
+    logServerError('player_lifecycle_callback_failed', { ...context, callback: event }, error);
+    if (instance) {
+      recordMetric('caughtRoomFailures');
+      returnRoomToLobby(io, roomManager, roomCode, callbacks);
+    }
+  };
+  try {
+    const work = callback(roomCode, playerId, io);
+    if (work) void work.catch(fail);
+  } catch (error) {
+    fail(error);
+  }
 }
 
 /** Emit the real-removal signals when a disconnect grace timer expires. */
@@ -53,7 +82,7 @@ function emitExpiry(
 
   if (outcome.wasInGame && roomManager.isGameParticipant(outcome.roomCode, outcome.playerId)) {
     // Let the game layer forfeit / clean up the seat in the engine.
-    callbacks?.onPlayerRemoved?.(outcome.roomCode, outcome.playerId, io);
+    runPlayerCallback(io, roomManager, callbacks, 'onPlayerRemoved', outcome.roomCode, outcome.playerId);
   }
 
   if (!outcome.roomDestroyed) {
@@ -81,18 +110,20 @@ export function returnRoomToLobby(
   roomCode: string,
   callbacks?: LobbyCallbacks,
 ): boolean {
+  const context = roomManager.getErrorContext(roomCode);
   if (!roomManager.resetGame(roomCode)) return false;
   try {
     callbacks?.onGameReset?.(roomCode, io);
   } catch (err) {
-    console.error('[parlor] onGameReset failed', { roomCode }, err);
+    recordMetric('caughtRoomFailures');
+    logServerError('game_reset_callback_failed', context, err);
   }
   try {
     const players = roomManager.getPlayersInRoom(roomCode);
     io.to(roomCode).emit('lobby:returned', roomManager.getGameId(roomCode));
     io.to(roomCode).emit('lobby:state', players, roomManager.canStartGame(roomCode));
   } catch (err) {
-    console.error('[parlor] lobby:state broadcast failed', { roomCode }, err);
+    logServerError('lobby_return_broadcast_failed', context, err);
   }
   return true;
 }
@@ -104,6 +135,8 @@ export function setupLobbyHandlers(
   callbacks?: LobbyCallbacks,
   options?: LobbyHandlerOptions,
 ): void {
+  const context = () => roomManager.getErrorContext(socket.data.roomCode, socket.data.playerId);
+
   function syncSeat(
     previousSeat: DisconnectResult | null | undefined,
     roomCode = '',
@@ -167,7 +200,7 @@ export function setupLobbyHandlers(
       const players = roomManager.getPlayersInRoom(roomCode);
       io.to(roomCode).emit('lobby:state', players, false);
     } catch (err) {
-      const { message } = toPublicError(err, 'Failed to create room', { roomCode: socket.data.roomCode });
+      const { message } = toPublicError(err, 'Failed to create room', context());
       if (!acknowledged && typeof callback === 'function') callback(null, message);
     }
   });
@@ -225,7 +258,7 @@ export function setupLobbyHandlers(
       if (typeof callback === 'function') {
         callback({
           success: false,
-          error: toPublicError(err, 'Failed to join room', { roomCode: socket.data.roomCode }).message,
+          error: toPublicError(err, 'Failed to join room', context()).message,
         });
       }
     }
@@ -255,7 +288,7 @@ export function setupLobbyHandlers(
       notifySeatReleased(result.previousSeat);
     } catch (err) {
       if (typeof callback === 'function') {
-        callback(false, toPublicError(err, 'Failed to spectate', { roomCode: socket.data.roomCode }).message);
+        callback(false, toPublicError(err, 'Failed to spectate', context()).message);
       }
     }
   });
@@ -287,7 +320,7 @@ export function setupLobbyHandlers(
       io.to(roomCode).emit('lobby:state', players, roomManager.canStartGame(roomCode));
       ack(true);
     } catch (err) {
-      ack(false, toPublicError(err, 'Failed to set ready', { roomCode: socket.data.roomCode }).message);
+      ack(false, toPublicError(err, 'Failed to set ready', context()).message);
     }
   });
 
@@ -330,7 +363,7 @@ export function setupLobbyHandlers(
       io.to(roomCode).emit('lobby:state', updatedPlayers, roomManager.canStartGame(roomCode));
     } catch (err) {
       if (typeof callback === 'function') {
-        callback(false, toPublicError(err, 'Failed to add bot', { roomCode: socket.data.roomCode }).message);
+        callback(false, toPublicError(err, 'Failed to add bot', context()).message);
       }
     }
   });
@@ -368,7 +401,7 @@ export function setupLobbyHandlers(
       io.to(roomCode).emit('lobby:state', updatedPlayers, roomManager.canStartGame(roomCode));
     } catch (err) {
       if (typeof callback === 'function') {
-        callback(false, toPublicError(err, 'Failed to remove bot', { roomCode: socket.data.roomCode }).message);
+        callback(false, toPublicError(err, 'Failed to remove bot', context()).message);
       }
     }
   });
@@ -402,15 +435,17 @@ export function setupLobbyHandlers(
       try {
         callbacks?.onGameStart?.(roomCode, players, io);
       } catch (err) {
-        const message = toPublicError(err, 'Failed to start game', { roomCode }).message;
+        recordMetric('caughtRoomFailures');
+        const message = toPublicError(err, 'Failed to start game', context()).message;
         returnRoomToLobby(io, roomManager, roomCode, callbacks);
         ack(false, message);
         return;
       }
+      recordMetric('gamesStarted');
       io.to(roomCode).emit('lobby:gameStarting');
       ack(true);
     } catch (err) {
-      ack(false, toPublicError(err, 'Failed to start game', { roomCode: socket.data.roomCode }).message);
+      ack(false, toPublicError(err, 'Failed to start game', context()).message);
     }
   });
 
@@ -427,7 +462,7 @@ export function setupLobbyHandlers(
 
       returnRoomToLobby(io, roomManager, roomCode, callbacks);
     } catch (err) {
-      socket.emit('error', toPublicError(err, 'Failed to reset game', { roomCode: socket.data.roomCode }).message);
+      socket.emit('error', toPublicError(err, 'Failed to reset game', context()).message);
     }
   });
 
@@ -443,6 +478,7 @@ export function setupLobbyHandlers(
         socket.emit('error', 'Only the host can restart the game');
         return;
       }
+      let restartContext = context();
       try {
         const players = roomManager.restartGame(
           roomCode,
@@ -453,16 +489,19 @@ export function setupLobbyHandlers(
           socket.emit('error', 'Cannot restart the game yet');
           return;
         }
+        restartContext = context();
         callbacks?.onGameStart?.(roomCode, players, io);
       } catch (err) {
-        const message = toPublicError(err, 'Failed to restart game', { roomCode }).message;
+        recordMetric('caughtRoomFailures');
+        const message = toPublicError(err, 'Failed to restart game', restartContext).message;
         returnRoomToLobby(io, roomManager, roomCode, callbacks);
         socket.emit('error', message);
         return;
       }
+      recordMetric('gamesStarted');
       io.to(roomCode).emit('lobby:gameStarting');
     } catch (err) {
-      socket.emit('error', toPublicError(err, 'Failed to restart game', { roomCode: socket.data.roomCode }).message);
+      socket.emit('error', toPublicError(err, 'Failed to restart game', context()).message);
     }
   });
 
@@ -478,7 +517,7 @@ export function setupLobbyHandlers(
       syncSeat(result);
       notifySeatReleased(result);
     } catch (err) {
-      socket.emit('error', toPublicError(err, 'Failed to leave room', { roomCode: socket.data.roomCode }).message);
+      socket.emit('error', toPublicError(err, 'Failed to leave room', context()).message);
     }
   });
 
@@ -526,10 +565,10 @@ export function setupLobbyHandlers(
       } else if (room) {
         socket.emit('lobby:hostChanged', room.hostId);
       }
-      callbacks?.onPlayerReconnect?.(normalizedCode, playerId, io);
+      runPlayerCallback(io, roomManager, callbacks, 'onPlayerReconnect', normalizedCode, playerId);
     } catch (err) {
       if (!acknowledged) ack(false);
-      console.error('[parlor] reconnect failed', { roomCode }, err);
+      logServerError('reconnect_failed', context(), err);
     }
   });
 
@@ -537,8 +576,12 @@ export function setupLobbyHandlers(
     try {
       const result = roomManager.handleDisconnect(socket.id, (outcome) => {
         // Fired later, when the grace timer expires and the player is really removed.
-        if (outcome.roomDestroyed) io.in(outcome.roomCode).socketsLeave(outcome.roomCode);
-        emitExpiry(io, roomManager, outcome, callbacks);
+        try {
+          if (outcome.roomDestroyed) io.in(outcome.roomCode).socketsLeave(outcome.roomCode);
+          emitExpiry(io, roomManager, outcome, callbacks);
+        } catch (error) {
+          logServerError('grace_expiry_broadcast_failed', roomManager.getErrorContext(outcome.roomCode, outcome.playerId), error);
+        }
       });
       if (!result) return;
 
@@ -558,10 +601,10 @@ export function setupLobbyHandlers(
 
       if (result.wasInGame && roomManager.isGameParticipant(result.roomCode, result.playerId)) {
         // Tell the engine the seat went dark (view greys the player); removal waits for expiry.
-        callbacks?.onPlayerDisconnect?.(result.roomCode, result.playerId, io);
+        runPlayerCallback(io, roomManager, callbacks, 'onPlayerDisconnect', result.roomCode, result.playerId);
       }
-    } catch {
-      // never let a disconnect handler throw
+    } catch (error) {
+      logServerError('disconnect_failed', context(), error);
     }
   });
 }
