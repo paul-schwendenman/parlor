@@ -32,36 +32,36 @@ Most findings were confirmed with throwaway scripts that drove the real `RoomMan
 
 | ID | Finding | Sources | Bucket | Triage |
 |---|---|---|---|---|
-| F-03 | No process safety net.<br>• socket.io runs listeners in `nextTick` with no try/catch, and nothing installs `uncaughtException` / `unhandledRejection` handlers.<br>• Timer and bot callbacks run engine code unwrapped.<br>• The `game:action` router has no boundary, which is harmless today only because each game catches its own errors.<br>Any future throw anywhere takes down every room. | B-02, B-05, B-06 | 3.4, 3.2 | |
-| F-04 | Client-supplied objects are stored in engine state.<br>• Card objects are pushed onto piles as sent, extra fields included.<br>• Booty Dice target ids aren't checked.<br>• A ~20 KB nested payload makes every later `game:state` emit fail with a stack overflow, so the room freezes and reconnects fail. | B-03, A-05, A-10 | 3.1 | |
-| F-05 | Game actions are unvalidated casts in every game, and some rules can be bypassed by type confusion:<br>• Quixx: a string or array `cellIndex` skips the lock and 5-marks rule.<br>• Liar's Dice: accepts non-integer and unbounded bids.<br>• Actions are untyped from client to server. | A-07, A-08, A-09, E-15 | 3.1 | |
+| F-03 | No process safety net.<br>• socket.io runs listeners in `nextTick` with no try/catch, and nothing installs `uncaughtException` / `unhandledRejection` handlers.<br>• Timer and bot callbacks run engine code unwrapped.<br>• The `game:action` router has no boundary, which is harmless today only because each game catches its own errors.<br>Any future throw anywhere takes down every room. | B-02, B-05, B-06 | 3.1a, 3.2, 3.4 | |
+| F-04 | Client-supplied objects are stored in engine state.<br>• Card objects are pushed onto piles as sent, extra fields included.<br>• Booty Dice target ids aren't checked.<br>• A ~20 KB nested payload makes every later `game:state` emit fail with a stack overflow, so the room freezes and reconnects fail. | B-03, A-05, A-10 | 3.1a, 3.1b | |
+| F-05 | Game actions are unvalidated casts in every game, and some rules can be bypassed by type confusion:<br>• Quixx: a string or array `cellIndex` skips the lock and 5-marks rule.<br>• Liar's Dice: accepts non-integer and unbounded bids.<br>• Actions are untyped from client to server. | A-07, A-08, A-09, E-15 | 3.1b | |
 | F-06 | Booty Dice: `endTurn` doesn't check that you rolled, so it scores whatever dice are on the table (a free 6 doubloons on the first turn). The first player can win in 2 turns. | A-06 | 3.9 | |
 | F-07 | Timers and bot loops outlive reset, restart and game switches.<br>• They hold the old engine and keep broadcasting its stale `game:state`, which pulls the lobby back into the dead game.<br>• Quixx: an old untracked timer cancels the new engine's bot timer, so the restarted game is stuck.<br>• AI 30s timeouts are never cleared, and a timeout doesn't cancel the loop, so turns overlap. | C-01, C-02, C-13, B-07 | 3.2 | |
-| F-08 | Removed or disconnected seats are never skipped, so a game stalls permanently when the turn reaches them.<br>• No game implements `onPlayerRemoved`, and `room:leave` doesn't call it.<br>• Kings Corner indexes the room's player list with the engine's turn index, so bots stop after any mid-game removal. | C-04, C-05, E-10 | 3.9 (+ contract in 3.1) | |
+| F-08 | Removed or disconnected seats are never skipped, so a game stalls permanently when the turn reaches them.<br>• No game implements `onPlayerRemoved`, and `room:leave` doesn't call it.<br>• Kings Corner indexes the room's player list with the engine's turn index, so bots stop after any mid-game removal. | C-04, C-05, E-10 | 3.9 (+ contract in 3.1b) | |
 | F-09 | Quixx with auto-roll: nobody rolls when a bot follows a bot. Host plus 2 bots stalls in round 1 in ordinary play. | C-03, B-04 | 3.9 | |
 | F-10 | A superseded socket's late `disconnect` evicts a player who already reconnected, 60s later, and can move the host (for example, on a mobile network switch).<br>• One seat can have several live sockets; a second socket with the host's token received the host's private dice.<br>• Tokens never rotate. | C-07, E-04, D-04 | 3.7 | |
 | F-11 | Starting a game has no server-side guards.<br>• No status check, so a double-click creates two live engines.<br>• It can start with no game selected; the room gets stuck in `playing`.<br>• `minPlayers` and `supportsBots` are checked only in the browser.<br>• Adding and removing bots isn't gated by status.<br>• `selectGame` lowers `maxPlayers` below the current occupancy. | C-06, C-11, A-13, A-14, E-07, E-08 | 3.8 | |
 | F-12 | The client treats any mid-game `lobby:state` as "game reset", so one player's disconnect or reconnect kicks everyone out of the game. (Read from code; not reproduced in a browser.) | C-08 | 3.8 | |
 | F-13 | No resource limits.<br>• Names can be about 1 MB with no charset rules, and are re-broadcast and copied into game logs.<br>• Game logs are unbounded and re-sent in full on every view.<br>• The message cap is the 1 MB default.<br>• No rate limit.<br>• No per-IP or total connection caps. | A-04, A-11, E-03, E-05, E-09, D-10 | 3.3 | |
 | F-14 | Room codes can be enumerated: 4 characters, no rate limit. One websocket checked 20k codes in about 300 ms, so the whole space takes about 15 s. `lobby:spectate` then lets anyone silently watch, or join any lobby between games. There's no host kick. | D-01, A-11 | 3.3 | |
-| F-15 | Spectators and non-active players can trigger turn and phase transitions. For example, anyone can send Liar's Dice `nextRound` to cut the reveal short. The router accepts actions from spectator sockets. | A-12, D-02 | 3.1 | |
+| F-15 | Spectators and non-active players can trigger turn and phase transitions. For example, anyone can send Liar's Dice `nextRound` to cut the reveal short. The router accepts actions from spectator sockets. | A-12, D-02 | 3.1a | |
 
 ### Medium
 
 | ID | Finding | Sources | Bucket | Triage |
 |---|---|---|---|---|
 | F-16 | Room destruction never reaches the game layer. `cleanupRoomTimers` is never called on delete. There's no room lifetime or idle TTL, and ghost games continue after destruction. | C-09, E-12 | 3.2 | |
-| F-17 | Partial state on throw. Start and restart leave the room half-updated if a game callback throws; engines mutate before validating, and multi-step mutations aren't atomic. | B-08, B-09 | 3.1 | |
+| F-17 | Partial state on throw. Start and restart leave the room half-updated if a game callback throws; engines mutate before validating, and multi-step mutations aren't atomic. | B-08, B-09 | 3.1a | |
 | F-18 | `lobby:restartGame` seats players who are in their grace window, and the new engine thinks they're connected. | C-10 | 3.7 | |
 | F-19 | Room codes, shuffles and dice all use the process-wide `Math.random`, which isn't cryptographically secure. In theory its state could be reconstructed from visible rolls. (Exploit not attempted.) | D-03 | 3.10 | |
-| F-20 | Per-game plumbing is duplicated about 5×: `broadcastViews`, timer maps, bot loops, action switch/catch, standalone scaffolding. The copies have already diverged into latent bugs, and the standalone room cap differs. | E-11, E-14 | 3.1, 3.2 | |
+| F-20 | Per-game plumbing is duplicated about 5×: `broadcastViews`, timer maps, bot loops, action switch/catch, standalone scaffolding. The copies have already diverged into latent bugs, and the standalone room cap differs. | E-11, E-14 | 3.1b, 3.2 | |
 | F-21 | Essentially no observability: `/healthz` reports only uptime, the core does no logging, and there are no room or socket counts. | E-16 | 3.4 | |
 
 ### Low
 
 | ID | Finding | Sources | Bucket | Triage |
 |---|---|---|---|---|
-| F-22 | Raw exception messages (`err.message`) are returned to clients. | B-11, D-07 | 3.4 | |
+| F-22 | Raw exception messages (`err.message`) are returned to clients. | B-11, D-07 | 3.1a | |
 | F-23 | CORS is `'*'` in production because k8s never sets `CORS_ORIGIN`, and WebSocket connections are never origin-checked. | D-06 | 3.10 | |
 | F-24 | The container runs as root and ships the source plus the tsx runtime; the k8s pod has no `securityContext`. | D-08 | 3.10 | |
 | F-25 | Workflows lack top-level `permissions`, and actions aren't SHA-pinned. | D-09 | 3.10 | |
@@ -73,41 +73,29 @@ Most findings were confirmed with throwaway scripts that drove the real `RoomMan
 | F-31 | Dead and latent timer code; the 45 floating promises are browser-side or can't reject today (hygiene). | C-16, B-10 | 3.2 | |
 | F-32 | Unused protocol surface.<br>• Never used: `room:*`, `chat:*`, `game:start`, `Room`, `RoomStatus`, `ChatMessage`.<br>• `BaseGameState` only exists to force `as never` casts.<br>• `room:leave` and `lobby:spectate` are handled on the server, but no UI sends them.<br>• `lobby:playerJoined` / `lobby:playerLeft` are sent but never listened to.<br>• `createGameServer` is exported but unused.<br>Cast inventory: 5 `as unknown as`, 35 `as never`, 5 `as any`, plus the unchecked `getGameData<T>`. | E tables, E-15 | 3.5 | |
 
-## Proposed fix buckets
+## Fix buckets
 
-These revise the Phase 3 list in the plan; confirm during triage.
+These are now maintained in `docs/CORE-HARDENING-PLAN.md`, Phase 3 (revised 2026-11-25 after an external review of the plan).
 
-| Bucket | Scope | Findings |
-|---|---|---|
-| **3.0 Hotfix** | `typeof callback === 'function'` guard on every ack, ahead of everything else | F-01 |
-| **3.1 Typed game contract** | `ServerGameDefinition<State, Action, View>` with action schemas. The core:<br>• validates actions<br>• rejects spectator and out-of-turn actions<br>• wraps handlers<br>• strips client objects to canonical engine values<br>• validates before mutating<br>Also: an `onPlayerRemoved` contract. | F-04, F-05, F-15, F-17, F-20 |
-| **3.2 Room-scoped scheduler** | `roomManager.schedule()` with a generation counter bumped on reset, restart and delete. It also provides wrapped callbacks, an `onRoomDestroyed` hook and AI timeout cancellation. | F-03 (timers), F-07, F-16, F-31 |
-| **3.3 Limits** | Name rules, message size, token-bucket rate limit, room, connection and bot caps, log caps, longer room codes or join throttling | F-13, F-14, F-26 |
-| **3.4 Safety net & observability** | Process handlers, structured logs, metrics, sanitized client errors | F-03, F-21, F-22 |
-| **3.5 Type cleanup** | Remove unused events, generic `game:state`, remove casts | F-32 |
-| **3.6 Leak fixes** | No view leaks found; dropped (F-30 is moved to 3.9) | — |
-| **3.7 Seat & session lifecycle** *(new)* | One seat per socket:<br>• release the previous seat on create, join, spectate or reconnect<br>• supersede old sockets and ignore their late disconnects<br>• rotate tokens<br>• fix spectator ghosts<br>• handle grace during restart<br>• host transfer while the host is in grace | F-02, F-10, F-18, F-28, F-29 |
-| **3.8 Lobby lifecycle guards** *(new)* | Server-side start preconditions and status guards, `maxPlayers` enforcement on game switch, an explicit `game:reset` event (fixes the client kick), setting `finished` | F-11, F-12, F-27 |
-| **3.9 Per-game rule fixes** *(new)* | Booty Dice must-roll; skip absent seats; the Kings Corner index bug; Quixx auto-roll; trim what the Liar's Dice bot sees | F-06, F-08, F-09, F-30 |
-| **3.10 Infra & randomness** *(new)* | `crypto.randomInt`, a CORS allowlist plus `allowRequest` origin check, a non-root image with `securityContext`, workflow permissions and SHA pins | F-19, F-23, F-24, F-25 |
+The main changes from the first draft of this section:
+- **Safety net:** expected failures are caught at the boundaries. Anything uncaught is logged and the process **exits** under the supervisor, rather than continuing.
+- **3.1 is split:** **3.1a**, the core action boundary (ships early), and **3.1b**, the typed contract with a `{ gameId, view }` wire envelope, piloted on one game first.
+- **3.2 covers running work:** it uses a **game-instance lifetime**, so async work already in progress is invalidated too, not just pending timers. Reconnect timers keep their own room/player lifetime.
+- **3.6 is dropped:** no view leaks were found.
 
-**Suggested order:**
+**Order:**
 1. 3.0
-2. 3.7 + 3.8 (core seat and lobby correctness)
-3. 3.2
-4. 3.1
+2. 3.1a
+3. 3.7 + 3.8
+4. 3.2
 5. 3.3
-6. 3.9
-7. 3.4
-8. 3.5
-9. 3.10
+6. 3.4
+7. 3.1b
+8. 3.9
+9. 3.5
+10. 3.10
 
-The reasoning:
-- 3.0 is a one-line fix for a process crash.
-- 3.7, 3.8 and 3.2 remove most of the "room gets stuck in normal play" bugs.
-- 3.1 then gives the games the contract that 3.9 builds on.
-
-The repro scripts written during the audit are a ready-made start on the Phase 4 tests.
+The scripts used to reproduce these findings are in `docs/audit-repros/` (see its README). Each fix PR turns the relevant one into a regression test.
 
 ---
 

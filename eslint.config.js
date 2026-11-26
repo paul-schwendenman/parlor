@@ -20,6 +20,8 @@ export default tseslint.config(
 			'**/.svelte-kit/**',
 			'**/test-results/**',
 			'**/playwright-report/**',
+			// Throwaway audit repro scripts (see docs/audit-repros/README.md).
+			'docs/audit-repros/**',
 			'**/*.config.js',
 			'**/*.config.ts',
 		],
