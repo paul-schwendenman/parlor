@@ -20,11 +20,9 @@ export class AIPlayer {
   async takeTurn(state: GameState, callbacks: AICallbacks): Promise<void> {
     const player = state.players[state.currentPlayerIndex];
     let rollsRemaining = state.rollsRemaining;
-    let currentDice = state.dice;
-
     // First roll is mandatory - dice start as placeholders
     await this.delay(this.thinkDelay);
-    currentDice = await callbacks.onRoll();
+    let currentDice = await callbacks.onRoll();
     rollsRemaining--;
 
     // Subsequent rolls are optional

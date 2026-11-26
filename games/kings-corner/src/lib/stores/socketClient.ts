@@ -13,7 +13,7 @@ const runtime = createParlorRuntime({
   lobbyState,
   gameState,
   playerState,
-  onView: (state) => gameState.setView(state as unknown as KingsCornerPlayerView),
+  onView: (state) => gameState.setView(state as KingsCornerPlayerView),
 });
 
 export function getSocket(): GameSocket {

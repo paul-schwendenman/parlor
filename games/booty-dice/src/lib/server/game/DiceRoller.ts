@@ -6,7 +6,7 @@ export class DiceRoller {
   createFreshDice(): Die[] {
     return Array.from({ length: 6 }, (_, i) => ({
       id: i,
-      face: 'doubloon' as DiceFace,
+      face: 'doubloon',
       locked: false,
       rolling: false,
     }));

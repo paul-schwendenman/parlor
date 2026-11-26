@@ -41,7 +41,7 @@ export class CrazyEightsEngine {
     const numPlayers = playerInfos.length;
     const cardsPerPlayer = numPlayers >= 5 ? 5 : 7;
 
-    let deck = shuffle(createDeck());
+    const deck = shuffle(createDeck());
 
     this.players = playerInfos.map((p) => ({
       id: p.id,

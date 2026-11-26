@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  # Pushes to main/tags run CI via docker-publish.yml (workflow_call), gating the image build.
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: Check, lint & unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm turbo check test --continue
+
+      # Runs after check so .svelte-kit/tsconfig.json exists for type-aware linting.
+      - run: pnpm lint
+
+  e2e:
+    name: Playwright e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build workspace dependencies
+        run: pnpm turbo build --filter=@parlor/app^...
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @parlor/app exec playwright install --with-deps chromium
+
+      - name: Run e2e tests
+        run: pnpm --filter @parlor/app test:e2e
+        env:
+          CI: true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/parlor/test-results/
+          retention-days: 7

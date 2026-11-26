@@ -41,7 +41,7 @@
 
   let winnerName = $derived.by(() => {
     if (!view?.winner) return '';
-    return view.players.find((p) => p.id === view!.winner)?.name ?? 'Unknown';
+    return view.players.find((p) => p.id === view.winner)?.name ?? 'Unknown';
   });
 
   function placeBid() {

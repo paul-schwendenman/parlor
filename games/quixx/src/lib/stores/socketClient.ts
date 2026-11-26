@@ -13,7 +13,7 @@ const runtime = createParlorRuntime({
   lobbyState,
   gameState,
   playerState,
-  onView: (state) => gameState.setView(state as unknown as QuixxPlayerView),
+  onView: (state) => gameState.setView(state as QuixxPlayerView),
 });
 
 export function getSocket(): GameSocket {

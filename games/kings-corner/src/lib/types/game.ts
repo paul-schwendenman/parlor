@@ -24,6 +24,7 @@ export type KingsCornerPhase = 'drawing' | 'playing' | 'game-over';
 export type KingsCornerAction =
   | { type: 'play-card'; card: Card; target: PilePosition }
   | { type: 'move-pile'; from: PilePosition; to: PilePosition }
+  | { type: 'draw-card' }
   | { type: 'end-turn' };
 
 export interface KingsCornerPlayerInfo {

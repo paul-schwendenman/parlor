@@ -32,7 +32,7 @@
   let canDraw = $derived(view.isActivePlayer && view.phase === 'drawing' && view.drawPileCount > 0);
 
   function handleDraw() {
-    socket.emit('game:action', { type: 'draw-card' } as never);
+    socket.emit('game:action', { type: 'draw-card' });
     gameState.clearSelection();
   }
 
@@ -52,7 +52,7 @@
         type: 'play-card',
         card: gameState.selectedCard,
         target: position,
-      } as never);
+      });
       gameState.clearSelection();
       return;
     }
@@ -63,7 +63,7 @@
         type: 'move-pile',
         from: gameState.selectedPile,
         to: position,
-      } as never);
+      });
       gameState.clearSelection();
       return;
     }
@@ -83,7 +83,7 @@
   }
 
   function handleEndTurn() {
-    socket.emit('game:action', { type: 'end-turn' } as never);
+    socket.emit('game:action', { type: 'end-turn' });
     gameState.clearSelection();
   }
 </script>

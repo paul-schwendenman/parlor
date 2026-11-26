@@ -13,7 +13,7 @@ const runtime = createParlorRuntime({
   lobbyState,
   gameState,
   playerState,
-  onView: (state) => gameState.setView(state as unknown as CrazyEightsPlayerView),
+  onView: (state) => gameState.setView(state as CrazyEightsPlayerView),
 });
 
 export function getSocket(): GameSocket {

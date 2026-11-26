@@ -14,7 +14,7 @@ const runtime = createParlorRuntime({
   gameState,
   playerState,
   restorePlayerOnReconnect: true,
-  onView: (state) => gameState.setView(state as unknown as BootyDicePlayerView),
+  onView: (state) => gameState.setView(state as BootyDicePlayerView),
 });
 
 export function getSocket(): GameSocket {

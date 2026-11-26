@@ -31,13 +31,32 @@ Started: 2026-11-25. Follow-on to `WEBSOCKET-FIX-PLAN.md` (reconnect work, merge
 
 ## Phase 0: Make the gate trustworthy
 
-- [ ] **0.1** Fix the kings-corner `'draw-card'` action type error so `turbo check` passes
-- [ ] **0.2** Add a CI workflow that runs `check`, `test` and the Playwright e2e tests on PRs and pushes; make the Docker publish depend on it
-- [ ] **0.3** Add ESLint (TS + Svelte plugin) and a `lint` task in every workspace. Rules should at least flag:
+- [x] **0.1** Fix the kings-corner `'draw-card'` action type error so `turbo check` passes. Added `{ type: 'draw-card' }` to `KingsCornerAction`; the UI, handler and engine already supported it.
+- [x] **0.2** Add a CI workflow that runs `check`, `test` and the Playwright e2e tests on PRs and pushes; make the Docker publish depend on it
+- [x] **0.3** Add ESLint (TS + Svelte plugin) and a `lint` task in every workspace. Rules should at least flag:
   - `as unknown as` casts
   - floating or unhandled promises
   - `any`
-- [ ] **0.4** Add `lint` to the CI gate (start as warnings if the backlog is large, then tighten)
+- [x] **0.4** Add `lint` to the CI gate (start as warnings if the backlog is large, then tighten)
+
+**Phase 0 notes**
+- **CI:**
+  - `.github/workflows/ci.yml` runs on PRs and can be called by other workflows (`workflow_call`).
+  - `docker-publish.yml` calls it as a required `ci` job, so pushes to main and tags run CI once and only publish if it passes.
+- **Lint:**
+  - One flat config at the root (`eslint.config.js`), run with `pnpm lint` (`eslint .`) rather than per-workspace Turbo tasks.
+  - It runs after `check` because type-aware linting of Svelte files needs `.svelte-kit/tsconfig.json`.
+  - Server entry points, e2e specs and multiplayer tests aren't in any tsconfig, so they're linted without type info.
+- **Autofix:** `--fix` removed unnecessary `as never` / `as unknown as` / `!` casts and changed some `let`s to `const`.
+- **Hand fixes (booty-dice):** a useless try/catch in `definition.ts` and a redundant assignment in `AIPlayer.ts`.
+- **Turbo:** `turbo.json` build outputs now include `build/**`, so SvelteKit app builds are cached.
+- **Lint backlog at the end of Phase 0:** 0 errors, 162 warnings.
+  - 45 `no-floating-promises`: feeds audit area B
+  - 45 `svelte/no-navigation-without-resolve`
+  - 23 `svelte/require-each-key`
+  - 10 `as unknown as`: feeds audit areas A/E
+  - the rest are unused vars and Svelte style rules
+- **Tightening:** move the hardening rules to `error` as Phase 3 removes the warnings.
 
 ## Phase 1: Audit (read-only, findings only)
 
@@ -130,3 +149,4 @@ Run five parallel reviews. Each writes findings into `docs/CORE-AUDIT.md`, and e
 | Date | Item | Notes / commit |
 |---|---|---|
 | 2026-11-25 | Plan written | — |
+| 2026-11-25 | Phase 0 complete (0.1–0.4) | branch `paul-schwendenman/core-hardening-phase-0`, uncommitted |

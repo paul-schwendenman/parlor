@@ -532,7 +532,6 @@ describe('GameEngine', () => {
 			engine.finishRolling();
 			engine.resolveTurn();
 
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			(engine as any).state.players.forEach((p: { isEliminated: boolean }) => {
 				p.isEliminated = true;
 			});

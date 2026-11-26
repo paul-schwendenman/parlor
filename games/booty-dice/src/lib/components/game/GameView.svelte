@@ -56,12 +56,12 @@
 
   let winnerName = $derived.by(() => {
     if (!view || !view.winnerId) return '';
-    return view.players.find((p) => p.id === view!.winnerId)?.name ?? 'Unknown';
+    return view.players.find((p) => p.id === view.winnerId)?.name ?? 'Unknown';
   });
 
   let winReason = $derived.by(() => {
     if (!view || !view.winnerId) return '';
-    const winner = view.players.find((p) => p.id === view!.winnerId);
+    const winner = view.players.find((p) => p.id === view.winnerId);
     return winner && winner.doubloons >= 25
       ? 'riches'
       : 'being the last pirate standing';

@@ -41,7 +41,7 @@ export class KingsCornerEngine {
     this.roomCode = roomCode;
     this.config = config;
 
-    let deck = shuffle(createDeck());
+    const deck = shuffle(createDeck());
 
     this.players = playerInfos.map((p) => ({
       id: p.id,

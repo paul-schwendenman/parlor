@@ -109,15 +109,11 @@ async function handleAITurn(
           engine.lockDice(indices);
           broadcastViews(io, roomCode, engine, roomManager);
         },
-        onRoll: async () => {
-          if (engine.getState().phase === 'ended') return state.dice;
-          try {
-            const result = engine.roll();
-            broadcastViews(io, roomCode, engine, roomManager);
-            return result.dice;
-          } catch (err) {
-            throw err;
-          }
+        onRoll: () => {
+          if (engine.getState().phase === 'ended') return Promise.resolve(state.dice);
+          const result = engine.roll();
+          broadcastViews(io, roomCode, engine, roomManager);
+          return Promise.resolve(result.dice);
         },
         onFinishRolling: () => {
           if (engine.getState().phase === 'ended') return;
