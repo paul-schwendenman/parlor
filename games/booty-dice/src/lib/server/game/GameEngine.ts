@@ -1,3 +1,4 @@
+import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
 import { appendGameLog, GameRuleError } from '@parlor/multiplayer';
 import type {
   GameState,
@@ -12,7 +13,6 @@ import type {
 } from '../../types/game.js';
 import { DiceRoller } from './DiceRoller.js';
 import { ActionResolver } from './ActionResolver.js';
-import { fisherYatesShuffle } from './shuffle.js';
 
 export class GameEngine {
   private state: GameState;
@@ -20,12 +20,16 @@ export class GameEngine {
   private actionResolver: ActionResolver;
   private lastBroadcastLogIndex = 0;
 
-  constructor(players: BootyDicePlayer[], roomCode: string) {
-    this.diceRoller = new DiceRoller();
+  constructor(
+    players: BootyDicePlayer[],
+    roomCode: string,
+    randomInt: RandomInt = secureRandomInt,
+  ) {
+    this.diceRoller = new DiceRoller(randomInt);
     this.actionResolver = new ActionResolver();
 
     // Shuffle player order
-    const shuffledPlayers = fisherYatesShuffle(players);
+    const shuffledPlayers = fisherYatesShuffle(players, randomInt);
 
     this.state = {
       roomCode,

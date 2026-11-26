@@ -11,6 +11,11 @@ import { quixxDefinition, quixxGame } from './definition.js';
 import type { QuixxAction } from '../types/game.js';
 import { QuixxEngine } from './game/QuixxEngine.js';
 
+vi.mock(import('@parlor/multiplayer/random'), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, secureRandomInt: (max: number) => Math.floor(Math.random() * max) };
+});
+
 const io = createFakeIo();
 
 beforeEach(() => vi.useFakeTimers());

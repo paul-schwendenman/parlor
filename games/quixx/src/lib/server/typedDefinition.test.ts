@@ -10,6 +10,11 @@ import { quixxDefinition, quixxGame } from './definition.js';
 import { QuixxEngine } from './game/QuixxEngine.js';
 import type { LobbyHarness } from '@parlor/multiplayer/testing';
 
+vi.mock(import('@parlor/multiplayer/random'), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, secureRandomInt: (max: number) => Math.floor(Math.random() * max) };
+});
+
 beforeEach(() => {
   vi.useFakeTimers();
   // Bot delays are 700–1200 ms; pin them to the slow end.

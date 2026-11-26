@@ -1,3 +1,4 @@
+import { secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
 import type {
   QuixxGameState,
   QuixxPlayer,
@@ -62,6 +63,7 @@ export class QuixxEngine {
     playerInfos: { id: string; name: string; isBot: boolean }[],
     roomCode: string,
     config: QuixxConfig = DEFAULT_CONFIG,
+    private readonly randomInt: RandomInt = secureRandomInt,
   ) {
     this.roomCode = roomCode;
     this.config = config;
@@ -174,7 +176,7 @@ export class QuixxEngine {
       throw new GameRuleError('Cannot roll dice outside of rolling phase');
     }
 
-    this.dice = rollAllDice(this.removedDice);
+    this.dice = rollAllDice(this.removedDice, this.randomInt);
     this.phase = 'phase1';
     this.activePlayerPhase1Passed = false;
 

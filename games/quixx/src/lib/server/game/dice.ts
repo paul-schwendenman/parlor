@@ -1,10 +1,8 @@
+import { secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
 import type { DiceState, RowColor } from '../../types/game.js';
 
-function rollDie(): number {
-  return Math.floor(Math.random() * 6) + 1;
-}
-
-export function rollAllDice(removedDice: RowColor[]): DiceState {
+export function rollAllDice(removedDice: RowColor[], randomInt: RandomInt = secureRandomInt): DiceState {
+  const rollDie = () => randomInt(6) + 1;
   return {
     white1: rollDie(),
     white2: rollDie(),

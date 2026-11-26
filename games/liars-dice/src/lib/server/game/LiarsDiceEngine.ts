@@ -1,3 +1,4 @@
+import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
 import { appendGameLog, GameRuleError } from '@parlor/multiplayer';
 import type { LiarsDiceBotView } from '../ai/AIStrategy.js';
 import type {
@@ -14,9 +15,13 @@ export class LiarsDiceEngine {
   private state: LiarsDiceGameState;
   private lastBroadcastLogIndex = 0;
 
-  constructor(players: LiarsDicePlayer[], roomCode: string) {
+  constructor(
+    players: LiarsDicePlayer[],
+    roomCode: string,
+    private readonly randomInt: RandomInt = secureRandomInt,
+  ) {
     // Shuffle player order
-    const shuffled = this.shuffle(players);
+    const shuffled = fisherYatesShuffle(players, this.randomInt);
 
     this.state = {
       roomCode,
@@ -483,7 +488,7 @@ export class LiarsDiceEngine {
       if (player.eliminated) continue;
       player.dice = [];
       for (let i = 0; i < player.diceCount; i++) {
-        player.dice.push(Math.floor(Math.random() * 6) + 1);
+        player.dice.push(this.randomInt(6) + 1);
       }
     }
   }
@@ -530,14 +535,5 @@ export class LiarsDiceEngine {
       message,
       type,
     });
-  }
-
-  private shuffle<T>(arr: T[]): T[] {
-    const shuffled = [...arr];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
   }
 }

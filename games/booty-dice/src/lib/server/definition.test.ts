@@ -4,6 +4,11 @@ import { createActionSocket, createFakeIo } from '@parlor/multiplayer/testing';
 import { bootyDiceDefinition } from './definition.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 
+vi.mock(import('@parlor/multiplayer/random'), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, secureRandomInt: (max: number) => Math.floor(Math.random() * max) };
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();

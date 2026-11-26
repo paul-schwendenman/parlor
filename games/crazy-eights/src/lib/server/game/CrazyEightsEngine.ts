@@ -1,3 +1,4 @@
+import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
 import { GameRuleError } from '@parlor/multiplayer';
 import type {
   Card,
@@ -8,7 +9,7 @@ import type {
   CrazyEightsConfig,
 } from '../../types/game.js';
 import { DEFAULT_CONFIG, SUITS } from '../../types/game.js';
-import { createDeck, shuffle } from '../../game/deck.js';
+import { createDeck } from '../../game/deck.js';
 import { canPlayCard, getPlayableCards, cardEquals } from '../../game/validation.js';
 
 interface Player {
@@ -37,6 +38,7 @@ export class CrazyEightsEngine {
     playerInfos: { id: string; name: string }[],
     roomCode: string,
     config: CrazyEightsConfig = DEFAULT_CONFIG,
+    private readonly randomInt: RandomInt = secureRandomInt,
   ) {
     this.roomCode = roomCode;
     this.config = config;
@@ -44,7 +46,7 @@ export class CrazyEightsEngine {
     const numPlayers = playerInfos.length;
     const cardsPerPlayer = numPlayers >= 5 ? 5 : 7;
 
-    const deck = shuffle(createDeck());
+    const deck = fisherYatesShuffle(createDeck(), randomInt);
 
     this.players = playerInfos.map((p) => ({
       id: p.id,
@@ -348,7 +350,7 @@ export class CrazyEightsEngine {
     if (this.phase === 'game-over' || this.getActivePlayer().id !== playerId) return;
 
     if (this.phase === 'choosing-suit') {
-      const randomSuit = SUITS[Math.floor(Math.random() * SUITS.length)];
+      const randomSuit = SUITS[this.randomInt(SUITS.length)];
       this.chooseSuit(playerId, randomSuit);
     } else if (this.phase === 'playing') {
       this.advanceTurn();
@@ -395,7 +397,7 @@ export class CrazyEightsEngine {
     const topCard = this.discardPile.pop()!;
     const toReshuffle = this.discardPile.splice(0);
     this.discardPile = [topCard];
-    this.drawPile = shuffle(toReshuffle);
+    this.drawPile = fisherYatesShuffle(toReshuffle, this.randomInt);
   }
 
   private checkStalemate(): void {

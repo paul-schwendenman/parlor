@@ -16,6 +16,11 @@ import type { CrazyEightsEngine } from './game/CrazyEightsEngine.js';
 import { crazyEightsDefinition, crazyEightsGame } from './definition.js';
 import type { CrazyEightsPlayerView } from '../types/game.js';
 
+vi.mock(import('@parlor/multiplayer/random'), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, secureRandomInt: (max: number) => Math.floor(Math.random() * max) };
+});
+
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -140,8 +145,9 @@ async function playTurn(h: LobbyHarness<CrazyEightsEngine>): Promise<string> {
   const engine = h.getState()!;
   const id = engine.getActivePlayerId();
   const socket = h.humans.find((s) => s.data.playerId === id)!;
-  expect(await h.send(socket, nextMove(engine.getPlayerView(id)))).toEqual({ ok: true });
-  if (!engine.isGameOver() && engine.getActivePlayerId() === id) {
+  for (let moves = 0; !engine.isGameOver() && engine.getActivePlayerId() === id; moves++) {
+    // A draw can be followed by playing an eight and choosing its suit.
+    expect(moves).toBeLessThan(3);
     expect(await h.send(socket, nextMove(engine.getPlayerView(id)))).toEqual({ ok: true });
   }
   return id;

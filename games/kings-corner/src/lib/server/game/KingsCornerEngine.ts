@@ -1,3 +1,4 @@
+import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
 import { GameRuleError } from '@parlor/multiplayer';
 import type {
   Card,
@@ -14,7 +15,7 @@ import {
   CORNER_POSITIONS,
   ALL_POSITIONS,
 } from '../../types/game.js';
-import { createDeck, shuffle } from '../../game/deck.js';
+import { createDeck } from '../../game/deck.js';
 import { cardEquals, canPlayCardOnPile, canMovePile, isCornerPosition } from '../../game/validation.js';
 
 interface Player {
@@ -40,11 +41,12 @@ export class KingsCornerEngine {
     playerInfos: { id: string; name: string }[],
     roomCode: string,
     config: KingsCornerConfig = DEFAULT_CONFIG,
+    randomInt: RandomInt = secureRandomInt,
   ) {
     this.roomCode = roomCode;
     this.config = config;
 
-    const deck = shuffle(createDeck());
+    const deck = fisherYatesShuffle(createDeck(), randomInt);
 
     this.players = playerInfos.map((p) => ({
       id: p.id,

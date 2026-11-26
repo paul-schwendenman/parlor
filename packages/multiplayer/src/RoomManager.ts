@@ -1,3 +1,4 @@
+import { secureRandomInt, type RandomInt } from './random.js';
 import { randomUUID } from 'node:crypto';
 import type { GameMeta, LobbyPlayer } from '@parlor/game-types';
 import { GameInstance } from './gameInstance.js';
@@ -90,7 +91,10 @@ export class RoomManager {
   private botCounter = 0;
 
   /** @param graceMs disconnect grace window before a player is really removed. */
-  constructor(private readonly graceMs = 60_000) {}
+  constructor(
+    private readonly graceMs = 60_000,
+    private readonly randomInt: RandomInt = secureRandomInt,
+  ) {}
 
   static isBotPlayer(id: string): boolean {
     return id.startsWith('bot-');
@@ -103,9 +107,9 @@ export class RoomManager {
     onDestroyed?: (roomCode: string) => void,
   ): CreateRoomResult {
     if (this.rooms.size >= MAX_ROOMS) throw new GameRuleError('The server has reached its room limit');
-    let code = generateRoomCode();
+    let code = generateRoomCode(undefined, this.randomInt);
     for (let attempt = 1; attempt < ROOM_CODE_ATTEMPTS && this.rooms.has(code); attempt++) {
-      code = generateRoomCode();
+      code = generateRoomCode(undefined, this.randomInt);
     }
     if (this.rooms.has(code)) throw new GameRuleError('Could not allocate a new room code. Try again.');
 

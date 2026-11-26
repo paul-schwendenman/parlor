@@ -3,6 +3,11 @@ import { MAX_GAME_LOG_ENTRIES } from '@parlor/multiplayer';
 import { GameEngine } from '../GameEngine.js';
 import { createTestPlayers, resetPlayerIdCounter } from './factories/player.js';
 
+vi.mock(import('@parlor/multiplayer/random'), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, secureRandomInt: (max: number) => Math.floor(Math.random() * max) };
+});
+
 // DICE_FACES order: ['doubloon', 'x_marks_spot', 'jolly_roger', 'cutlass', 'walk_plank', 'shield']
 // Math.floor(random * 6) mapping:
 //   0 = doubloon       (random in [0, 0.167))

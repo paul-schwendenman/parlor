@@ -1,12 +1,10 @@
-import { afterEach, expect, it, vi } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { ROOM_CODE_LENGTH } from '@parlor/game-types';
 import { RoomManager } from './RoomManager.js';
 
-afterEach(() => vi.restoreAllMocks());
-
 it('bounds code allocation attempts and preserves the current seat if allocation fails', () => {
-  const random = vi.spyOn(Math, 'random').mockReturnValue(0);
-  const rooms = new RoomManager();
+  const random = vi.fn<(max: number) => number>().mockReturnValue(0);
+  const rooms = new RoomManager(undefined, random);
   const first = rooms.createRoom('host', 'Host');
   expect(first.roomCode).toBe('A'.repeat(ROOM_CODE_LENGTH));
   const before = structuredClone(rooms.getRoom(first.roomCode));
@@ -17,8 +15,10 @@ it('bounds code allocation attempts and preserves the current seat if allocation
   expect(rooms.getRoom(first.roomCode)).toEqual(before);
   expect(rooms.getPlayerIdBySocket('host')).toBe(first.playerId);
 
-  random.mockReturnValue(0.5);
+  expect(random).toHaveBeenCalledWith(32);
+  random.mockReturnValue(31);;
   const next = rooms.createRoom('host', 'Another room');
+  expect(next.roomCode).toBe('9'.repeat(ROOM_CODE_LENGTH));
   expect(rooms.getPlayerIdBySocket('host')).toBe(next.playerId);
   expect(rooms.getRoom(first.roomCode)).toBeUndefined();
 });

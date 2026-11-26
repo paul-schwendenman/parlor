@@ -16,6 +16,11 @@ import { bootyDiceDefinition, bootyDiceGame } from './definition.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 import type { GameEngine } from './game/GameEngine.js';
 
+vi.mock(import('@parlor/multiplayer/random'), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, secureRandomInt: (max: number) => Math.floor(Math.random() * max) };
+});
+
 type AICallbacks = Parameters<AIPlayer['takeTurn']>[1];
 
 beforeEach(() => vi.useFakeTimers());

@@ -357,7 +357,7 @@ The reasoning:
     - **Flagged for later:** see "Revisit at the end" below.
 
 ### 3.10 Infra and randomness
-- [ ] **3.10** *(Infra half done; `crypto.randomInt` still open.)*
+- [x] **3.10**
   - **Randomness:** `crypto.randomInt` for room codes, shuffles and dice.
   - **Origins:** a `CORS_ORIGIN` allowlist set in k8s, plus an `allowRequest` origin check for websocket connections.
   - **Container:** a non-root image and a k8s `securityContext`.
@@ -377,8 +377,10 @@ The reasoning:
     - **Workflows:** top-level `permissions: contents: read`, `packages: write` only on `build-and-push`, and every action pinned to a SHA resolved with `gh api`.
     - **Docs:** `k8s/README.md` and a production checklist in `docs/DEPLOYMENT.md`.
     - **Verified:** `docker build` succeeded. A smoke run with a read-only filesystem, `--cap-drop ALL` and no-new-privileges served `/healthz` as uid 1000. A disallowed origin got 403 (polling) and 400 (WebSocket); an allowed one got 200 and 101.
-  - **Still open:**
-    - `crypto.randomInt` for room codes, shuffles and dice (touches the engines)
+  - **Done (randomness):**
+    - Room codes, card shuffles, randomized seat order, dice rolls, and the Crazy Eights fallback suit use Node's `crypto.randomInt`.
+    - All five engines accept a bounded integer source for seeded playthroughs. Shared Fisher–Yates shuffling lives in the server-side `@parlor/multiplayer/random` entry point.
+    - Regression tests cover room-code allocation and collisions, deterministic shuffling, and dice bounds when some dice are out of play.
   - **Deferred, consider later:**
     - bundling the server so the image doesn't need tsx and `src/` (the game packages export raw TS)
     - deploying by `sha-` tag or digest instead of `:main`
@@ -430,3 +432,4 @@ Rules questions and smaller bugs found during Phase 3. Come back to these once P
 | 2026-11-26 | 3.4 process safety and observability | Added fatal exit handlers, room failure context, health metrics, and restart recovery coverage |
 | 2026-11-26 | 3.1b typed contract (F-20, F-32 casts) | branch `paul-schwendenman/core-hardening-3.1b`. Crazy-eights pilot in `ed0ab25`, then the other four games migrated and the legacy adapter removed. 624 Vitest and 8 Playwright tests; 0 casts in game definitions. Quixx disconnect stall found and moved to 3.9 |
 | 2026-11-26 | 3.9 per-game rule fixes (F-08, F-09, F-30) | branch `paul-schwendenman/core-hardening-3.9`, main work in `9d03032`, then penalty-free grace stand-ins and the Crazy Eights exhausted-piles pass. 650 Vitest and 8 Playwright tests. Three items added to "Revisit at the end" |
+| 2026-11-26 | 3.10 randomness (F-19) | Switched room codes and gameplay draws to Node crypto and added engine RNG injection for Phase 4.2 |
