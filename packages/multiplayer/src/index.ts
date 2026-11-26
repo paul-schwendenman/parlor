@@ -1,8 +1,6 @@
 export {
-  createGameServer,
   createSocketServer,
   type SocketServerInput,
-  type GameServerOptions,
   type AppServer,
   buildSocketServerOptions,
   type SocketServerOptionsInput,
@@ -36,9 +34,15 @@ export { generateRoomCode } from './utils.js';
 export { safeAck } from './ack.js';
 export {
   type ServerGameDefinition,
+  type TypedServerGameDefinition,
   type TypedGameAccess,
   type LooseGameAction,
   type AppSocket,
+  type ServerEventEmitter,
+  type GameIo,
+  type LobbyIo,
+  type ActionSocket,
+  type LobbySocket,
 } from './gameDefinition.js';
 export {
   defineGame,

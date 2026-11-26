@@ -5,12 +5,13 @@
  * first; only a successful submit cancels the timer.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GameRuleError, RoomManager, type AppServer } from '@parlor/multiplayer';
+import { GameRuleError, RoomManager } from '@parlor/multiplayer';
+import { createActionSocket, createFakeIo } from '@parlor/multiplayer/testing';
 import { quixxDefinition, quixxGame } from './definition.js';
 import type { QuixxAction } from '../types/game.js';
 import { QuixxEngine } from './game/QuixxEngine.js';
 
-const io = { to: () => ({ emit: () => {} }) } as unknown as AppServer;
+const io = createFakeIo();
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
@@ -42,7 +43,7 @@ function setup() {
   quixxDefinition.createLobbyCallbacks(rm, io).onGameStart?.(roomCode, players, io);
   // Sync handler: a rule error throws straight out of `act`.
   const act = (playerId: string, action: QuixxAction): void => {
-    void quixxDefinition.handleGameAction(io, { data: { roomCode, playerId }, emit: vi.fn() } as never, rm, action);
+    void quixxDefinition.handleGameAction(io, createActionSocket(`socket-${playerId}`, { roomCode, playerId }), rm, action);
   };
   return { engine, act, a, b };
 }
@@ -107,19 +108,16 @@ it('keeps the restarted game bot timer when the previous bot recheck becomes due
   expect(rm.addBot(roomCode, 'Bot').success).toBe(true);
   rm.setPlayerReady(playerId, true);
 
-  const emit = vi.fn();
-  const gameIo = { to: (recipient: string) => ({
-    emit: (event: string, view: unknown) => emit(recipient, event, view),
-  }) } as never as AppServer;
+  const gameIo = createFakeIo();
   const callbacks = quixxDefinition.createLobbyCallbacks(rm, gameIo);
   const players = rm.startGame(roomCode);
   expect(players).not.toBeNull();
   callbacks.onGameStart?.(roomCode, players!, gameIo);
-  const originalEngine = rm.getGameData<QuixxEngine>(roomCode)!;
+  const originalEngine = quixxDefinition.typed.getState(rm, roomCode)!;
   const originalInstance = rm.getGameInstance(roomCode)!;
   const act = (type: 'phase1-pass' | 'phase2-pass') => {
     void quixxDefinition.handleGameAction(
-      gameIo, { data: { roomCode, playerId } } as never, rm, { type },
+      gameIo, createActionSocket('host', { roomCode, playerId }), rm, { type },
     );
   };
 
@@ -140,17 +138,18 @@ it('keeps the restarted game bot timer when the previous bot recheck becomes due
   expect(restartedPlayers).not.toBeNull();
   expect(originalInstance.signal.aborted).toBe(true);
   callbacks.onGameStart?.(roomCode, restartedPlayers!, gameIo);
-  const restartedEngine = rm.getGameData<QuixxEngine>(roomCode)!;
+  const restartedEngine = quixxDefinition.typed.getState(rm, roomCode)!;
   const originalView = originalEngine.getPlayerView(playerId);
   vi.advanceTimersByTime(500);
   act('phase1-pass');
   expect(restartedEngine.getPhase()).toBe('phase1');
 
-  emit.mockClear();
+  gameIo.emitted.length = 0;
   vi.advanceTimersByTime(800);
   expect(restartedEngine.getPhase()).toBe('phase2');
   expect(originalEngine.getPlayerView(playerId)).toEqual(originalView);
-  expect(emit).toHaveBeenLastCalledWith(
-    playerId, 'game:state', { gameId: 'quixx', view: expect.objectContaining({ phase: 'phase2', round: 1 }) },
-  );
+  const last = gameIo.emitted.at(-1);
+  expect([last?.to, last?.event, last?.args]).toEqual([
+    playerId, 'game:state', [{ gameId: 'quixx', view: expect.objectContaining({ phase: 'phase2', round: 1 }) }],
+  ]);
 });

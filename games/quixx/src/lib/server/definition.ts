@@ -167,7 +167,7 @@ function scheduleStandIn(game: Game): void {
 }
 
 /** Quixx on the typed game contract (plan 3.1b). Servers use `quixxDefinition`. */
-export const quixxGame: TypedGameDefinition<'quixx', QuixxEngine, QuixxAction> = {
+export const quixxGame: TypedGameDefinition<'quixx', QuixxEngine> = {
   meta: {
     id: 'quixx',
     name: 'Quixx',

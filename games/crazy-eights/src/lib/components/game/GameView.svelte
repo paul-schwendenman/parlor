@@ -15,7 +15,7 @@
     playerId,
   }: {
     view: CrazyEightsPlayerView;
-    socket: GameSocket;
+    socket: GameSocket<'crazy-eights'>;
     playerId: string;
   } = $props();
 

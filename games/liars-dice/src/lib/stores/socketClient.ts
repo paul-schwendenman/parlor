@@ -6,7 +6,7 @@ import { lobbyState } from './lobbyStore.svelte.js';
 import { gameState } from './gameStore.svelte.js';
 import { playerState } from './playerStore.svelte.js';
 
-const runtime = createParlorRuntime({
+const runtime = createParlorRuntime<'liars-dice'>({
   browser,
   connectionState,
   lobbyState,
@@ -18,7 +18,7 @@ const runtime = createParlorRuntime({
   },
 });
 
-export function getSocket(): GameSocket {
+export function getSocket(): GameSocket<'liars-dice'> {
   return runtime.getSocket();
 }
 

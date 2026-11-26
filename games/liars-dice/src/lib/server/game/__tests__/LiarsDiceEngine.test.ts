@@ -236,7 +236,7 @@ describe('LiarsDiceEngine', () => {
       const players = makePlayers(2);
       const engine2 = new LiarsDiceEngine(players, 'TEST2');
       // Access private state to disable wild ones for this test
-      (engine2 as any).state.wildOnes = false;
+      engine2['state'].wildOnes = false;
 
       const allDice = [
         [1, 3, 3],

@@ -1,8 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { dispatchGameAction, RoomManager, type AppServer, type AppSocket } from '@parlor/multiplayer';
+import { dispatchGameAction, RoomManager } from '@parlor/multiplayer';
+import { createActionSocket, createFakeIo } from '@parlor/multiplayer/testing';
 import { bootyDiceDefinition } from './definition.js';
 import { AIPlayer } from './ai/AIPlayer.js';
-import type { GameEngine } from './game/GameEngine.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -12,8 +12,7 @@ afterEach(() => {
 it('aborts an overdue bot before allowing the timeout fallback to end its turn', async () => {
   vi.useFakeTimers();
   vi.spyOn(Math, 'random').mockReturnValue(0);
-  const emit = vi.fn();
-  const io = { to: () => ({ emit }) } as never as AppServer;
+  const io = createFakeIo();
   const rooms = new RoomManager();
   const host = rooms.createRoom('host-socket', 'Host');
   rooms.selectGame(host.roomCode, bootyDiceDefinition.meta);
@@ -40,7 +39,7 @@ it('aborts an overdue bot before allowing the timeout fallback to end its turn',
   );
 
   bootyDiceDefinition.createLobbyCallbacks(rooms, io).onGameStart?.(host.roomCode, players, io);
-  const engine = rooms.getGameData<GameEngine>(host.roomCode);
+  const engine = bootyDiceDefinition.typed.getState(rooms, host.roomCode);
   if (!engine) throw new Error('Expected a game engine');
   expect(engine.getState().players[0].id).toBe(bot.botId);
   await vi.advanceTimersByTimeAsync(0);
@@ -53,20 +52,17 @@ it('aborts an overdue bot before allowing the timeout fallback to end its turn',
   const afterFallback = structuredClone(engine.getState());
   expect(afterFallback.turnNumber).toBe(2);
   expect(afterFallback.players[afterFallback.currentPlayerIndex].id).toBe(host.playerId);
-  emit.mockClear();
+  io.emitted.length = 0;
 
   completeBotTurn();
   await vi.runAllTimersAsync();
   expect(engine.getState()).toEqual(afterFallback);
-  expect(emit).not.toHaveBeenCalled();
+  expect(io.emitted).toEqual([]);
 });
 
 it('sends one updated view per recipient when a turn adds multiple log entries', async () => {
   vi.spyOn(Math, 'random').mockReturnValue(0.99);
-  const emit = vi.fn();
-  const io = {
-    to: (recipient: string) => ({ emit: (event: string, view: unknown) => emit(recipient, event, view) }),
-  } as never as AppServer;
+  const io = createFakeIo();
   const rooms = new RoomManager();
   const host = rooms.createRoom('host-socket', 'Host');
   const { roomCode, playerId } = host;
@@ -79,7 +75,7 @@ it('sends one updated view per recipient when a turn adds multiple log entries',
   const players = rooms.startGame(roomCode);
   if (!players) throw new Error('Expected the room to start');
   bootyDiceDefinition.createLobbyCallbacks(rooms, io).onGameStart?.(roomCode, players, io);
-  const socket = { id: 'host-socket', data: { roomCode, playerId }, emit: vi.fn() } as never as AppSocket;
+  const socket = createActionSocket('host-socket', { roomCode, playerId });
   const send = (type: string) => dispatchGameAction({
     io,
     socket,
@@ -91,13 +87,13 @@ it('sends one updated view per recipient when a turn adds multiple log entries',
   });
 
   expect(await send('roll')).toEqual({ ok: true });
-  const engine = rooms.getGameData<GameEngine>(roomCode);
+  const engine = bootyDiceDefinition.typed.getState(rooms, roomCode);
   const before = engine?.getState().gameLog.length ?? 0;
-  emit.mockClear();
+  io.emitted.length = 0;
 
   expect(await send('endTurn')).toEqual({ ok: true });
   expect(engine?.getState().gameLog.length).toBeGreaterThan(before + 1);
-  expect(emit.mock.calls.map(([recipient, event]) => [recipient, event])).toEqual([
+  expect(io.emitted.map(({ to, event }) => [to, event])).toEqual([
     [playerId, 'game:state'],
     [guest.playerId, 'game:state'],
     ['spectator-socket', 'game:state'],

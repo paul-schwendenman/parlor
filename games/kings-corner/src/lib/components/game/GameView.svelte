@@ -15,7 +15,7 @@
     onBackToLobby,
   }: {
     view: KingsCornerPlayerView;
-    socket: GameSocket;
+    socket: GameSocket<'kings-corner'>;
     playerId: string;
     onBackToLobby?: () => void;
   } = $props();

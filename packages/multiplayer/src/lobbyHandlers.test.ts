@@ -1,52 +1,16 @@
 import { getMetrics } from './observability.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RoomManager } from './RoomManager.js';
-import { setupLobbyHandlers, type LobbyCallbacks } from './lobbyHandlers.js';
+import type { LobbyCallbacks } from './lobbyHandlers.js';
+import { connectFakeSocket, createFakeIo } from './testing.js';
 
 const gameRules = { id: 'test', minPlayers: 2, maxPlayers: 4, supportsBots: true };
-
-type Handler = (...args: unknown[]) => void;
-
-function makeSocket(id: string) {
-  const handlers: Record<string, Handler> = {};
-  return {
-    id,
-    data: {} as { roomCode?: string; playerId?: string; playerName?: string },
-    on: (event: string, cb: Handler) => {
-      handlers[event] = cb;
-    },
-    join: vi.fn(),
-    leave: vi.fn(),
-    emit: vi.fn(),
-    fire: (event: string, ...args: unknown[]) => handlers[event]?.(...args),
-  };
-}
-
-function makeIo() {
-  const emitted: { room: string; event: string; args: unknown[] }[] = [];
-  const io = {
-    in: () => ({ socketsLeave: vi.fn() }),
-    to: (room: string) => ({
-      emit: (event: string, ...args: unknown[]) => {
-        emitted.push({ room, event, args });
-      },
-    }),
-    emitted,
-  };
-  return io;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function wire(rm: RoomManager, io: any, socket: any, callbacks?: LobbyCallbacks) {
-  setupLobbyHandlers(io, socket, rm, callbacks);
-}
 
 describe('lobbyHandlers malformed payloads', () => {
   it('does not throw on a non-string create name', () => {
     const rm = new RoomManager();
-    const io = makeIo();
-    const socket = makeSocket('s1');
-    wire(rm, io, socket);
+    const io = createFakeIo();
+    const socket = connectFakeSocket(io, rm, undefined, 's1');
     const ack = vi.fn();
     expect(() => socket.fire('lobby:create', 123, ack)).not.toThrow();
     expect(ack).toHaveBeenCalledWith(null, 'Invalid player name');
@@ -54,9 +18,8 @@ describe('lobbyHandlers malformed payloads', () => {
 
   it('does not throw on a null join name', () => {
     const rm = new RoomManager();
-    const io = makeIo();
-    const socket = makeSocket('s1');
-    wire(rm, io, socket);
+    const io = createFakeIo();
+    const socket = connectFakeSocket(io, rm, undefined, 's1');
     const cb = vi.fn();
     expect(() => socket.fire('lobby:join', 'ROOM', null, cb)).not.toThrow();
     expect(cb).toHaveBeenCalledWith({ success: false, error: expect.any(String) });
@@ -64,17 +27,15 @@ describe('lobbyHandlers malformed payloads', () => {
 
   it('does not throw when join is missing arguments', () => {
     const rm = new RoomManager();
-    const io = makeIo();
-    const socket = makeSocket('s1');
-    wire(rm, io, socket);
+    const io = createFakeIo();
+    const socket = connectFakeSocket(io, rm, undefined, 's1');
     expect(() => socket.fire('lobby:join')).not.toThrow();
   });
 
   it('does not throw on a non-boolean ready value', () => {
     const rm = new RoomManager();
-    const io = makeIo();
-    const host = makeSocket('s1');
-    wire(rm, io, host);
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, undefined, 's1');
     host.fire('lobby:create', 'Ann', vi.fn());
     const cb = vi.fn();
     expect(() => host.fire('lobby:ready', 'yes', cb)).not.toThrow();
@@ -85,40 +46,37 @@ describe('lobbyHandlers malformed payloads', () => {
 describe('lobby player names', () => {
   it('rejects a disallowed create name without changing the existing seat, then accepts a valid create', () => {
     const rm = new RoomManager();
-    const io = makeIo();
-    const host = makeSocket('host');
-    wire(rm, io, host);
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, undefined, 'host');
     host.fire('lobby:create', 'Original', vi.fn());
-    const original = rm.getRoom(host.data.roomCode!);
+    const original = rm.getRoom(host.data.roomCode);
     const before = structuredClone(original);
 
     for (const name of ['x'.repeat(25), 'Bob\u200b', 'Alex👏', 'Bοt Alice']) {
       const ack = vi.fn();
       host.fire('lobby:create', name, ack);
       expect(ack).toHaveBeenCalledExactlyOnceWith(null, expect.any(String));
-      expect(rm.getRoom(host.data.roomCode!)).toEqual(before);
+      expect(rm.getRoom(host.data.roomCode)).toEqual(before);
       expect(rm.getPlayerIdBySocket(host.id)).toBe(host.data.playerId);
     }
 
     const ack = vi.fn();
     host.fire('lobby:create', '  Jose\u0301 ', ack);
     expect(ack).toHaveBeenCalledOnce();
-    expect(rm.getPlayersInRoom(host.data.roomCode!)).toContainEqual(
+    expect(rm.getPlayersInRoom(host.data.roomCode)).toContainEqual(
       expect.objectContaining({ name: 'José' }),
     );
   });
 
   it('rejects lookalike duplicates and bot names without changing either room', () => {
     const rm = new RoomManager();
-    const io = makeIo();
-    const host = makeSocket('host');
-    const guest = makeSocket('guest');
-    wire(rm, io, host);
-    wire(rm, io, guest);
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, undefined, 'host');
+    const guest = connectFakeSocket(io, rm, undefined, 'guest');
     host.fire('lobby:create', 'José', vi.fn());
     guest.fire('lobby:create', 'Original', vi.fn());
-    const roomCode = host.data.roomCode!;
-    const guestRoomCode = guest.data.roomCode!;
+    const roomCode = host.data.roomCode;
+    const guestRoomCode = guest.data.roomCode;
     const targetBefore = structuredClone(rm.getRoom(roomCode));
     const guestBefore = structuredClone(rm.getRoom(guestRoomCode));
 
@@ -143,11 +101,10 @@ describe('lobby player names', () => {
 
   it('uses an available bot name after a bot is removed', () => {
     const rm = new RoomManager();
-    const io = makeIo();
-    const host = makeSocket('host');
-    wire(rm, io, host);
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, undefined, 'host');
     host.fire('lobby:create', 'Host', vi.fn());
-    const roomCode = host.data.roomCode!;
+    const roomCode = host.data.roomCode;
     rm.selectGame(roomCode, gameRules);
     host.fire('lobby:addBot', vi.fn());
     host.fire('lobby:addBot', vi.fn());
@@ -163,11 +120,9 @@ describe('lobby player names', () => {
 describe('lobbyHandlers host gates', () => {
   function twoPlayers(callbacks?: LobbyCallbacks) {
     const rm = new RoomManager();
-    const io = makeIo();
-    const host = makeSocket('s1');
-    const guest = makeSocket('s2');
-    wire(rm, io, host, callbacks);
-    wire(rm, io, guest, callbacks);
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, callbacks, 's1');
+    const guest = connectFakeSocket(io, rm, callbacks, 's2');
 
     let roomCode = '';
     host.fire('lobby:create', 'Ann', (res: { roomCode: string }) => {
@@ -197,7 +152,7 @@ describe('lobbyHandlers host gates', () => {
     const { rm, host, guest, roomCode } = twoPlayers({ onGameStart, onGameReset });
     rm.selectGame(roomCode, gameRules);
     host.fire('lobby:restartGame');
-    expect(host.emit).toHaveBeenCalledWith('error', 'Cannot restart the game yet');
+    expect(host.received).toContainEqual({ event: 'error', args: ['Cannot restart the game yet'] });
     expect(onGameReset).not.toHaveBeenCalled();
     expect(rm.getRoom(roomCode)?.status).toBe('waiting');
 
@@ -248,7 +203,7 @@ describe('lobbyHandlers host gates', () => {
       .forEach((player) => rm.setPlayerReady(player.id, true));
     host.fire('lobby:startGame', ack);
     expect(ack).toHaveBeenLastCalledWith(true);
-    const engine = rm.getGameData(roomCode);
+    const engine = rm.getRoom(roomCode)?.gameData;
     const before = structuredClone(rm.getRoom(roomCode));
 
     for (const [event, ...args] of [
@@ -262,7 +217,7 @@ describe('lobbyHandlers host gates', () => {
       expect(ack).toHaveBeenCalledExactlyOnceWith(false, expect.any(String));
     }
     expect(rm.getRoom(roomCode)).toEqual(before);
-    expect(rm.getGameData(roomCode)).toBe(engine);
+    expect(rm.getRoom(roomCode)?.gameData).toBe(engine);
     expect(onGameStart).toHaveBeenCalledTimes(1);
 
     host.fire('lobby:resetGame');
@@ -296,11 +251,9 @@ describe('lobbyHandlers disconnect grace', () => {
   });
 
   function twoPlayers(rm: RoomManager, callbacks?: LobbyCallbacks) {
-    const io = makeIo();
-    const host = makeSocket('s1');
-    const guest = makeSocket('s2');
-    wire(rm, io, host, callbacks);
-    wire(rm, io, guest, callbacks);
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, callbacks, 's1');
+    const guest = connectFakeSocket(io, rm, callbacks, 's2');
 
     let roomCode = '';
     host.fire('lobby:create', 'Ann', (res: { roomCode: string }) => {
@@ -310,11 +263,11 @@ describe('lobbyHandlers disconnect grace', () => {
     return { io, host, guest, roomCode };
   }
 
-  it('emits player:disconnected (not playerLeft) while retained, and playerLeft only on expiry', () => {
+  it('broadcasts a disconnected seat during grace and removes it on expiry', () => {
     vi.useFakeTimers();
     const rm = new RoomManager(1_000);
-    const { io, guest } = twoPlayers(rm);
-    const guestId = guest.data.playerId!;
+    const { io, host, guest } = twoPlayers(rm);
+    const guestId = guest.data.playerId;
 
     guest.fire('disconnect');
 
@@ -322,15 +275,17 @@ describe('lobbyHandlers disconnect grace', () => {
     expect(io.emitted.some((e) => e.event === 'player:disconnected' && e.args[0] === guestId)).toBe(
       true,
     );
-    expect(io.emitted.some((e) => e.event === 'lobby:playerLeft')).toBe(false);
-    expect(rm.getPlayersInRoom(guest.data.roomCode!).map((p) => p.id)).toContain(guestId);
+    expect(io.emitted.filter((e) => e.event === 'lobby:state').at(-1)?.payload).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: guestId, connected: false })]),
+    );
+    expect(rm.getPlayersInRoom(guest.data.roomCode).map((p) => p.id)).toContain(guestId);
 
     // After grace: really removed.
     vi.advanceTimersByTime(1_000);
-    expect(io.emitted.some((e) => e.event === 'lobby:playerLeft' && e.args[0] === guestId)).toBe(
-      true,
-    );
-    expect(rm.getPlayersInRoom(guest.data.roomCode!).map((p) => p.id)).not.toContain(guestId);
+    expect(io.emitted.filter((e) => e.event === 'lobby:state').at(-1)?.payload).toEqual([
+      expect.objectContaining({ id: host.data.playerId }),
+    ]);
+    expect(rm.getPlayersInRoom(guest.data.roomCode).map((p) => p.id)).not.toContain(guestId);
   });
 
   it('fires onPlayerRemoved and hostChanged when an in-game host expires', () => {
@@ -338,9 +293,9 @@ describe('lobbyHandlers disconnect grace', () => {
     const onPlayerRemoved = vi.fn();
     const rm = new RoomManager(1_000);
     const { io, host, guest } = twoPlayers(rm, { onPlayerRemoved });
-    const hostId = host.data.playerId!;
-    const guestId = guest.data.playerId!;
-    const roomCode = host.data.roomCode!;
+    const hostId = host.data.playerId;
+    const guestId = guest.data.playerId;
+    const roomCode = host.data.roomCode;
 
     rm.selectGame(roomCode, gameRules);
     rm.setPlayerReady(hostId, true);
@@ -360,11 +315,9 @@ describe('lobbyHandlers disconnect grace', () => {
 describe('lobbyHandlers room:leave', () => {
   it('removes the leaving player and broadcasts', () => {
     const rm = new RoomManager();
-    const io = makeIo();
-    const host = makeSocket('s1');
-    const guest = makeSocket('s2');
-    wire(rm, io, host);
-    wire(rm, io, guest);
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, undefined, 's1');
+    const guest = connectFakeSocket(io, rm, undefined, 's2');
 
     let roomCode = '';
     host.fire('lobby:create', 'Ann', (res: { roomCode: string }) => {
@@ -377,9 +330,9 @@ describe('lobbyHandlers room:leave', () => {
 
     const remaining = rm.getPlayersInRoom(roomCode);
     expect(remaining.map((p) => p.id)).not.toContain(guestPlayerId);
-    expect(io.emitted.some((e) => e.event === 'lobby:playerLeft' && e.args[0] === guestPlayerId)).toBe(
-      true,
-    );
+    expect(io.emitted.filter((e) => e.event === 'lobby:state').at(-1)?.payload).toEqual([
+      expect.objectContaining({ id: host.data.playerId }),
+    ]);
   });
 });
 
@@ -391,11 +344,10 @@ describe('lobby game instance lifecycle', () => {
   });
 
   function startRoom(rm: RoomManager, callbacks?: LobbyCallbacks, id = 'host') {
-    const io = makeIo();
-    const host = makeSocket(id);
-    wire(rm, io, host, callbacks);
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, callbacks, id);
     host.fire('lobby:create', id, vi.fn());
-    const roomCode = host.data.roomCode!;
+    const roomCode = host.data.roomCode;
     rm.selectGame(roomCode, gameRules);
     host.fire('lobby:addBot', vi.fn());
     host.fire('lobby:ready', true, vi.fn());
@@ -431,7 +383,7 @@ describe('lobby game instance lifecycle', () => {
       caughtRoomFailures: before.caughtRoomFailures + 1,
     });
     expect(rm.getRoom(roomCode)?.status).toBe('waiting');
-    expect(io.emitted).toContainEqual({ room: roomCode, event: 'lobby:returned', args: ['test'] });
+    expect(io.emitted).toContainEqual(expect.objectContaining({ to: roomCode, event: 'lobby:returned', args: ['test'] }));
     expect(next).not.toHaveBeenCalled();
     expect(instance.signal.aborted).toBe(true);
     expect(rm.getGameInstance(other.roomCode)).toBe(other.instance);
@@ -447,8 +399,7 @@ describe('lobby game instance lifecycle', () => {
     };
     const { io, host, roomCode } = startRoom(rm, callbacks);
     host.fire('lobby:resetGame');
-    const guest = makeSocket('guest');
-    wire(rm, io, guest, callbacks);
+    const guest = connectFakeSocket(io, rm, callbacks, 'guest');
     guest.fire('lobby:join', roomCode, 'Guest', vi.fn());
     host.fire('lobby:ready', true, vi.fn());
     guest.fire('lobby:ready', true, vi.fn());
@@ -473,7 +424,7 @@ describe('lobby game instance lifecycle', () => {
     const onRoomDestroyed = vi.fn();
     const { instance, roomCode, host } = startRoom(rm, { onRoomDestroyed });
     host.fire('disconnect');
-    expect(rm.getRoom(roomCode)?.players.get(host.data.playerId!)?.connected).toBe(false);
+    expect(rm.getRoom(roomCode)?.players.get(host.data.playerId)?.connected).toBe(false);
 
     const scheduled = vi.fn();
     instance.schedule(scheduled, 100);
@@ -528,12 +479,11 @@ it('shares the lookup limit across join and spectate, and refills while other re
   const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
   try {
     const rm = new RoomManager();
-    const io = makeIo();
-    const socket = makeSocket('host');
+    const io = createFakeIo();
     const target = rm.createRoom('target', 'Target');
-    wire(rm, io, socket);
+    const socket = connectFakeSocket(io, rm, undefined, 'host');
     socket.fire('lobby:create', 'Host', vi.fn());
-    const roomCode = socket.data.roomCode!;
+    const roomCode = socket.data.roomCode;
     const before = structuredClone(rm.getRoom(roomCode));
     const targetBefore = structuredClone(rm.getRoom(target.roomCode));
 

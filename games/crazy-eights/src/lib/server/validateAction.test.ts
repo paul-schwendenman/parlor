@@ -40,7 +40,7 @@ const INVALID: [string, Record<string, unknown>][] = [
 describe('Crazy Eights actions through the boundary', () => {
   it.each(INVALID)('%s → INVALID_ACTION, state unchanged, valid draw afterward works', async (_label, action) => {
     const h = createDispatchHarness(crazyEightsDefinition);
-    const engine = h.roomManager.getGameData<CrazyEightsEngine>(h.roomCode)!;
+    const engine = h.getState()!;
     const active = h.playerIds.find((id) => engine.getPlayerView(id).isActivePlayer)!;
     const snapshot = () => h.playerIds.map((id) => JSON.stringify(engine.getPlayerView(id))).join();
     const before = snapshot();

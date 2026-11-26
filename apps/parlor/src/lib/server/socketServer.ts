@@ -1,11 +1,4 @@
-import type { Server, Socket } from 'socket.io';
-import type {
-	ClientToServerEvents,
-	ServerToClientEvents,
-	InterServerEvents,
-	SocketData,
-	LobbyPlayer
-} from '@parlor/game-types';
+import type { LobbyPlayer } from '@parlor/game-types';
 import {
 	RoomManager,
 	dispatchGameAction,
@@ -16,19 +9,16 @@ import {
 	setupLobbyHandlers,
 	toPublicError
 } from '@parlor/multiplayer';
-import type { LobbyCallbacks } from '@parlor/multiplayer';
+import type { AppServer, AppSocket, GameIo, LobbyCallbacks } from '@parlor/multiplayer';
 import { registerAllGames } from './games/index.js';
 import { getGameDefinition } from './gameRegistry.js';
-
-type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
 const roomManager = new RoomManager();
 
 // Cache callbacks per game definition so we don't recreate closures unnecessarily
 const callbackCache = new Map<string, LobbyCallbacks>();
 
-function getCallbacksForGame(gameId: string, io: AppServer): LobbyCallbacks | null {
+function getCallbacksForGame(gameId: string, io: GameIo): LobbyCallbacks | null {
 	let cached = callbackCache.get(gameId);
 	if (cached) return cached;
 
@@ -47,7 +37,7 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 	io.on('connection', (socket: AppSocket) => {
 		// Create dynamic lobby callbacks that delegate to the correct game based on room's gameId
 		const dynamicCallbacks: LobbyCallbacks = {
-			onGameStart: (roomCode: string, players: LobbyPlayer[], io: AppServer) => {
+			onGameStart: (roomCode: string, players: LobbyPlayer[], io: GameIo) => {
 				// Throw (rather than silently return) so the lobby rolls the start back.
 				const gameId = roomManager.getGameId(roomCode);
 				if (!gameId) throw new Error(`No game selected for room ${roomCode}`);
@@ -56,7 +46,7 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 				callbacks.onGameStart?.(roomCode, players, io);
 			},
 
-			onGameReset: (roomCode: string, io: AppServer) => {
+			onGameReset: (roomCode: string, io: GameIo) => {
 				const gameId = roomManager.getGameId(roomCode);
 				if (!gameId) return;
 				const callbacks = getCallbacksForGame(gameId, io);
@@ -68,21 +58,21 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 				if (gameId) getCallbacksForGame(gameId, io)?.onRoomDestroyed?.(roomCode, io);
 			},
 
-			onPlayerDisconnect: (roomCode: string, playerId: string, io: AppServer) => {
+			onPlayerDisconnect: (roomCode: string, playerId: string, io: GameIo) => {
 				const gameId = roomManager.getGameId(roomCode);
 				if (!gameId) return;
 				const callbacks = getCallbacksForGame(gameId, io);
 				return callbacks?.onPlayerDisconnect?.(roomCode, playerId, io);
 			},
 
-			onPlayerReconnect: (roomCode: string, playerId: string, io: AppServer) => {
+			onPlayerReconnect: (roomCode: string, playerId: string, io: GameIo) => {
 				const gameId = roomManager.getGameId(roomCode);
 				if (!gameId) return;
 				const callbacks = getCallbacksForGame(gameId, io);
 				return callbacks?.onPlayerReconnect?.(roomCode, playerId, io);
 			},
 
-			onPlayerRemoved: (roomCode: string, playerId: string, io: AppServer) => {
+			onPlayerRemoved: (roomCode: string, playerId: string, io: GameIo) => {
 				const gameId = roomManager.getGameId(roomCode);
 				if (!gameId) return;
 				const callbacks = getCallbacksForGame(gameId, io);

@@ -1,6 +1,6 @@
 import { defineGame, scheduleAbsentTurn, type GameContext, type TypedGameDefinition } from '@parlor/multiplayer';
 import { LiarsDiceEngine } from './game/LiarsDiceEngine.js';
-import { createPlayer, type LiarsDiceAction } from '../types/game.js';
+import { createPlayer } from '../types/game.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 import { validateLiarsDiceAction } from './validateAction.js';
 
@@ -121,7 +121,7 @@ function standInTurn(game: Game, playerId: string): boolean {
 }
 
 /** Liar's Dice on the typed game contract (plan 3.1b). Servers use `liarsDiceDefinition`. */
-export const liarsDiceGame: TypedGameDefinition<'liars-dice', LiarsDiceEngine, LiarsDiceAction> = {
+export const liarsDiceGame: TypedGameDefinition<'liars-dice', LiarsDiceEngine> = {
   meta: {
     id: 'liars-dice',
     name: "Liar's Dice",

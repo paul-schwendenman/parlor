@@ -89,7 +89,7 @@
     try {
       const result = await joinRoomAction(joinCode.trim(), joinName.trim());
       if (result.success) {
-        goto(`/lobby/${joinCode.trim().toUpperCase()}`);
+        await goto(`/lobby/${joinCode.trim().toUpperCase()}`);
       } else {
         error = result.error ?? 'Failed to join room';
       }
@@ -111,7 +111,7 @@
     error = '';
     try {
       const roomCode = await createRoomAction(createName.trim(), selectedGameForCreate);
-      goto(`/lobby/${roomCode}`);
+      await goto(`/lobby/${roomCode}`);
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to create room';
     } finally {
@@ -145,11 +145,11 @@
   }
 
   function handleJoinKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') handleJoin();
+    if (e.key === 'Enter') handleJoin().catch(console.error);
   }
 
   function handleCreateKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') handleCreateWithGame();
+    if (e.key === 'Enter') handleCreateWithGame().catch(console.error);
   }
 </script>
 

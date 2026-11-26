@@ -9,7 +9,7 @@
 
   interface Props {
     view: BootyDicePlayerView;
-    socket: GameSocket;
+    socket: GameSocket<'booty-dice'>;
     playerId: string;
     onBackToLobby: () => void;
   }

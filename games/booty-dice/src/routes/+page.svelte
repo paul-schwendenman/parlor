@@ -15,7 +15,7 @@
   });
 
   function handleGameReady(roomCode: string) {
-    goto(`/lobby/${roomCode}`);
+    goto(`/lobby/${roomCode}`).catch(console.error);
   }
 </script>
 

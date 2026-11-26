@@ -11,6 +11,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Server } from 'socket.io';
 import { io as ioc, type Socket as ClientSocket } from 'socket.io-client';
+import type { AppServer } from './server.js';
 import { RoomManager } from './RoomManager.js';
 import { setupLobbyHandlers } from './lobbyHandlers.js';
 import { safeAck } from './ack.js';
@@ -18,7 +19,7 @@ import { safeAck } from './ack.js';
 const BAD_ACKS: unknown[] = [1, 0, 'x', true, {}, [], null];
 
 let http: HttpServer;
-let io: Server;
+let io: AppServer;
 let client: ClientSocket;
 let uncaught: unknown[];
 const onUncaught = (err: unknown) => uncaught.push(err);
@@ -42,7 +43,7 @@ beforeEach(async () => {
   http = createServer();
   io = new Server(http);
   const rm = new RoomManager();
-  io.on('connection', (s) => setupLobbyHandlers(io as never, s as never, rm, {}));
+  io.on('connection', (s) => setupLobbyHandlers(io, s, rm, {}));
   await new Promise<void>((r) => http.listen(0, r));
   const { port } = http.address() as AddressInfo;
   client = ioc(`http://localhost:${port}`, { transports: ['websocket'], reconnection: false });
@@ -97,7 +98,7 @@ describe('safeAck', () => {
   });
 
   it.each([undefined, ...BAD_ACKS])('returns a callable no-op for %j', (bad) => {
-    const ack = safeAck(bad as never as (ok: boolean) => void);
-    expect(() => ack(true)).not.toThrow();
+    const ack = safeAck(bad);
+    expect(() => ack()).not.toThrow();
   });
 });

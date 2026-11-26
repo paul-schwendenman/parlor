@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RoomManager } from '@parlor/multiplayer';
-import { createDispatchHarness, type DispatchHarness } from '@parlor/multiplayer/testing';
+import {
+  createActionSocket,
+  createDispatchHarness,
+  createFakeIo,
+  type DispatchHarness,
+} from '@parlor/multiplayer/testing';
 import { bootyDiceDefinition } from './definition.js';
 import { validateBootyDiceAction } from './validateAction.js';
 import type { GameEngine } from './game/GameEngine.js';
@@ -41,7 +46,7 @@ const INVALID: [string, Record<string, unknown>][] = [
 
 function setup() {
   const h = createDispatchHarness(bootyDiceDefinition);
-  const engine = h.roomManager.getGameData<GameEngine>(h.roomCode)!;
+  const engine = h.getState()!;
   const current = () => engine.getState().players[engine.getState().currentPlayerIndex];
   const doubloons = () => engine.getState().players.map((p) => p.doubloons);
   return { h, engine, current, doubloons };
@@ -151,8 +156,8 @@ describe('Booty Dice must roll before scoring (CORE-AUDIT A-06 / F-06)', () => {
   it('a player who disconnects before rolling forfeits the turn instead of scoring', () => {
     const { h, engine, current, doubloons } = setup();
     const first = current().id;
-    const io = { to: () => ({ emit: () => {} }) } as never;
-    bootyDiceDefinition.createLobbyCallbacks(h.roomManager, io).onPlayerDisconnect!(h.roomCode, first, io);
+    const io = createFakeIo();
+    void bootyDiceDefinition.createLobbyCallbacks(h.roomManager, io).onPlayerDisconnect!(h.roomCode, first, io);
     expect(current().id).not.toBe(first);
     expect(doubloons()).toEqual([5, 5]);
     expect(engine.getState().players.map((p) => p.lives)).toEqual([10, 10]);
@@ -169,9 +174,9 @@ describe('Booty Dice bots still take turns', () => {
       rm.addBot(roomCode, 'Bot Alice');
       rm.setPlayerReady(playerId, true);
       const players = rm.startGame(roomCode)!;
-      const io = { to: () => ({ emit: () => {} }) } as never;
+      const io = createFakeIo();
       bootyDiceDefinition.createLobbyCallbacks(rm, io).onGameStart!(roomCode, players, io);
-      const engine = rm.getGameData<GameEngine>(roomCode)!;
+      const engine = bootyDiceDefinition.typed.getState(rm, roomCode)!;
 
       const turn = () => engine.getState().turnNumber;
       if (!engine.getState().players[engine.getState().currentPlayerIndex].isAI) {
@@ -183,7 +188,7 @@ describe('Booty Dice bots still take turns', () => {
         for (const pending of engine.getState().pendingActions) engine.selectTarget(pending.dieIndex, bot.id);
         void bootyDiceDefinition.handleGameAction(
           io,
-          { data: { roomCode, playerId: me.id }, emit: () => {} } as never,
+          createActionSocket('s0', { roomCode, playerId: me.id }),
           rm,
           { type: 'endTurn' },
         );

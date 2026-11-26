@@ -69,10 +69,13 @@ export const DEFAULT_CONFIG: KingsCornerConfig = {
   turnTimer: null,
 };
 
-// Kings Corner's entry in the `game:state` wire map (plan 3.1b). Spectators get
+// Kings Corner's entries in the `game:state` and `game:action` wire maps (plans 3.1b, 3.5). Spectators get
 // the same shape with `myIndex: -1` and an empty hand.
 declare module '@parlor/game-types' {
   interface GameViewMap {
     'kings-corner': KingsCornerPlayerView;
+  }
+  interface GameActionMap {
+    'kings-corner': KingsCornerAction;
   }
 }

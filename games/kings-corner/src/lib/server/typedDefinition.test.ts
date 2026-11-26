@@ -172,7 +172,7 @@ describe('Kings Corner absent and removed seats (plan 3.9)', () => {
     const [a, b] = h.humans;
     const [botId] = h.botIds;
 
-    const takeTurn = vi.spyOn(AIPlayer.prototype, 'takeTurn');
+    const { takeTurn, release, resumed } = holdFirstBotTurn();
     await endTurn(h, a);
     a.fire('room:leave');
     expect(h.roomManager.getPlayersInRoom(h.roomCode).map((p) => p.id)).toEqual([b.data.playerId, botId]);
@@ -185,8 +185,10 @@ describe('Kings Corner absent and removed seats (plan 3.9)', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(takeTurn).toHaveBeenCalledOnce();
 
-    // The real bot plays its turn; the removed seat is skipped and play returns to B.
-    await vi.advanceTimersByTimeAsync(31_000);
+    // Complete the bot turn without depending on a random deal.
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(resumed).toHaveBeenCalledOnce();
     expect(engine.getActivePlayerId()).toBe(b.data.playerId);
   });
 

@@ -6,14 +6,66 @@
 import type { ActionResult } from '@parlor/game-types';
 import { RoomManager } from './RoomManager.js';
 import { dispatchGameAction } from './actionBoundary.js';
-import { returnRoomToLobby, setupLobbyHandlers, type LobbyCallbacks } from './lobbyHandlers.js';
-import type { AppServer, AppSocket, LooseGameAction, ServerGameDefinition } from './gameDefinition.js';
+import {
+  returnRoomToLobby,
+  setupLobbyHandlers,
+  type LobbyCallbacks,
+  type LobbyHandlerOptions,
+} from './lobbyHandlers.js';
+import type {
+  ActionSocket,
+  LobbyIo,
+  LobbySocket,
+  LooseGameAction,
+  ServerGameDefinition,
+} from './gameDefinition.js';
 
-/** One `io.to(target).emit(event, payload)` call. */
+/** One `io.to(target).emit(event, ...args)` call. */
 export interface CapturedEmit {
   to: string;
   event: string;
+  /** The first argument (the whole payload for every event but `lobby:state`). */
   payload: unknown;
+  args: unknown[];
+}
+
+/** A fake Socket.io server that records every `io.to(...).emit(...)`. */
+export interface FakeIo extends LobbyIo {
+  emitted: CapturedEmit[];
+}
+
+/**
+ * A typed fake of the server the core uses (`LobbyIo`): no Socket.io, no casts.
+ * Pass an existing array to share the capture with other fakes.
+ */
+export function createFakeIo(emitted: CapturedEmit[] = []): FakeIo {
+  return {
+    emitted,
+    to: (to) => ({
+      emit: (event, ...args) => {
+        emitted.push({ to, event, payload: args[0], args });
+        return true;
+      },
+    }),
+    in: () => ({ socketsLeave: () => undefined }),
+    sockets: { sockets: new Map<string, { disconnect(close?: boolean): void }>() },
+  };
+}
+
+/** A fake socket for `dispatchGameAction`: `socket.emit(...)` calls (e.g. `error`) go to `onEmit`. */
+export function createActionSocket(
+  id: string,
+  data: { roomCode: string; playerId: string; playerName?: string },
+  onEmit: (event: string, args: unknown[]) => void = () => undefined,
+): ActionSocket {
+  return {
+    id,
+    data: { playerName: '', ...data },
+    emit: (event, ...args) => {
+      onEmit(event, args);
+      return true;
+    },
+  };
 }
 
 export interface DispatchHarness<State = unknown> {
@@ -27,7 +79,7 @@ export interface DispatchHarness<State = unknown> {
   /** Every `io.to(...).emit(...)` the game made, in order (includes the start broadcast). */
   emitted: CapturedEmit[];
   /** The fake `io` the game was given. */
-  io: AppServer;
+  io: FakeIo;
   /** The lobby callbacks the game was started with (call them to drive lifecycle events). */
   callbacks: LobbyCallbacks;
   /** The current state, for definitions built with `defineGame`. */
@@ -41,16 +93,8 @@ export function createDispatchHarness<State = unknown, Action extends LooseGameA
   definition: ServerGameDefinition<State, Action, View>,
   playerCount = 2,
 ): DispatchHarness<State> {
-  const emitted: CapturedEmit[] = [];
-  const io = {
-    to: (to: string) => ({
-      emit: (event: string, payload: unknown) => {
-        emitted.push({ to, event, payload });
-        return true;
-      },
-    }),
-    in: () => ({ socketsLeave: () => undefined }),
-  } as never as AppServer;
+  const io = createFakeIo();
+  const { emitted } = io;
   const roomManager = new RoomManager();
   const host = roomManager.createRoom('sock-0', 'P0');
   roomManager.selectGame(host.roomCode, definition.meta);
@@ -81,11 +125,13 @@ export function createDispatchHarness<State = unknown, Action extends LooseGameA
       if (!result.success) throw new Error(result.error ?? 'Could not spectate');
     },
     send(playerId, action) {
-      const socket = {
-        id: `sock-${playerIds.indexOf(playerId)}`,
-        data: { roomCode: host.roomCode, playerId },
-        emit: (_event: string, message: string) => errors.get(playerId)?.push(message),
-      } as never as AppSocket;
+      const socket = createActionSocket(
+        `sock-${playerIds.indexOf(playerId)}`,
+        { roomCode: host.roomCode, playerId },
+        (_event, [message]) => {
+          if (typeof message === 'string') errors.get(playerId)?.push(message);
+        },
+      );
       return dispatchGameAction({
         io,
         socket,
@@ -99,7 +145,8 @@ export function createDispatchHarness<State = unknown, Action extends LooseGameA
   };
 }
 
-type Handler = (...args: unknown[]) => void;
+/** Any listener the server registered; its parameters are only known per event. */
+type Listener = (...args: never[]) => unknown;
 
 /** A fake server-side socket wired through the real `setupLobbyHandlers`. */
 export interface FakeSocket {
@@ -107,14 +154,58 @@ export interface FakeSocket {
   data: { roomCode: string; playerId: string; playerName: string };
   /** `socket.emit(...)` calls the server made to this socket (e.g. `error`). */
   received: { event: string; args: unknown[] }[];
-  /** Deliver a client event to the server handlers. */
+  /**
+   * Deliver a client event to the server handlers. The arguments are untyped on
+   * purpose: like a real client, a test can send any payload.
+   */
   fire(event: string, ...args: unknown[]): void;
+}
+
+/**
+ * Create a fake socket and register the real lobby handlers on it.
+ * `fire` hands the raw arguments to the registered listener the way Socket.io
+ * does (`listener.apply(socket, args)`): a listener's declared parameter types
+ * describe what a well-behaved client sends, and the handlers must cope with
+ * anything else, which is what tests use `fire` to check.
+ */
+export function connectFakeSocket(
+  io: LobbyIo,
+  roomManager: RoomManager,
+  callbacks: LobbyCallbacks | undefined,
+  id: string,
+  options?: LobbyHandlerOptions,
+): FakeSocket {
+  const listeners = new Map<string, Listener>();
+  const socket: FakeSocket = {
+    id,
+    data: { roomCode: '', playerId: '', playerName: '' },
+    received: [],
+    fire: (event, ...args) => {
+      const listener = listeners.get(event);
+      if (listener) Reflect.apply(listener, serverSocket, args);
+    },
+  };
+  const serverSocket: LobbySocket = {
+    id,
+    data: socket.data,
+    on: (event: string, listener: Listener) => {
+      listeners.set(event, listener);
+    },
+    join: () => undefined,
+    leave: () => undefined,
+    emit: (event, ...args) => {
+      socket.received.push({ event, args });
+      return true;
+    },
+  };
+  setupLobbyHandlers(io, serverSocket, roomManager, callbacks, options);
+  return socket;
 }
 
 export interface LobbyHarness<State = unknown> {
   roomManager: RoomManager;
   roomCode: string;
-  io: AppServer;
+  io: FakeIo;
   callbacks: LobbyCallbacks;
   /** Every `io.to(...).emit(...)`, in order. */
   emitted: CapturedEmit[];
@@ -149,46 +240,11 @@ export function createLobbyHarness<State = unknown, Action extends LooseGameActi
   options: LobbyHarnessOptions = {},
 ): LobbyHarness<State> {
   const { humans: humanCount = 2, bots = 0, graceMs = 1_000, start = true } = options;
-  const emitted: CapturedEmit[] = [];
-  const sockets = new Map<string, FakeSocket>();
-  const io = {
-    to: (to: string) => ({
-      emit: (event: string, payload: unknown) => {
-        emitted.push({ to, event, payload });
-        return true;
-      },
-    }),
-    in: () => ({ socketsLeave: () => undefined }),
-    sockets: { sockets: new Map<string, { disconnect: () => void }>() },
-  } as never as AppServer;
+  const io = createFakeIo();
+  const { emitted } = io;
   const roomManager = new RoomManager(graceMs);
   const callbacks = definition.createLobbyCallbacks(roomManager, io);
-
-  function connect(id: string): FakeSocket {
-    const handlers: Record<string, Handler> = {};
-    const socket: FakeSocket = {
-      id,
-      data: { roomCode: '', playerId: '', playerName: '' },
-      received: [],
-      fire: (event, ...args) => handlers[event]?.(...args),
-    };
-    const serverSocket = {
-      id,
-      data: socket.data,
-      on: (event: string, cb: Handler) => {
-        handlers[event] = cb;
-      },
-      join: () => undefined,
-      leave: () => undefined,
-      emit: (event: string, ...args: unknown[]) => {
-        socket.received.push({ event, args });
-        return true;
-      },
-    };
-    sockets.set(id, socket);
-    setupLobbyHandlers(io, serverSocket as never as AppSocket, roomManager, callbacks);
-    return socket;
-  }
+  const connect = (id: string): FakeSocket => connectFakeSocket(io, roomManager, callbacks, id);
 
   const tokens = new Map<string, string>();
   const host = connect('host-socket');
@@ -230,7 +286,7 @@ export function createLobbyHarness<State = unknown, Action extends LooseGameActi
     send(socket, action) {
       return dispatchGameAction({
         io,
-        socket: { id: socket.id, data: socket.data, emit: () => true } as never as AppSocket,
+        socket: createActionSocket(socket.id, socket.data),
         roomManager,
         definition,
         action,

@@ -151,10 +151,13 @@ export type BootyDiceAction =
   | { type: 'selectTarget'; dieIndex: number; targetPlayerId: string }
   | { type: 'endTurn' };
 
-// Booty Dice's entry in the `game:state` wire map (plan 3.1b). All game state
+// Booty Dice's entries in the `game:state` and `game:action` wire maps (plans 3.1b, 3.5). All game state
 // is public; spectators get the same shape with `myIndex: -1`.
 declare module '@parlor/game-types' {
   interface GameViewMap {
     'booty-dice': BootyDicePlayerView;
+  }
+  interface GameActionMap {
+    'booty-dice': BootyDiceAction;
   }
 }

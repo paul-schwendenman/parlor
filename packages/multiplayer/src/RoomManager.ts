@@ -438,16 +438,16 @@ export class RoomManager {
     return room?.gameId ?? null;
   }
 
-  setGameData<T>(roomCode: string, data: T): void {
+  /**
+   * Record the running game's state. The core only compares it by identity
+   * (is this still the game that started?); typed access goes through the
+   * game definition's `typed.getState()`.
+   */
+  setGameData(roomCode: string, data: unknown): void {
     const room = this.rooms.get(roomCode.toUpperCase());
     if (room) {
       room.gameData = data;
     }
-  }
-
-  getGameData<T>(roomCode: string): T | null {
-    const room = this.rooms.get(roomCode.toUpperCase());
-    return (room?.gameData as T) ?? null;
   }
 
   /**

@@ -31,7 +31,7 @@
 
   $effect(() => {
     if (lobbyState.gameStarting || gameState.view) {
-      goto(`/game/${roomCode}`);
+      goto(`/game/${roomCode}`).catch(console.error);
     }
   });
 </script>

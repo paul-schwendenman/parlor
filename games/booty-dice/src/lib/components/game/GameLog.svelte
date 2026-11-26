@@ -15,7 +15,7 @@
         if (container) {
           container.scrollTop = container.scrollHeight;
         }
-      });
+      }).catch(console.error);
     }
   });
 </script>

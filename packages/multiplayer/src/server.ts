@@ -9,8 +9,6 @@ import type {
   SocketData,
 } from '@parlor/game-types';
 import { getMetrics, recordMetric } from './observability.js';
-import { RoomManager } from './RoomManager.js';
-import { setupLobbyHandlers, type LobbyCallbacks } from './lobbyHandlers.js';
 
 /** Heartbeat: how often the server pings the client. */
 export const DEFAULT_PING_INTERVAL = 25_000;
@@ -189,6 +187,10 @@ export function setupGracefulShutdown(options: GracefulShutdownOptions): () => v
       clearTimeout(force);
       logger.log('[shutdown] drained, exiting');
       process.exit(0);
+    }).catch((error: unknown) => {
+      clearTimeout(force);
+      logger.error('[shutdown] drain failed', error);
+      process.exit(1);
     });
     // Stop accepting new HTTP connections immediately (io.close covers this too,
     // but being explicit closes the listener even if a socket hangs the drain).
@@ -207,13 +209,6 @@ export function setupGracefulShutdown(options: GracefulShutdownOptions): () => v
       process.off(signal, handler);
     }
   };
-}
-
-export interface GameServerOptions {
-  httpServer: HttpServer;
-  maxPlayersPerRoom?: number;
-  corsOrigin?: string | string[];
-  callbacks?: LobbyCallbacks;
 }
 
 export type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -270,17 +265,4 @@ export function createSocketServer(
     });
   });
   return io;
-}
-
-export function createGameServer(options: GameServerOptions) {
-  const { httpServer, corsOrigin, callbacks } = options;
-  const io = createSocketServer(httpServer, { corsOrigin });
-
-  const roomManager = new RoomManager();
-
-  io.on('connection', (socket) => {
-    setupLobbyHandlers(io, socket, roomManager, callbacks);
-  });
-
-  return { io, roomManager };
 }

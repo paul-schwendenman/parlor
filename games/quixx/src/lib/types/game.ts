@@ -123,10 +123,13 @@ export type QuixxAction =
   | { type: 'phase2-mark'; row: RowColor; cellIndex: number }
   | { type: 'phase2-pass' };
 
-// Quixx's entry in the `game:state` wire map (plan 3.1b). Score sheets are
+// Quixx's entries in the `game:state` and `game:action` wire maps (plans 3.1b, 3.5). Score sheets are
 // public, so spectators get the same shape as players.
 declare module '@parlor/game-types' {
   interface GameViewMap {
     quixx: QuixxPlayerView;
+  }
+  interface GameActionMap {
+    quixx: QuixxAction;
   }
 }

@@ -6,19 +6,21 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { Server } from 'socket.io';
-import { io as ioc, type Socket as ClientSocket } from 'socket.io-client';
+import { io as ioc } from 'socket.io-client';
 import type { ActionResult, GameStateEnvelope } from '@parlor/game-types';
+import type { AppServer } from '@parlor/multiplayer';
+import type { GameSocket } from '@parlor/multiplayer/client';
 import { setupCrazyEightsSocketHandlers } from './socketServer.js';
 
 let http: HttpServer;
-let io: Server;
-let clients: ClientSocket[];
+let io: AppServer;
+let clients: GameSocket<'crazy-eights'>[];
 
 beforeEach(async () => {
   clients = [];
   http = createServer();
   io = new Server(http);
-  setupCrazyEightsSocketHandlers(io as never);
+  setupCrazyEightsSocketHandlers(io);
   await new Promise<void>((resolve) => http.listen(0, resolve));
 });
 
@@ -29,7 +31,10 @@ afterEach(async () => {
 
 async function connect() {
   const port = (http.address() as AddressInfo).port;
-  const socket = ioc(`http://localhost:${port}`, { transports: ['websocket'], reconnection: false });
+  const socket: GameSocket<'crazy-eights'> = ioc(`http://localhost:${port}`, {
+    transports: ['websocket'],
+    reconnection: false,
+  });
   clients.push(socket);
   const states: GameStateEnvelope[] = [];
   socket.on('game:state', (s) => states.push(s));

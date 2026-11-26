@@ -9,11 +9,12 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Server } from 'socket.io';
 import { io as ioc, type Socket as ClientSocket } from 'socket.io-client';
+import type { AppServer } from './server.js';
 import { RoomManager } from './RoomManager.js';
 import { setupLobbyHandlers, type LobbyCallbacks } from './lobbyHandlers.js';
 
 let http: HttpServer;
-let io: Server;
+let io: AppServer;
 let rm: RoomManager;
 let host: ClientSocket;
 let guest: ClientSocket;
@@ -62,7 +63,7 @@ beforeEach(async () => {
   http = createServer();
   io = new Server(http);
   rm = new RoomManager();
-  io.on('connection', (s) => setupLobbyHandlers(io as never, s as never, rm, callbacks));
+  io.on('connection', (s) => setupLobbyHandlers(io, s, rm, callbacks));
   await new Promise<void>((r) => http.listen(0, r));
   const { port } = http.address() as AddressInfo;
   host = await connect(port);
@@ -115,7 +116,7 @@ describe('lobby start rollback (B-08)', () => {
     const [ok2] = await ackOnce<[boolean, string?]>((cb) => host.emit('lobby:startGame', cb));
     expect(ok2).toBe(true);
     expect(rm.getRoom(roomCode)!.status).toBe('playing');
-    expect(rm.getGameData(roomCode)).toEqual({ engine: 'ok' });
+    expect(rm.getRoom(roomCode)?.gameData).toEqual({ engine: 'ok' });
   });
 
   it('restartGame: onGameStart throwing rolls back to waiting and emits a generic error', async () => {
@@ -132,7 +133,7 @@ describe('lobby start rollback (B-08)', () => {
     await guestLobby;
     expect(message).toBe('Failed to restart game');
     expect(rm.getRoom(roomCode)!.status).toBe('waiting');
-    expect(rm.getGameData(roomCode)).toBeNull();
+    expect(rm.getRoom(roomCode)?.gameData).toBeNull();
 
     // And the room still works.
     throwOnStart = false;

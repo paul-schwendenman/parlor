@@ -6,7 +6,7 @@ import { lobbyState } from './lobbyStore.svelte.js';
 import { gameState } from './gameStore.svelte.js';
 import { playerState } from './playerStore.svelte.js';
 
-const runtime = createParlorRuntime({
+const runtime = createParlorRuntime<'quixx'>({
   browser,
   connectionState,
   lobbyState,
@@ -17,7 +17,7 @@ const runtime = createParlorRuntime({
   },
 });
 
-export function getSocket(): GameSocket {
+export function getSocket(): GameSocket<'quixx'> {
   return runtime.getSocket();
 }
 

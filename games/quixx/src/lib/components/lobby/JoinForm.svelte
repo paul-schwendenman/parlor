@@ -67,11 +67,11 @@
   }
 
   function handleJoinKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') handleJoin();
+    if (e.key === 'Enter') handleJoin().catch(console.error);
   }
 
   function handleCreateKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') handleCreate();
+    if (e.key === 'Enter') handleCreate().catch(console.error);
   }
 </script>
 

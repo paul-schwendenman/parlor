@@ -38,7 +38,7 @@
     } else if (hadView) {
       // Game was reset, navigate back to lobby
       const roomCode = $page.params.roomCode;
-      goto(`/lobby/${roomCode}`);
+      goto(`/lobby/${roomCode}`).catch(console.error);
     }
   });
 </script>

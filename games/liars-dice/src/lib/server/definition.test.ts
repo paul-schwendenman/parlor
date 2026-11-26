@@ -4,13 +4,13 @@
  * a *later* round's reveal short. The timer is now bound to its round.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RoomManager, type AppServer } from '@parlor/multiplayer';
+import { RoomManager } from '@parlor/multiplayer';
+import { createActionSocket, createFakeIo } from '@parlor/multiplayer/testing';
 import { liarsDiceDefinition } from './definition.js';
-import type { LiarsDiceEngine } from './game/LiarsDiceEngine.js';
 import type { LiarsDiceAction } from '../types/game.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 
-const io = { to: () => ({ emit: () => {} }) } as unknown as AppServer;
+const io = createFakeIo();
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
@@ -28,12 +28,12 @@ function setup() {
   const players = rm.startGame(roomCode)!;
   const callbacks = liarsDiceDefinition.createLobbyCallbacks(rm, io);
   callbacks.onGameStart!(roomCode, players, io);
-  const engine = rm.getGameData<LiarsDiceEngine>(roomCode)!;
+  const engine = liarsDiceDefinition.typed.getState(rm, roomCode)!;
   // Sync handler: a rule error throws straight out of `act`.
   const act = (playerId: string, action: LiarsDiceAction): void => {
     void liarsDiceDefinition.handleGameAction(
       io,
-      { data: { roomCode, playerId }, emit: vi.fn() } as never,
+      createActionSocket(`socket-${playerId}`, { roomCode, playerId }),
       rm,
       action,
     );
@@ -63,9 +63,9 @@ function setupWithBot() {
   rm.setPlayerReady(a, true);
   const players = rm.startGame(roomCode)!;
   liarsDiceDefinition.createLobbyCallbacks(rm, io).onGameStart!(roomCode, players, io);
-  const engine = rm.getGameData<LiarsDiceEngine>(roomCode)!;
+  const engine = liarsDiceDefinition.typed.getState(rm, roomCode)!;
   const act = (action: LiarsDiceAction): void => {
-    void liarsDiceDefinition.handleGameAction(io, { data: { roomCode, playerId: a }, emit: vi.fn() } as never, rm, action);
+    void liarsDiceDefinition.handleGameAction(io, createActionSocket('sa', { roomCode, playerId: a }), rm, action);
   };
   const active = () => engine.getState().players[engine.getState().activePlayerIndex].id;
   /** Let a scheduled bot turn run (well short of the 3 s reveal timer). */

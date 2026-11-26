@@ -6,12 +6,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GameStateEnvelope } from '@parlor/game-types';
 import { RoomManager } from './RoomManager.js';
-import { setupLobbyHandlers } from './lobbyHandlers.js';
 import { defineGame, type PlayerContext } from './defineGame.js';
 import { GameRuleError } from './errors.js';
 import { hasExactKeys, invalid, isIntInRange, typeOnly, valid, validateByType } from './actionValidation.js';
-import { createDispatchHarness } from './testing.js';
-import type { AppServer } from './gameDefinition.js';
+import { createDispatchHarness, createFakeIo, createLobbyHarness, type CapturedEmit } from './testing.js';
 
 interface CounterView {
   total: number;
@@ -20,13 +18,16 @@ interface CounterView {
   removed: string[];
 }
 
+type CounterAction = { type: 'add'; amount: number } | { type: 'slow-add' } | { type: 'refuse' };
+
 declare module '@parlor/game-types' {
   interface GameViewMap {
     'test-counter': CounterView;
   }
+  interface GameActionMap {
+    'test-counter': CounterAction;
+  }
 }
-
-type CounterAction = { type: 'add'; amount: number } | { type: 'slow-add' } | { type: 'refuse' };
 
 class Counter {
   total = 0;
@@ -102,7 +103,7 @@ afterEach(() => {
   slowAdd.gate = Promise.resolve();
 });
 
-function gameStates(emitted: { to: string; event: string; payload: unknown }[], to?: string) {
+function gameStates(emitted: CapturedEmit[], to?: string) {
   return emitted
     .filter((e) => e.event === 'game:state' && (to === undefined || e.to === to))
     .map((e) => e.payload as GameStateEnvelope<'test-counter'>);
@@ -135,8 +136,8 @@ describe('defineGame: views go out as { gameId, view } to the right recipients',
     rm.selectGame(host.roomCode, counterDefinition.meta);
     const bot = rm.addBot(host.roomCode, 'Bot');
     rm.setPlayerReady(host.playerId, true);
-    const emitted: { to: string; event: string; payload: unknown }[] = [];
-    const io = { to: (to: string) => ({ emit: (event: string, payload: unknown) => emitted.push({ to, event, payload }) }) } as never as AppServer;
+    const io = createFakeIo();
+    const { emitted } = io;
 
     const players = rm.startGame(host.roomCode)!;
     counterDefinition.createLobbyCallbacks(rm, io).onGameStart?.(host.roomCode, players, io);
@@ -197,52 +198,20 @@ describe('defineGame: game-instance lifetime', () => {
 
 // --- Lifecycle hooks over the real lobby handlers ------------------------------
 
-type Handler = (...args: unknown[]) => void;
-
-function makeSocket(id: string) {
-  const handlers: Record<string, Handler> = {};
-  return {
-    id,
-    data: {} as { roomCode?: string; playerId?: string; playerName?: string },
-    on: (event: string, cb: Handler) => {
-      handlers[event] = cb;
-    },
-    join: vi.fn(),
-    leave: vi.fn(),
-    emit: vi.fn(),
-    fire: (event: string, ...args: unknown[]) => handlers[event]?.(...args),
-  };
-}
-
-/** Host + guest in a started counter game, wired through `setupLobbyHandlers`. */
+/** Host + guest in a started counter game, wired through the real lobby handlers. */
 function startLobbyGame(graceMs = 1_000) {
-  const rm = new RoomManager(graceMs);
-  const emitted: { to: string; event: string; payload: unknown }[] = [];
-  const io = {
-    in: () => ({ socketsLeave: vi.fn() }),
-    to: (to: string) => ({ emit: (event: string, payload: unknown) => emitted.push({ to, event, payload }) }),
-    sockets: { sockets: new Map() },
-  } as never as AppServer;
-  const callbacks = counterDefinition.createLobbyCallbacks(rm, io);
-  const host = makeSocket('host-socket');
-  const guest = makeSocket('guest-socket');
-  for (const socket of [host, guest]) setupLobbyHandlers(io, socket as never, rm, callbacks);
-
-  host.fire('lobby:create', 'Ann', vi.fn());
-  const roomCode = host.data.roomCode!;
-  let guestToken = '';
-  guest.fire('lobby:join', roomCode, 'Bob', (result: { reconnectToken: string }) => {
-    guestToken = result.reconnectToken;
-  });
-  rm.selectGame(roomCode, counterDefinition.meta);
-  host.fire('lobby:ready', true, vi.fn());
-  guest.fire('lobby:ready', true, vi.fn());
-  const ack = vi.fn();
-  host.fire('lobby:startGame', ack);
-  expect(ack).toHaveBeenCalledWith(true);
+  const h = createLobbyHarness(counterDefinition, { graceMs });
+  const [host, guest] = h.humans;
   return {
-    rm, io, callbacks, emitted, host, guest, roomCode, guestToken,
-    hostId: host.data.playerId!, guestId: guest.data.playerId!,
+    rm: h.roomManager,
+    emitted: h.emitted,
+    connect: h.connect,
+    host,
+    guest,
+    roomCode: h.roomCode,
+    guestToken: h.tokens.get(guest.data.playerId) ?? '',
+    hostId: host.data.playerId,
+    guestId: guest.data.playerId,
   };
 }
 
@@ -250,7 +219,7 @@ describe('defineGame: lifecycle hooks', () => {
   it('onPlayerDisconnect runs then broadcasts; onPlayerRemoved runs on grace expiry then broadcasts', () => {
     vi.useFakeTimers();
     const { rm, emitted, guest, roomCode, hostId, guestId } = startLobbyGame();
-    const state = counterDefinition.typed!.getState(rm, roomCode)!;
+    const state = counterDefinition.typed.getState(rm, roomCode)!;
 
     emitted.length = 0;
     guest.fire('disconnect');
@@ -274,12 +243,12 @@ describe('defineGame: lifecycle hooks', () => {
 
   it('onPlayerReconnect runs and only the returning player is sent its view', () => {
     vi.useFakeTimers();
-    const { rm, io, callbacks, emitted, guest, roomCode, guestId, guestToken } = startLobbyGame();
+    const { rm, connect, emitted, guest, roomCode, guestId, guestToken } = startLobbyGame();
+    expect(guestToken).not.toBe('');
     guest.fire('disconnect');
     emitted.length = 0;
 
-    const returned = makeSocket('returned-socket');
-    setupLobbyHandlers(io, returned as never, rm, callbacks);
+    const returned = connect('returned-socket');
     const ack = vi.fn();
     returned.fire('player:reconnect', roomCode, guestId, guestToken, ack);
     expect(ack).toHaveBeenCalledWith(true, expect.any(String));
@@ -287,13 +256,13 @@ describe('defineGame: lifecycle hooks', () => {
     expect(hooks.onPlayerReconnect).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ playerId: guestId }));
     expect(gameStates(emitted).map((e) => e.view.secret)).toEqual([`secret-${guestId}`]);
     expect(emitted.filter((e) => e.event === 'game:state').map((e) => e.to)).toEqual([guestId]);
-    expect(counterDefinition.typed!.getState(rm, roomCode)!.disconnected.has(guestId)).toBe(false);
+    expect(counterDefinition.typed.getState(rm, roomCode)!.disconnected.has(guestId)).toBe(false);
   });
 
   it('onRoomDestroyed gets the running state when the last human leaves, and the game is stopped', () => {
     vi.useFakeTimers();
     const { rm, emitted, host, guest, roomCode } = startLobbyGame();
-    const state = counterDefinition.typed!.getState(rm, roomCode)!;
+    const state = counterDefinition.typed.getState(rm, roomCode)!;
     const instance = rm.getGameInstance(roomCode)!;
 
     guest.fire('room:leave');

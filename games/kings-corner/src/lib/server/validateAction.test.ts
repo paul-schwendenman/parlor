@@ -37,7 +37,7 @@ const INVALID: [string, Record<string, unknown>][] = [
 describe('Kings Corner actions through the boundary', () => {
   it.each(INVALID)('%s → INVALID_ACTION, state unchanged, valid draw afterward works', async (_label, action) => {
     const h = createDispatchHarness(kingsCornerDefinition);
-    const engine = h.roomManager.getGameData<KingsCornerEngine>(h.roomCode)!;
+    const engine = h.getState()!;
     const active = h.playerIds.find((id) => engine.getPlayerView(id).isActivePlayer)!;
     const snapshot = () => h.playerIds.map((id) => JSON.stringify(engine.getPlayerView(id))).join();
     const before = snapshot();
@@ -84,7 +84,9 @@ describe('Kings Corner engine hardening', () => {
   it('an unknown pile is a rule error, not a TypeError', () => {
     const { engine, active } = drawnEngine();
     const handCard = engine.getPlayerView(active).myHand[0];
-    expect(() => engine.playCard(active, handCard, 'nowhere' as never)).toThrow('Invalid pile');
-    expect(() => engine.movePile(active, 'north', 'nowhere' as never)).toThrow('Invalid pile');
+    // @ts-expect-error -- deliberately not a PilePosition: the engine must still reject it
+    expect(() => engine.playCard(active, handCard, 'nowhere')).toThrow('Invalid pile');
+    // @ts-expect-error -- deliberately not a PilePosition: the engine must still reject it
+    expect(() => engine.movePile(active, 'north', 'nowhere')).toThrow('Invalid pile');
   });
 });

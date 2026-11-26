@@ -5,7 +5,6 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameStateEnvelope } from '@parlor/game-types';
-import { RoomManager, dispatchGameAction, setupLobbyHandlers, type AppServer, type AppSocket } from '@parlor/multiplayer';
 import {
   createDispatchHarness,
   createLobbyHarness,
@@ -118,63 +117,17 @@ describe('Crazy Eights plays through the boundary', () => {
 
 // --- Lifecycle over the real lobby handlers -------------------------------------
 
-type Handler = (...args: unknown[]) => void;
-
-function makeSocket(id: string) {
-  const handlers: Record<string, Handler> = {};
-  return {
-    id,
-    data: {} as { roomCode: string; playerId: string; playerName: string },
-    on: (event: string, cb: Handler) => {
-      handlers[event] = cb;
-    },
-    join: vi.fn(),
-    leave: vi.fn(),
-    emit: vi.fn(),
-    fire: (event: string, ...args: unknown[]) => handlers[event]?.(...args),
-  };
-}
-
-function startLobbyGame() {
-  const rm = new RoomManager(1_000);
-  const emitted: CapturedEmit[] = [];
-  const io = {
-    in: () => ({ socketsLeave: vi.fn() }),
-    to: (to: string) => ({ emit: (event: string, payload: unknown) => emitted.push({ to, event, payload }) }),
-    sockets: { sockets: new Map() },
-  } as never as AppServer;
-  const callbacks = crazyEightsDefinition.createLobbyCallbacks(rm, io);
-  const host = makeSocket('host-socket');
-  const guest = makeSocket('guest-socket');
-  for (const socket of [host, guest]) setupLobbyHandlers(io, socket as never as AppSocket, rm, callbacks);
-
-  host.fire('lobby:create', 'Ann', vi.fn());
-  const { roomCode } = host.data;
-  guest.fire('lobby:join', roomCode, 'Bob', vi.fn());
-  rm.selectGame(roomCode, crazyEightsDefinition.meta);
-  host.fire('lobby:ready', true, vi.fn());
-  guest.fire('lobby:ready', true, vi.fn());
-  host.fire('lobby:startGame', vi.fn());
-  const engine = crazyEightsDefinition.typed!.getState(rm, roomCode)!;
-  expect(engine).not.toBeNull();
-
-  const send = (socket: ReturnType<typeof makeSocket>, action: unknown) =>
-    dispatchGameAction({
-      io, socket: socket as never as AppSocket, roomManager: rm, definition: crazyEightsDefinition,
-      action, ack: undefined, onRoomFailure: vi.fn(),
-    });
-  return { rm, emitted, host, guest, roomCode, engine, send };
-}
-
 describe('Crazy Eights lifecycle hooks', () => {
   it('onRoomDestroyed is called with the running engine when the room goes away, and nothing is emitted', () => {
     const destroyed = vi.spyOn(crazyEightsGame, 'onRoomDestroyed');
-    const { rm, emitted, host, guest, roomCode, engine } = startLobbyGame();
+    const { roomManager, emitted, humans: [host, guest], roomCode, getState } = createLobbyHarness(crazyEightsDefinition);
+    const engine = getState();
+    expect(engine).not.toBeNull();
     guest.fire('room:leave');
     emitted.length = 0;
     host.fire('room:leave');
 
-    expect(rm.getRoom(roomCode)).toBeUndefined();
+    expect(roomManager.getRoom(roomCode)).toBeUndefined();
     expect(destroyed).toHaveBeenCalledExactlyOnceWith({ roomCode, state: engine });
     expect(emitted.filter((e) => e.event === 'game:state')).toEqual([]);
   });

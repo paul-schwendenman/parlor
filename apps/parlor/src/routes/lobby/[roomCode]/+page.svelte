@@ -41,7 +41,7 @@
 
   $effect(() => {
     if (lobbyState.gameStarting || gameState.view) {
-      goto(`/game/${roomCode}`);
+      goto(`/game/${roomCode}`).catch(console.error);
     }
   });
 
@@ -180,7 +180,7 @@
 
     <!-- Actions -->
     <div class="actions">
-      <button class="btn btn-ready" class:is-ready={me?.isReady} onclick={toggleReady}>
+      <button class="btn btn-ready" class:is-ready={me?.isReady} disabled={!me} onclick={toggleReady}>
         {me?.isReady ? 'Not Ready' : 'Ready Up'}
       </button>
 

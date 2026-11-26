@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CrazyEightsEngine } from './CrazyEightsEngine.js';
+import type { Card } from '../../types/game.js';
 
 function createTestEngine(numPlayers = 2) {
   const players = Array.from({ length: numPlayers }, (_, i) => ({
@@ -150,9 +151,7 @@ describe('CrazyEightsEngine', () => {
   });
 });
 
-// Private piles, reached for test setup only.
-type Piles = { drawPile: { suit: string; rank: string }[]; discardPile: { suit: string; rank: string }[]; players: { hand: { suit: string; rank: string }[] }[]; declaredSuit: string | null };
-const piles = (engine: CrazyEightsEngine) => engine as unknown as Piles;
+// The private piles below are set up through typed bracket access (`engine['drawPile']`), for test setup only.
 
 describe('CrazyEightsEngine absent seats and the draw pile (plan 3.9)', () => {
   it('an active player who disconnects in grace is passed without drawing', () => {
@@ -167,10 +166,9 @@ describe('CrazyEightsEngine absent seats and the draw pile (plan 3.9)', () => {
 
   it('reshuffles the discard pile (all but the top card) into an empty draw pile', () => {
     const engine = createTestEngine(2);
-    const p = piles(engine);
-    const top = { suit: 'hearts', rank: '9' };
-    p.discardPile = [{ suit: 'clubs', rank: '2' }, { suit: 'spades', rank: '3' }, { suit: 'diamonds', rank: '4' }, top];
-    p.drawPile = [];
+    const top: Card = { suit: 'hearts', rank: '9' };
+    engine['discardPile'] = [{ suit: 'clubs', rank: '2' }, { suit: 'spades', rank: '3' }, { suit: 'diamonds', rank: '4' }, top];
+    engine['drawPile'] = [];
     engine.drawCard('player-0');
     expect(engine.getPlayerView('player-1').topDiscard).toEqual(top);
     // Three cards went back into the pile, and one of them was drawn.
@@ -180,12 +178,11 @@ describe('CrazyEightsEngine absent seats and the draw pile (plan 3.9)', () => {
 
   it('with both piles exhausted, a player who cannot play has their turn passed instead of stalling', () => {
     const engine = createTestEngine(2);
-    const p = piles(engine);
-    p.drawPile = [];
-    p.discardPile = [{ suit: 'hearts', rank: '9' }];
-    p.declaredSuit = null;
-    p.players[0].hand = [{ suit: 'clubs', rank: '2' }];
-    p.players[1].hand = [{ suit: 'hearts', rank: '3' }];
+    engine['drawPile'] = [];
+    engine['discardPile'] = [{ suit: 'hearts', rank: '9' }];
+    engine['declaredSuit'] = null;
+    engine['players'][0].hand = [{ suit: 'clubs', rank: '2' }];
+    engine['players'][1].hand = [{ suit: 'hearts', rank: '3' }];
 
     engine.drawCard('player-0');
     expect(engine.isGameOver()).toBe(false);
@@ -196,12 +193,11 @@ describe('CrazyEightsEngine absent seats and the draw pile (plan 3.9)', () => {
 
   it('with both piles exhausted and nobody able to play, it is still a stalemate', () => {
     const engine = createTestEngine(2);
-    const p = piles(engine);
-    p.drawPile = [];
-    p.discardPile = [{ suit: 'hearts', rank: '9' }];
-    p.declaredSuit = null;
-    p.players[0].hand = [{ suit: 'clubs', rank: '2' }, { suit: 'clubs', rank: '4' }];
-    p.players[1].hand = [{ suit: 'spades', rank: '3' }];
+    engine['drawPile'] = [];
+    engine['discardPile'] = [{ suit: 'hearts', rank: '9' }];
+    engine['declaredSuit'] = null;
+    engine['players'][0].hand = [{ suit: 'clubs', rank: '2' }, { suit: 'clubs', rank: '4' }];
+    engine['players'][1].hand = [{ suit: 'spades', rank: '3' }];
 
     engine.drawCard('player-0');
     expect(engine.isGameOver()).toBe(true);

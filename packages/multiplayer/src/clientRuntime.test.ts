@@ -1,6 +1,21 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createParlorRuntime, type ParlorRuntimeAdapter } from './clientRuntime.js';
 
+// A client-only test game, so `sendAction` has real action types to check.
+type TestClientAction =
+  | { type: 'lockDice'; diceIndices: number[] }
+  | { type: 'bid'; quantity: number; faceValue: number }
+  | { type: 'roll' };
+
+declare module '@parlor/game-types' {
+  interface GameViewMap {
+    'test-client': { turn: number };
+  }
+  interface GameActionMap {
+    'test-client': TestClientAction;
+  }
+}
+
 // --- socket.io-client mock -------------------------------------------------
 
 type Handler = (...args: unknown[]) => void;
@@ -61,10 +76,10 @@ function reconnectCb(socket: MockSocket): (success: boolean, reconnectToken?: st
   return last[last.length - 1] as (success: boolean, reconnectToken?: string) => void;
 }
 
-/** Pull the (success, error) ack from the last emit of the given event. */
-function ackOf(socket: MockSocket, event: string): (success: boolean, error?: string) => void {
+/** Pull the ack callback from the first emit of the given event. Call it with whatever the server would send. */
+function ackOf(socket: MockSocket, event: string): (...args: unknown[]) => void {
   const call = socket.emit.mock.calls.find((c) => c[0] === event)!;
-  return call[call.length - 1] as (success: boolean, error?: string) => void;
+  return call[call.length - 1] as (...args: unknown[]) => void;
 }
 
 function reconnectEmits(socket: MockSocket): unknown[][] {
@@ -412,7 +427,7 @@ describe('createParlorRuntime', () => {
     const socket = latestSocket();
     const pending = runtime.sendAction({ type: 'bid', quantity: 1, faceValue: 2 });
     const reject = { ok: false, code: 'NOT_YOUR_TURN', message: 'Not your turn' };
-    (ackOf(socket, 'game:action') as unknown as (r: unknown) => void)(reject);
+    ackOf(socket, 'game:action')(reject);
     await expect(pending).resolves.toEqual(reject);
     expect(adapter.connectionState.setActionError).toHaveBeenLastCalledWith('Not your turn');
   });
@@ -434,7 +449,7 @@ describe('createParlorRuntime', () => {
         message: 'Server did not respond',
       });
       expect(adapter.connectionState.setActionError).toHaveBeenLastCalledWith('Server did not respond');
-      (ackOf(socket, 'game:action') as unknown as (r: unknown) => void)({ ok: true });
+      ackOf(socket, 'game:action')({ ok: true });
       expect(adapter.connectionState.setActionError).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
@@ -447,7 +462,7 @@ describe('createParlorRuntime', () => {
     runtime.getSocket();
     const socket = latestSocket();
     const pending = runtime.sendAction({ type: 'roll' });
-    (ackOf(socket, 'game:action') as unknown as (r: unknown) => void)(true);
+    ackOf(socket, 'game:action')(true);
     await expect(pending).resolves.toMatchObject({ ok: false, code: 'INTERNAL' });
   });
 

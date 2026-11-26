@@ -7,9 +7,7 @@ import globals from 'globals';
 /**
  * Shared flat config for the whole monorepo (run from the root: `pnpm lint`).
  *
- * Hardening-focused rules (see docs/CORE-HARDENING-PLAN.md, Phase 0.3) start as
- * warnings so the existing backlog doesn't block CI; tighten to errors as the
- * backlog is burned down in Phase 3.
+ * Hardening rules enforce the checks in docs/CORE-HARDENING-PLAN.md.
  */
 export default tseslint.config(
 	{
@@ -55,12 +53,12 @@ export default tseslint.config(
 
 	{
 		rules: {
-			// --- Hardening rules (warn for now) ---
-			'@typescript-eslint/no-floating-promises': 'warn',
-			'@typescript-eslint/no-misused-promises': 'warn',
-			'@typescript-eslint/no-explicit-any': 'warn',
+			// --- Hardening rules ---
+			'@typescript-eslint/no-floating-promises': 'error',
+			'@typescript-eslint/no-misused-promises': 'error',
+			'@typescript-eslint/no-explicit-any': 'error',
 			'no-restricted-syntax': [
-				'warn',
+				'error',
 				{
 					// `x as unknown as T` launders types past the checker; validate instead.
 					selector: 'TSAsExpression > TSAsExpression[typeAnnotation.type="TSUnknownKeyword"]',
@@ -113,12 +111,10 @@ export default tseslint.config(
 	},
 
 	{
-		// Tests: allow looser typing.
+		// Test assertions commonly pass unbound methods.
 		files: ['**/*.test.ts', '**/e2e/**'],
 		rules: {
-			'@typescript-eslint/no-explicit-any': 'off',
 			'@typescript-eslint/unbound-method': 'off',
-			'no-restricted-syntax': 'off',
 		},
 	},
 );

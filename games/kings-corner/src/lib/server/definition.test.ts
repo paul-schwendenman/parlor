@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { RoomManager, type AppServer } from '@parlor/multiplayer';
+import { RoomManager } from '@parlor/multiplayer';
+import { createFakeIo } from '@parlor/multiplayer/testing';
 import { AIPlayer } from './ai/AIPlayer.js';
 import { kingsCornerDefinition } from './definition.js';
-import type { KingsCornerEngine } from './game/KingsCornerEngine.js';
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
@@ -11,8 +11,7 @@ afterEach(() => {
 });
 
 function startBotTurn() {
-  const emit = vi.fn();
-  const io = { to: () => ({ emit }) } as unknown as AppServer;
+  const io = createFakeIo();
   const rooms = new RoomManager();
   const host = rooms.createRoom('host', 'Host');
   const { roomCode } = host;
@@ -26,13 +25,13 @@ function startBotTurn() {
     throw new Error('Expected to start a Kings Corner game');
   }
   callbacks.onGameStart(roomCode, players, io);
-  const engine = rooms.getGameData<KingsCornerEngine>(roomCode);
+  const engine = kingsCornerDefinition.typed.getState(rooms, roomCode);
   if (!engine) throw new Error('Expected a Kings Corner engine');
 
   // The engine advances from the disconnected first seat to the bot.
-  callbacks.onPlayerDisconnect(roomCode, host.playerId, io);
+  void callbacks.onPlayerDisconnect(roomCode, host.playerId, io);
   expect(engine.getPlayerView(bot.botId).isActivePlayer).toBe(true);
-  return { rooms, roomCode, engine, botId: bot.botId, emit };
+  return { rooms, roomCode, engine, botId: bot.botId, emitted: io.emitted };
 }
 
 it('blocks every mutation and view emit when a running bot resumes after reset', async () => {
@@ -46,7 +45,7 @@ it('blocks every mutation and view emit when a running bot resumes after reset',
     callbacks.onEndTurn();
   });
 
-  const { rooms, roomCode, engine, botId, emit } = startBotTurn();
+  const { rooms, roomCode, engine, botId, emitted } = startBotTurn();
   await vi.advanceTimersByTimeAsync(0);
   expect(takeTurn).toHaveBeenCalledTimes(1);
   const [, signal] = takeTurn.mock.calls[0];
@@ -55,7 +54,7 @@ it('blocks every mutation and view emit when a running bot resumes after reset',
 
   expect(rooms.resetGame(roomCode)).toBe(true);
   expect(signal.aborted).toBe(true);
-  emit.mockClear();
+  emitted.length = 0;
   const drawCard = vi.spyOn(engine, 'drawCard');
   const endTurn = vi.spyOn(engine, 'endTurn');
   finish();
@@ -65,9 +64,9 @@ it('blocks every mutation and view emit when a running bot resumes after reset',
   expect(drawCard).not.toHaveBeenCalled();
   expect(endTurn).not.toHaveBeenCalled();
   expect(engine.getPlayerView(botId)).toEqual(before);
-  expect(emit).not.toHaveBeenCalled();
+  expect(emitted).toEqual([]);
   expect(rooms.getRoom(roomCode)?.status).toBe('waiting');
-  expect(rooms.getGameData(roomCode)).toBeNull();
+  expect(rooms.getRoom(roomCode)?.gameData).toBeNull();
 });
 
 it('aborts a timed-out bot and ignores its late callback after the fallback turn', async () => {
@@ -80,7 +79,7 @@ it('aborts a timed-out bot and ignores its late callback after the fallback turn
     callbacks.onDrawCard();
   });
 
-  const { rooms, roomCode, engine, botId, emit } = startBotTurn();
+  const { rooms, roomCode, engine, botId, emitted } = startBotTurn();
   await vi.advanceTimersByTimeAsync(0);
   const [, signal] = takeTurn.mock.calls[0];
   await vi.advanceTimersByTimeAsync(30_000);
@@ -88,7 +87,7 @@ it('aborts a timed-out bot and ignores its late callback after the fallback turn
   expect(signal.aborted).toBe(true);
   expect(engine.getPlayerView(botId).isActivePlayer).toBe(false);
   const before = structuredClone(engine.getPlayerView(botId));
-  emit.mockClear();
+  emitted.length = 0;
   const drawCard = vi.spyOn(engine, 'drawCard');
   finish();
   await vi.advanceTimersByTimeAsync(0);
@@ -96,6 +95,6 @@ it('aborts a timed-out bot and ignores its late callback after the fallback turn
   expect(resumed).toHaveBeenCalledTimes(1);
   expect(drawCard).not.toHaveBeenCalled();
   expect(engine.getPlayerView(botId)).toEqual(before);
-  expect(emit).not.toHaveBeenCalled();
+  expect(emitted).toEqual([]);
   rooms.resetGame(roomCode);
 });

@@ -1,10 +1,11 @@
 import { getMetrics } from './observability.js';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ActionResult } from '@parlor/game-types';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import type { ActionResult, SocketData } from '@parlor/game-types';
 import { RoomManager } from './RoomManager.js';
 import { dispatchGameAction, validateActionEnvelope, ACTION_LIMITS } from './actionBoundary.js';
 import { GameRuleError, INTERNAL_ERROR_MESSAGE, isGameRuleError, toPublicError } from './errors.js';
-import type { AppServer, AppSocket, ServerGameDefinition } from './gameDefinition.js';
+import type { ActionSocket, ServerGameDefinition } from './gameDefinition.js';
+import { createFakeIo } from './testing.js';
 
 let errorSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
@@ -117,13 +118,20 @@ describe('GameRuleError / toPublicError', () => {
 
 // --- dispatcher --------------------------------------------------------------
 
-interface FakeSocket {
-  id: string;
-  data: { roomCode?: string; playerId?: string };
-  emit: ReturnType<typeof vi.fn>;
+/** An `ActionSocket` whose `emit` calls (the `error` event) are recorded. */
+type FakeSocket = Omit<ActionSocket, 'emit'> & { emit: Mock<(...args: unknown[]) => boolean> };
+
+/**
+ * Socket.io starts every socket's `data` as `{}`, and the fields stay unset
+ * until the lobby handlers fill them, although `SocketData` declares them
+ * required. The boundary must cope with that, so these fakes can leave fields
+ * out; this is the one place the test asserts the partial shape.
+ */
+function fakeSocket(id: string, data: Partial<SocketData>): FakeSocket {
+  return { id, data: data as SocketData, emit: vi.fn(() => true) };
 }
 
-const io = {} as AppServer;
+const io = createFakeIo();
 
 function setup(handler: ServerGameDefinition['handleGameAction'], extra: Partial<ServerGameDefinition> = {}) {
   const rm = new RoomManager();
@@ -153,13 +161,13 @@ function setup(handler: ServerGameDefinition['handleGameAction'], extra: Partial
   rm.startGame(host.roomCode);
   rm.setGameData(host.roomCode, { engine: true });
   const onRoomFailure = vi.fn();
-  const player: FakeSocket = { id: 'sockA', data: { roomCode: host.roomCode, playerId: host.playerId }, emit: vi.fn() };
+  const player = fakeSocket('sockA', { roomCode: host.roomCode, playerId: host.playerId });
 
   const send = async (socket: FakeSocket, action: unknown, def: ServerGameDefinition | null = definition) => {
     const ack = vi.fn();
     const result = await dispatchGameAction({
       io,
-      socket: socket as unknown as AppSocket,
+      socket,
       roomManager: rm,
       definition: def,
       action,
@@ -209,7 +217,7 @@ describe('dispatchGameAction', () => {
     for (const ack of [undefined, 1, 'x', {}, null]) {
       const result = await dispatchGameAction({
         io,
-        socket: t.player as unknown as AppSocket,
+        socket: t.player,
         roomManager: t.rm,
         definition: t.definition,
         action: { type: 'x' },
@@ -223,7 +231,7 @@ describe('dispatchGameAction', () => {
 
   it('rejects a bad envelope with INVALID_ACTION before any other check', async () => {
     const t = setup(() => {});
-    const stranger: FakeSocket = { id: 'nobody', data: {}, emit: vi.fn() };
+    const stranger = fakeSocket('nobody', {});
     expect(await t.send(stranger, null)).toMatchObject({ ok: false, code: 'INVALID_ACTION' });
     expect(await t.send(t.player, { type: 'x', a: { b: { c: { d: {} } } } })).toMatchObject({
       ok: false,
@@ -234,8 +242,8 @@ describe('dispatchGameAction', () => {
 
   it('rejects a socket with no room, or a room that is gone, with NOT_IN_ROOM', async () => {
     const t = setup(() => {});
-    expect(await t.send({ id: 'x', data: {}, emit: vi.fn() }, { type: 'x' })).toMatchObject({ code: 'NOT_IN_ROOM' });
-    expect(await t.send({ id: 'x', data: { roomCode: 'ZZZZ', playerId: t.host.playerId }, emit: vi.fn() }, { type: 'x' }))
+    expect(await t.send(fakeSocket('x', {}), { type: 'x' })).toMatchObject({ code: 'NOT_IN_ROOM' });
+    expect(await t.send(fakeSocket('x', { roomCode: 'ZZZZ', playerId: t.host.playerId }), { type: 'x' }))
       .toMatchObject({ code: 'NOT_IN_ROOM' });
     expect(t.handle).not.toHaveBeenCalled();
   });
@@ -243,7 +251,7 @@ describe('dispatchGameAction', () => {
   it('rejects spectators and sockets acting for someone else with NOT_A_PLAYER', async () => {
     const t = setup(() => {});
     t.rm.addSpectator(t.roomCode, 'sockS');
-    const spectator: FakeSocket = { id: 'sockS', data: { roomCode: t.roomCode }, emit: vi.fn() };
+    const spectator = fakeSocket('sockS', { roomCode: t.roomCode });
     expect(await t.send(spectator, { type: 'nextRound' })).toMatchObject({ ok: false, code: 'NOT_A_PLAYER' });
 
     // Spectator socket that also carries a (stale) playerId.
@@ -251,7 +259,7 @@ describe('dispatchGameAction', () => {
     expect(await t.send(spectator, { type: 'nextRound' })).toMatchObject({ code: 'NOT_A_PLAYER' });
 
     // A socket claiming another player's seat.
-    const impostor: FakeSocket = { id: 'sockB', data: { roomCode: t.roomCode, playerId: t.host.playerId }, emit: vi.fn() };
+    const impostor = fakeSocket('sockB', { roomCode: t.roomCode, playerId: t.host.playerId });
     expect(await t.send(impostor, { type: 'x' })).toMatchObject({ code: 'NOT_A_PLAYER' });
     expect(t.handle).not.toHaveBeenCalled();
   });
@@ -366,7 +374,7 @@ describe('dispatchGameAction', () => {
     expect(await pending).toMatchObject({ ok: false, code: 'NO_ACTIVE_GAME' });
     expect(t.onRoomFailure).not.toHaveBeenCalled();
     expect(t.player.emit).not.toHaveBeenCalled();
-    expect(t.rm.getGameData(t.roomCode)).toBe(engine);
+    expect(t.rm.getRoom(t.roomCode)?.gameData).toBe(engine);
   });
 
   it('acks ok only after an async handler resolves', async () => {
@@ -375,7 +383,7 @@ describe('dispatchGameAction', () => {
     const ack = vi.fn();
     const pending = dispatchGameAction({
       io,
-      socket: t.player as unknown as AppSocket,
+      socket: t.player,
       roomManager: t.rm,
       definition: t.definition,
       action: { type: 'x' },

@@ -8,12 +8,13 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Server } from 'socket.io';
 import { io as ioc, type Socket as ClientSocket } from 'socket.io-client';
+import type { AppServer } from '@parlor/multiplayer';
 import { setupParlorSocketHandlers } from './socketServer.js';
 
 const BAD_ACKS: unknown[] = [1, 0, 'x', true, {}, [], null];
 
 let http: HttpServer;
-let io: Server;
+let io: AppServer;
 let client: ClientSocket;
 let uncaught: unknown[];
 const onUncaught = (err: unknown) => uncaught.push(err);
@@ -35,7 +36,7 @@ beforeEach(async () => {
 	process.on('uncaughtException', onUncaught);
 	http = createServer();
 	io = new Server(http);
-	setupParlorSocketHandlers(io as never);
+	setupParlorSocketHandlers(io);
 	await new Promise<void>((r) => http.listen(0, r));
 	const { port } = http.address() as AddressInfo;
 	client = ioc(`http://localhost:${port}`, { transports: ['websocket'], reconnection: false });

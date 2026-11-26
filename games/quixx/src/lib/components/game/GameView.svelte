@@ -18,7 +18,7 @@
     playerId,
   }: {
     view: QuixxPlayerView;
-    socket: GameSocket;
+    socket: GameSocket<'quixx'>;
     playerId: string;
   } = $props();
 

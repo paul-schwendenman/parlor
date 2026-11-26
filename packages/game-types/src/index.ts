@@ -11,32 +11,6 @@ export interface LobbyPlayer extends Player {
   isBot: boolean;
 }
 
-export interface Room {
-  id: string;
-  code: string;
-  host: string;
-  players: Player[];
-  maxPlayers: number;
-  status: RoomStatus;
-}
-
-export type RoomStatus = 'waiting' | 'playing' | 'finished';
-
-export interface BaseGameState {
-  roomId: string;
-  round: number;
-  phase: string;
-  players: Player[];
-  startedAt: number;
-}
-
-export interface ChatMessage {
-  id: string;
-  playerId: string;
-  text: string;
-  timestamp: number;
-}
-
 export interface SessionData {
   playerId: string;
   playerName: string;
@@ -111,8 +85,38 @@ export type ActionResult = { ok: true } | { ok: false; code: ActionErrorCode; me
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- filled by module augmentation
 export interface GameViewMap {}
 
-/** Every game id the wire knows about (the keys games have added to `GameViewMap`). */
-export type GameId = Extract<keyof GameViewMap, string>;
+/**
+ * Action union each game's client sends over `game:action`, keyed by game id
+ * (plan 3.5). Filled by module augmentation exactly like `GameViewMap`, and the
+ * one source of truth for a game's actions: `defineGame` types its handlers and
+ * `validateAction` from this entry, and a GameView's socket only accepts it.
+ *
+ * ```ts
+ * declare module '@parlor/game-types' {
+ *   interface GameActionMap { 'crazy-eights': CrazyEightsAction }
+ * }
+ * ```
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- filled by module augmentation
+export interface GameActionMap {}
+
+/**
+ * Every game id the wire knows about: the games that have added both a view
+ * (`GameViewMap`) and an action union (`GameActionMap`). A game that augments
+ * only one of the two is not a `GameId`, so `defineGame` rejects it.
+ */
+export type GameId = Extract<Extract<keyof GameViewMap, keyof GameActionMap>, string>;
+
+/** The view game `K` sends over `game:state`. */
+export type GameView<K extends GameId = GameId> = GameViewMap[K];
+
+/**
+ * An action game `K`'s client may send over `game:action` (the union over all
+ * games by default). Every action carries a string `type`; an entry that does
+ * not is filtered out here, so a game that registers one cannot handle,
+ * validate or send it.
+ */
+export type GameAction<K extends GameId = GameId> = Extract<GameActionMap[K], { type: string }>;
 
 /**
  * Payload of `game:state`: the view tagged with the game that produced it, so a
@@ -124,16 +128,10 @@ export type GameStateEnvelope<K extends GameId = GameId> = {
 }[K];
 
 export type ServerToClientEvents = {
-  'room:updated': (room: Room) => void;
   'game:state': (state: GameStateEnvelope) => void;
-  'player:joined': (player: Player) => void;
-  'player:left': (playerId: string) => void;
-  'chat:message': (message: ChatMessage) => void;
   'error': (message: string) => void;
 
   'lobby:state': (players: LobbyPlayer[], canStart: boolean) => void;
-  'lobby:playerJoined': (player: LobbyPlayer) => void;
-  'lobby:playerLeft': (playerId: string) => void;
   'lobby:hostChanged': (newHostId: string) => void;
   /** Player kept during the disconnect grace window (grey them out, do not remove). */
   'player:disconnected': (playerId: string) => void;
@@ -144,14 +142,10 @@ export type ServerToClientEvents = {
   'lobby:gameSelected': (gameId: string | null) => void;
 };
 
-export type ClientToServerEvents = {
-  'room:create': (playerName: string, callback: (room: Room) => void) => void;
-  'room:join': (code: string, playerName: string, callback: (room: Room | null, error?: string) => void) => void;
+/** Client-to-server events other than `game:action`: identical on both ends of the wire. */
+export type LobbyClientEvents = {
+  /** Leave the room for good (no UI sends this yet; see the plan's "Revisit at the end"). */
   'room:leave': () => void;
-  'game:start': () => void;
-  'game:action': (action: Record<string, unknown>, ack?: (result: ActionResult) => void) => void;
-  'chat:send': (text: string) => void;
-
   'lobby:create': (
     playerName: string,
     callback: (result: CreateRoomResult | null, error?: string) => void,
@@ -163,6 +157,7 @@ export type ClientToServerEvents = {
     playerName: string,
     callback: (result: JoinRoomResult) => void,
   ) => void;
+  /** Join a room as a spectator (no UI sends this yet; see the plan's "Revisit at the end"). */
   'lobby:spectate': (roomCode: string, callback: (success: boolean, error?: string) => void) => void;
   'lobby:ready': (isReady: boolean, callback?: (success: boolean, error?: string) => void) => void;
   'lobby:startGame': (callback?: (success: boolean, error?: string) => void) => void;
@@ -176,6 +171,25 @@ export type ClientToServerEvents = {
     token: string,
     callback: (success: boolean, reconnectToken?: string) => void,
   ) => void;
+};
+
+/**
+ * Client-to-server events as the **server** receives them. `game:action` is
+ * untrusted wire data here: the core action boundary checks its envelope and
+ * the game's `validateAction` turns it into a typed action.
+ */
+export type ClientToServerEvents = LobbyClientEvents & {
+  'game:action': (action: Record<string, unknown>, ack?: (result: ActionResult) => void) => void;
+};
+
+/**
+ * Client-to-server events as a client for game `K` **sends** them: `game:action`
+ * only accepts that game's actions (`GameAction<K>`). The default (every game)
+ * is what the multi-game parlor client uses; a GameView takes the socket for its
+ * own game id, so sending another game's action does not compile.
+ */
+export type GameClientEvents<K extends GameId = GameId> = LobbyClientEvents & {
+  'game:action': (action: GameAction<K>, ack?: (result: ActionResult) => void) => void;
 };
 
 export type InterServerEvents = {

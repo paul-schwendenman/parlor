@@ -6,7 +6,7 @@ import {
   type TypedGameDefinition,
 } from '@parlor/multiplayer';
 import { GameEngine } from './game/GameEngine.js';
-import { createPlayer, type BootyDiceAction } from '../types/game.js';
+import { createPlayer } from '../types/game.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 import { validateBootyDiceAction } from './validateAction.js';
 
@@ -139,7 +139,7 @@ function requireRolling(engine: GameEngine, playerId: string): void {
 }
 
 /** Booty Dice on the typed game contract (plan 3.1b). Servers use `bootyDiceDefinition`. */
-export const bootyDiceGame: TypedGameDefinition<'booty-dice', GameEngine, BootyDiceAction> = {
+export const bootyDiceGame: TypedGameDefinition<'booty-dice', GameEngine> = {
   meta: {
     id: 'booty-dice',
     name: 'Booty Dice',

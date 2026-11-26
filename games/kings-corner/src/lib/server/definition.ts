@@ -8,7 +8,7 @@ import {
 } from '@parlor/multiplayer';
 import { KingsCornerEngine } from './game/KingsCornerEngine.js';
 import { AIPlayer } from './ai/AIPlayer.js';
-import { DEFAULT_CONFIG, type KingsCornerAction } from '../types/game.js';
+import { DEFAULT_CONFIG } from '../types/game.js';
 import { validateKingsCornerAction } from './validateAction.js';
 
 type Game = GameContext<KingsCornerEngine>;
@@ -80,7 +80,7 @@ async function handleAITurn(game: Game, botId: string): Promise<void> {
 }
 
 /** Kings Corner on the typed game contract (plan 3.1b). Servers use `kingsCornerDefinition`. */
-export const kingsCornerGame: TypedGameDefinition<'kings-corner', KingsCornerEngine, KingsCornerAction> = {
+export const kingsCornerGame: TypedGameDefinition<'kings-corner', KingsCornerEngine> = {
   meta: {
     id: 'kings-corner',
     name: 'Kings Corner',

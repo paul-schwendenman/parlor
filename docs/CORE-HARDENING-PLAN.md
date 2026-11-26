@@ -272,14 +272,12 @@ The reasoning:
   - **Implemented:** production servers emit a fatal JSON record to stderr and exit with status 1. Room failures use structured logs and the health endpoint reports live room and socket gauges plus process totals. A refused reconnect clears the lost room from the client.
 
 ### 3.5 Clean up the types
-- [ ] **3.5**
-  - Delete the unused protocol surface: `room:*`, `chat:*`, `game:start`, `Room`, `RoomStatus`, `ChatMessage`, and `createGameServer`.
-  - Decide whether `room:leave` and `lobby:spectate` get a UI or are removed.
-  - Remove the remaining `as never` / `as any` / `getGameData<T>` casts left after 3.1b. Production code is down to the 5 fake socket stubs in `@parlor/multiplayer/testing`. Tests still have 26 `as never`, 10 `as unknown as` and 2 `as any`.
-  - Delete the stale `types/events.ts` in quixx and booty-dice (they still describe `game:state` as a bare view) and the unused `BaseGameState`.
-  - Optionally move `defineGame.test.ts` and crazy-eights' `definition.test.ts` onto `createLobbyHarness` instead of their copied fake-socket helpers.
-  - Decide whether to type client actions with a `GameActionMap` (`game:action` is still `Record<string, unknown>` from the client).
-  - Raise the hardening lint rules to `error` (requires 0.5). (F-32)
+- [x] **3.5** (F-32)
+  - Removed the unused room, chat, start and player notification events, along with `Room`, `RoomStatus`, `ChatMessage`, `BaseGameState`, `createGameServer` and the stale game event files. Clients receive the lobby roster through `lobby:state`.
+  - Kept `room:leave` and `lobby:spectate` as supported server events. The UI and its browser coverage are deferred under “Revisit at the end.”
+  - Replaced the remaining `as never`, `as any` and double assertions with typed contracts and fixtures. Removed `getGameData<T>()`. The `defineGame` and Crazy Eights definition tests now use `createLobbyHarness`.
+  - Registered all five games in `GameActionMap`. Game clients and server handlers share each game's action union. Incoming actions still go through envelope checks and per-game validation.
+  - Raised the promise, explicit `any` and double-assertion lint rules to errors in production and tests. Addressed the outstanding promise handling in navigation, event handlers and server shutdown.
 
 ### 3.6 Leak fixes: dropped
 - ~~**3.6**~~ Audit D found no view leaks. View-recipient regression tests are still required by the workflow testing rule, and F-30 has moved to 3.9.
@@ -408,6 +406,7 @@ Rules questions and smaller bugs found during Phase 3. Come back to these once P
 
 - [ ] **Kings Corner empty draw pile:** with the draw pile empty, turns can loop forever with everyone present. The user is checking the official rules; Crazy Eights reshuffles, but Kings Corner may differ. (Found in 3.9.)
 - [ ] **Kings Corner bot-timeout fallback overwrites game over:** when the fallback's auto-play of kings wins the game, it still advances the turn, which overwrites the `game-over` state. This was already there and was left alone in 3.9. (Found in 3.9.)
+- [ ] **`room:leave` and `lobby:spectate` UI:** the server handles both, but no UI sends them. They're kept for now, and the likely plan is a minimal UI: a Leave room button and a Watch as spectator option on join, with e2e coverage. (Decided in 3.5.)
 - [ ] **Booty Dice dodge:** because grace-window stand-ins don't resolve rolled dice, a player can disconnect right after a bad roll to skip its resolution, then return within grace. They lose that turn's good dice too. Decide whether that matters. (Found in 3.9.)
 
 ---

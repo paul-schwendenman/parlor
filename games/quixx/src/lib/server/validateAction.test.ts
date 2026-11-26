@@ -47,7 +47,7 @@ describe('Quixx actions through the boundary', () => {
   it.each(INVALID)('%s → INVALID_ACTION, state unchanged, valid pass afterward works', async (_label, action) => {
     const h = createDispatchHarness(quixxDefinition);
     vi.advanceTimersByTime(600); // DEFAULT_CONFIG auto-rolls after 500 ms
-    const engine = h.roomManager.getGameData<QuixxEngine>(h.roomCode)!;
+    const engine = h.getState()!;
     expect(engine.getPhase()).toBe('phase1');
     const [a] = h.playerIds;
     const before = JSON.stringify(engine.getPlayerView(a));
@@ -81,7 +81,8 @@ describe('Quixx string cellIndex bypass', () => {
   it("the engine rejects cellIndex '10' (was: locks red with 0 prior marks)", () => {
     const e = engineWithWhiteSum(ROW_NUMBERS.red[10]);
     expect(() =>
-      e.submitPhase1('a', { type: 'phase1-mark', row: 'red', cellIndex: '10' as unknown as number }),
+      // @ts-expect-error -- a string cellIndex, as an unvalidated client could send it
+      e.submitPhase1('a', { type: 'phase1-mark', row: 'red', cellIndex: '10' }),
     ).toThrow(GameRuleError);
     expect(e.getPlayers()[0].phase1Decision).toBeNull();
     e.submitPhase1('a', { type: 'phase1-pass' });

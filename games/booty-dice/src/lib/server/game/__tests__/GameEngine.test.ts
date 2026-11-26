@@ -553,7 +553,7 @@ describe('GameEngine', () => {
 			engine.finishRolling();
 			engine.resolveTurn();
 
-			(engine as any).state.players.forEach((p: { isEliminated: boolean }) => {
+			engine['state'].players.forEach((p) => {
 				p.isEliminated = true;
 			});
 

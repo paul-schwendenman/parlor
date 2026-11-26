@@ -38,7 +38,7 @@ const INVALID: [string, Record<string, unknown>][] = [
 describe("Liar's Dice actions through the boundary", () => {
   it.each(INVALID)('%s → INVALID_ACTION, state unchanged, valid bid afterward works', async (_label, action) => {
     const h = createDispatchHarness(liarsDiceDefinition);
-    const engine = h.roomManager.getGameData<LiarsDiceEngine>(h.roomCode)!;
+    const engine = h.getState()!;
     const active = engine.getState().players[engine.getState().activePlayerIndex].id;
     const before = engine.getState();
 

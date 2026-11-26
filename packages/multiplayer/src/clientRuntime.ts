@@ -1,4 +1,4 @@
-import type { ActionResult, GameStateEnvelope, LobbyPlayer } from '@parlor/game-types';
+import type { ActionResult, GameAction, GameId, GameStateEnvelope, LobbyPlayer } from '@parlor/game-types';
 import {
   createGameClient,
   saveSession,
@@ -75,8 +75,12 @@ export interface ParlorRuntimeAdapter {
   enableGameSelection?: boolean;
 }
 
-export interface ParlorRuntime {
-  getSocket(): GameSocket;
+/**
+ * `Id` is the game(s) this client sends actions for: one game id in a
+ * standalone app, every game (the default) in the parlor app.
+ */
+export interface ParlorRuntime<Id extends GameId = GameId> {
+  getSocket(): GameSocket<Id>;
   createRoomAction(playerName: string, gameId?: string): Promise<string>;
   joinRoomAction(
     roomCode: string,
@@ -90,7 +94,7 @@ export interface ParlorRuntime {
    * resolves `{ ok: false, code: 'TIMEOUT' }` if no ack arrives in time.
    * Failures are also surfaced through `connectionState.setActionError`.
    */
-  sendAction(action: Record<string, unknown>): Promise<ActionResult>;
+  sendAction(action: GameAction<Id>): Promise<ActionResult>;
   disconnectSocket(): void;
   /** HMR-safe teardown: drop the socket without clearing the persisted session. */
   teardown(): void;
@@ -99,7 +103,7 @@ export interface ParlorRuntime {
 /** Ack timeout (ms) applied to reconnect + lobby action emits. */
 const ACK_TIMEOUT = 5000;
 
-export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntime {
+export function createParlorRuntime<Id extends GameId = GameId>(adapter: ParlorRuntimeAdapter): ParlorRuntime<Id> {
   const { browser, connectionState, lobbyState, gameState, playerState } = adapter;
 
   let socket: GameSocket | null = null;
@@ -355,7 +359,7 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
     ackAction('Start game', (s, ack) => s.emit('lobby:startGame', ack));
   }
 
-  function sendAction(action: Record<string, unknown>): Promise<ActionResult> {
+  function sendAction(action: GameAction<Id>): Promise<ActionResult> {
     const s = getSocket();
     connectionState.setActionError?.(null);
 

@@ -6,7 +6,7 @@
 
   interface Props {
     view: LiarsDicePlayerView;
-    socket: GameSocket;
+    socket: GameSocket<'liars-dice'>;
     playerId: string;
     onBackToLobby: () => void;
   }

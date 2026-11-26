@@ -1,6 +1,6 @@
 import type { ActionErrorCode, ActionResult } from '@parlor/game-types';
 import type { RoomManager } from './RoomManager.js';
-import type { AppServer, AppSocket, ServerGameDefinition } from './gameDefinition.js';
+import type { ActionSocket, GameIo, ServerGameDefinition } from './gameDefinition.js';
 import { logServerError, recordMetric } from './observability.js';
 import { safeAck } from './ack.js';
 import { allowSocketRequest, RATE_LIMIT_MESSAGE } from './rateLimit.js';
@@ -86,8 +86,8 @@ export function validateActionEnvelope(action: unknown): EnvelopeResult {
 }
 
 export interface DispatchGameActionOptions {
-  io: AppServer;
-  socket: AppSocket;
+  io: GameIo;
+  socket: ActionSocket;
   roomManager: RoomManager;
   /** The definition of the game the sender's room is playing, if any. */
   definition: ServerGameDefinition | null | undefined;

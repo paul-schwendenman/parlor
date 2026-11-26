@@ -35,7 +35,7 @@
     if (view) {
       hadView = true;
     } else if (hadView) {
-      goto(`/lobby/${roomCode}`);
+      goto(`/lobby/${roomCode}`).catch(console.error);
     }
   });
 
@@ -43,7 +43,7 @@
     getSocket().emit('lobby:resetGame');
     gameState.reset();
     lobbyState.gameStarting = false;
-    goto(`/lobby/${roomCode}`);
+    goto(`/lobby/${roomCode}`).catch(console.error);
   }
 </script>
 

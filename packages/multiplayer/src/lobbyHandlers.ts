@@ -1,34 +1,24 @@
-import type { Server, Socket } from 'socket.io';
-import type {
-  ClientToServerEvents,
-  ServerToClientEvents,
-  InterServerEvents,
-  SocketData,
-  LobbyPlayer,
-  GameMeta,
-} from '@parlor/game-types';
+import type { LobbyPlayer, GameMeta } from '@parlor/game-types';
 import type { RoomManager, DisconnectResult, ExpiryOutcome } from './RoomManager.js';
 import { safeAck } from './ack.js';
 import { foldPlayerName, validatePlayerName } from './playerNames.js';
 import { toPublicError } from './errors.js';
 import { logServerError, recordMetric } from './observability.js';
 import { allowSocketRequest, RATE_LIMIT_MESSAGE } from './rateLimit.js';
-
-type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
+import type { GameIo, LobbyIo, LobbySocket } from './gameDefinition.js';
 
 export interface LobbyCallbacks {
-  onGameStart?: (roomCode: string, players: LobbyPlayer[], io: AppServer) => void;
-  onGameReset?: (roomCode: string, io: AppServer) => void;
+  onGameStart?: (roomCode: string, players: LobbyPlayer[], io: GameIo) => void;
+  onGameReset?: (roomCode: string, io: GameIo) => void;
   /** Called on room deletion after scheduled game work has been invalidated. */
-  onRoomDestroyed?: (roomCode: string, io: AppServer) => void;
-  onPlayerDisconnect?: (roomCode: string, playerId: string, io: AppServer) => void | Promise<void>;
-  onPlayerReconnect?: (roomCode: string, playerId: string, io: AppServer) => void | Promise<void>;
+  onRoomDestroyed?: (roomCode: string, io: GameIo) => void;
+  onPlayerDisconnect?: (roomCode: string, playerId: string, io: GameIo) => void | Promise<void>;
+  onPlayerReconnect?: (roomCode: string, playerId: string, io: GameIo) => void | Promise<void>;
   /**
    * Fired when an in-game player is really removed after the disconnect grace
    * window expires, so the game layer can forfeit / clean up in the engine.
    */
-  onPlayerRemoved?: (roomCode: string, playerId: string, io: AppServer) => void | Promise<void>;
+  onPlayerRemoved?: (roomCode: string, playerId: string, io: GameIo) => void | Promise<void>;
 }
 
 export interface LobbyHandlerOptions {
@@ -43,7 +33,7 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function runPlayerCallback(
-  io: AppServer,
+  io: GameIo,
   roomManager: RoomManager,
   callbacks: LobbyCallbacks | undefined,
   event: 'onPlayerRemoved' | 'onPlayerReconnect' | 'onPlayerDisconnect',
@@ -72,14 +62,11 @@ function runPlayerCallback(
 
 /** Emit the real-removal signals when a disconnect grace timer expires. */
 function emitExpiry(
-  io: AppServer,
+  io: GameIo,
   roomManager: RoomManager,
   outcome: ExpiryOutcome,
   callbacks?: LobbyCallbacks,
 ): void {
-  // A seat was released or its grace period expired.
-  io.to(outcome.roomCode).emit('lobby:playerLeft', outcome.playerId);
-
   if (outcome.wasInGame && roomManager.isGameParticipant(outcome.roomCode, outcome.playerId)) {
     // Let the game layer forfeit / clean up the seat in the engine.
     runPlayerCallback(io, roomManager, callbacks, 'onPlayerRemoved', outcome.roomCode, outcome.playerId);
@@ -105,7 +92,7 @@ function emitExpiry(
  * is gone.
  */
 export function returnRoomToLobby(
-  io: AppServer,
+  io: GameIo,
   roomManager: RoomManager,
   roomCode: string,
   callbacks?: LobbyCallbacks,
@@ -129,8 +116,8 @@ export function returnRoomToLobby(
 }
 
 export function setupLobbyHandlers(
-  io: AppServer,
-  socket: AppSocket,
+  io: LobbyIo,
+  socket: LobbySocket,
   roomManager: RoomManager,
   callbacks?: LobbyCallbacks,
   options?: LobbyHandlerOptions,
@@ -249,10 +236,6 @@ export function setupLobbyHandlers(
         }
       }
       const players = roomManager.getPlayersInRoom(normalizedCode);
-      const player = players.find((p) => p.id === result.playerId);
-      if (player) {
-        io.to(normalizedCode).emit('lobby:playerJoined', player);
-      }
       io.to(normalizedCode).emit('lobby:state', players, roomManager.canStartGame(normalizedCode));
     } catch (err) {
       if (typeof callback === 'function') {

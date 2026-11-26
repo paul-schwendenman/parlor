@@ -4,12 +4,12 @@
  * `ServerGameDefinition` the core runs, and owns the plumbing every game used to
  * copy: state lookup, the action switch, view broadcasts and the reconnect view.
  */
-import type { GameId, GameMeta, GameStateEnvelope, GameViewMap, LobbyPlayer } from '@parlor/game-types';
+import type { GameAction, GameId, GameMeta, GameStateEnvelope, GameView, LobbyPlayer } from '@parlor/game-types';
 import { RoomManager, type GameRoom } from './RoomManager.js';
 import type { GameInstance } from './gameInstance.js';
 import type { ActionValidation } from './actionValidation.js';
 import type { LobbyCallbacks } from './lobbyHandlers.js';
-import type { AppServer, ServerGameDefinition } from './gameDefinition.js';
+import type { GameIo, TypedServerGameDefinition } from './gameDefinition.js';
 
 /** What a game's hooks and action handlers get to work with. */
 export interface GameContext<State> {
@@ -63,11 +63,19 @@ export type GameActionHandlers<State, Action extends { type: string }> = {
   [T in Action['type']]: (game: PlayerContext<State>, action: Action & { type: T }) => GameHandlerResult;
 };
 
-/** The typed contract a game implements. `View` is fixed by the game's `GameViewMap` entry. */
-export interface TypedGameDefinition<Id extends GameId, State extends object, Action extends { type: string }> {
+/**
+ * The typed contract a game implements. Its view and action types are not
+ * parameters: they come from the game's `GameViewMap` and `GameActionMap`
+ * entries (plan 3.5), so the server handlers, the validator and the client's
+ * `game:action` all use the one action union the game registered.
+ */
+export interface TypedGameDefinition<Id extends GameId, State extends object> {
   meta: GameMeta & { id: Id };
-  /** Same contract as `ServerGameDefinition.validateAction` (plan 3.1a), now returning the typed `Action`. */
-  validateAction: (action: Record<string, unknown>) => ActionValidation<Action>;
+  /**
+   * Same contract as `ServerGameDefinition.validateAction` (plan 3.1a): takes the
+   * untrusted wire payload and returns the game's typed action.
+   */
+  validateAction: (action: Record<string, unknown>) => ActionValidation<GameAction<Id>>;
   /** Build a fresh game for the seated players. Throwing rolls the start back to the lobby. */
   createState: (roomCode: string, players: LobbyPlayer[]) => State;
   /**
@@ -76,10 +84,10 @@ export interface TypedGameDefinition<Id extends GameId, State extends object, Ac
    * another broadcast; call `game.broadcast()` after changing state here.
    */
   onGameStart?: (game: GameContext<State>) => void;
-  actions: GameActionHandlers<State, Action>;
-  getPlayerView: (state: State, playerId: string) => GameViewMap[Id];
+  actions: GameActionHandlers<State, GameAction<Id>>;
+  getPlayerView: (state: State, playerId: string) => GameView<Id>;
   /** What spectators and excluded seats receive. Must not reveal anything hidden from every player. */
-  getSpectatorView: (state: State) => GameViewMap[Id];
+  getSpectatorView: (state: State) => GameView<Id>;
   /** Checked on every broadcast; true marks the room `finished`. */
   isGameOver: (state: State) => boolean;
   /** A participant's socket dropped; they are in the reconnect grace window. Views are broadcast afterwards. */
@@ -126,15 +134,25 @@ function then(result: GameHandlerResult, after: () => void): void | Promise<void
   if (result !== UNCHANGED) after();
 }
 
-export function defineGame<const Id extends GameId, State extends object, Action extends { type: string }>(
-  definition: TypedGameDefinition<Id, State, Action>,
-): ServerGameDefinition<State, Action, GameViewMap[Id]> {
+/** Call the handler for `action.type` with that action. */
+function runAction<State, Action extends { type: string }>(
+  handlers: GameActionHandlers<State, Action>,
+  game: PlayerContext<State>,
+  action: Action,
+): GameHandlerResult {
+  const type: Action['type'] = action.type;
+  return handlers[type](game, action);
+}
+
+export function defineGame<const Id extends GameId, State extends object>(
+  definition: TypedGameDefinition<Id, State>,
+): TypedServerGameDefinition<State, GameAction<Id>, GameView<Id>> {
   const { meta } = definition;
   // Keyed by room, checked against the room's current instance, so a stale
-  // game's state is never found and nothing needs `getGameData<T>()`.
+  // game's state is never found.
   const states = new WeakMap<GameRoom, StateEntry<State>>();
 
-  function envelope(view: GameViewMap[Id]): GameStateEnvelope {
+  function envelope(view: GameView<Id>): GameStateEnvelope {
     // The one assertion in the contract. `meta.id` and `view` are both tied to
     // `Id` by this function's signature, so the pair is always a valid member of
     // the envelope union; TypeScript just cannot distribute a generic `Id` over
@@ -152,7 +170,7 @@ export function defineGame<const Id extends GameId, State extends object, Action
     return entry;
   }
 
-  function broadcast(io: AppServer, roomManager: RoomManager, roomCode: string, entry: StateEntry<State>): void {
+  function broadcast(io: GameIo, roomManager: RoomManager, roomCode: string, entry: StateEntry<State>): void {
     if (current(roomManager, roomCode) !== entry) return;
     const { state } = entry;
     entry.instance.emitIfCurrent(() => {
@@ -170,7 +188,7 @@ export function defineGame<const Id extends GameId, State extends object, Action
   }
 
   function gameContext(
-    io: AppServer,
+    io: GameIo,
     roomManager: RoomManager,
     roomCode: string,
     entry: StateEntry<State>,
@@ -185,7 +203,7 @@ export function defineGame<const Id extends GameId, State extends object, Action
   }
 
   function playerContext(
-    io: AppServer,
+    io: GameIo,
     roomManager: RoomManager,
     roomCode: string,
     entry: StateEntry<State>,
@@ -194,7 +212,7 @@ export function defineGame<const Id extends GameId, State extends object, Action
     return { ...gameContext(io, roomManager, roomCode, entry), playerId };
   }
 
-  function createLobbyCallbacks(roomManager: RoomManager, io: AppServer): LobbyCallbacks {
+  function createLobbyCallbacks(roomManager: RoomManager, io: GameIo): LobbyCallbacks {
     /** Run a player hook against the current game, then broadcast. */
     const playerHook = (
       hook: ((game: PlayerContext<State>) => GameHandlerResult) | undefined,
@@ -267,9 +285,7 @@ export function defineGame<const Id extends GameId, State extends object, Action
       const entry = current(roomManager, roomCode);
       // The boundary has checked there is a running game, so this is a bug, not a user error.
       if (!entry) throw new Error(`No ${meta.name} game state for room ${roomCode}`);
-      const type: Action['type'] = action.type;
-      const handler = definition.actions[type];
-      const work = handler(playerContext(io, roomManager, roomCode, entry, playerId), action);
+      const work = runAction(definition.actions, playerContext(io, roomManager, roomCode, entry, playerId), action);
       return then(work, () => broadcast(io, roomManager, roomCode, entry));
     },
     typed: {

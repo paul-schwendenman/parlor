@@ -1,5 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-empty-function
-const noop = () => {};
+const noop = () => undefined;
 
 /**
  * Normalize a client-supplied acknowledgement callback.
@@ -12,6 +11,8 @@ const noop = () => {};
  *
  * Always wrap acks with this before calling them.
  */
-export function safeAck<T extends (...args: never[]) => void>(callback: T | undefined): T {
-  return (typeof callback === 'function' ? callback : noop) as T;
+export function safeAck<T extends (...args: never[]) => void>(callback: T | undefined): T;
+export function safeAck(callback: unknown): () => void;
+export function safeAck(callback: unknown) {
+  return typeof callback === 'function' ? callback : noop;
 }

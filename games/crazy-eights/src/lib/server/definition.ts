@@ -5,7 +5,7 @@ import {
   type TypedGameDefinition,
 } from '@parlor/multiplayer';
 import { CrazyEightsEngine } from './game/CrazyEightsEngine.js';
-import { DEFAULT_CONFIG, type CrazyEightsAction } from '../types/game.js';
+import { DEFAULT_CONFIG } from '../types/game.js';
 import { validateCrazyEightsAction } from './validateAction.js';
 
 /**
@@ -23,7 +23,7 @@ function coverAbsentTurn(game: GameContext<CrazyEightsEngine>): void {
 }
 
 /** Crazy Eights on the typed game contract (plan 3.1b). Exported for tests; servers use `crazyEightsDefinition`. */
-export const crazyEightsGame: TypedGameDefinition<'crazy-eights', CrazyEightsEngine, CrazyEightsAction> = {
+export const crazyEightsGame: TypedGameDefinition<'crazy-eights', CrazyEightsEngine> = {
   meta: {
     id: 'crazy-eights',
     name: 'Crazy Eights',

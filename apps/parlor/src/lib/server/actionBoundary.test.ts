@@ -12,24 +12,22 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Server } from 'socket.io';
 import { io as ioc, type Socket as ClientSocket } from 'socket.io-client';
-import type { ActionResult, JoinRoomResult } from '@parlor/game-types';
-import type { ServerGameDefinition } from '@parlor/multiplayer';
-
-type View = any;
+import type { ActionResult, GameId, GameStateEnvelope, GameView, JoinRoomResult, ServerToClientEvents } from '@parlor/game-types';
+import type { AppServer, ServerGameDefinition } from '@parlor/multiplayer';
 
 interface Client {
-	socket: ClientSocket;
-	/** The `view` of every `game:state` envelope received. */
-	states: View[];
+	socket: ClientSocket<ServerToClientEvents, Record<string, (...args: unknown[]) => void>>;
+	/** Every `game:state` envelope received. */
+	states: GameStateEnvelope[];
 	/** The `gameId` of every `game:state` envelope received, aligned with `states`. */
 	gameIds: string[];
 	errors: string[];
 	lobbyStates: number;
-	last(): View;
+	last<K extends GameId>(gameId: K): GameView<K>;
 }
 
 let http: HttpServer;
-let io: Server;
+let io: AppServer;
 let port: number;
 let clients: Client[];
 let uncaught: unknown[];
@@ -56,19 +54,32 @@ async function waitFor(pred: () => boolean, what: string, ms = 2000): Promise<vo
 
 const settle = () => new Promise((r) => setTimeout(r, 80));
 
+function isGameState<K extends GameId>(
+	state: GameStateEnvelope | undefined,
+	gameId: K
+): state is GameStateEnvelope & GameStateEnvelope<K> {
+	return state?.gameId === gameId;
+}
+
 async function connect(): Promise<Client> {
-	const socket = ioc(`http://localhost:${port}`, { transports: ['websocket'], reconnection: false });
+	const socket: Client['socket'] = ioc(`http://localhost:${port}`, { transports: ['websocket'], reconnection: false });
 	const c: Client = {
 		socket,
 		states: [],
 		gameIds: [],
 		errors: [],
 		lobbyStates: 0,
-		last: () => c.states[c.states.length - 1]
+		last<K extends GameId>(gameId: K): GameView<K> {
+			const state = c.states.at(-1);
+			if (!isGameState(state, gameId)) {
+				throw new Error(`Expected a ${gameId} view, received ${state?.gameId}`);
+			}
+			return state.view;
+		}
 	};
-	socket.on('game:state', (s: { gameId: string; view: View }) => {
+	socket.on('game:state', (s) => {
 		c.gameIds.push(s.gameId);
-		c.states.push(s.view);
+		c.states.push(s);
 	});
 	socket.on('error', (m: string) => c.errors.push(m));
 	socket.on('lobby:state', () => c.lobbyStates++);
@@ -78,7 +89,7 @@ async function connect(): Promise<Client> {
 }
 
 function send(c: Client, action: unknown): Promise<ActionResult> {
-	return ackOnce<[ActionResult]>((cb) => c.socket.emit('game:action', action as never, cb)).then(
+	return ackOnce<[ActionResult]>((cb) => c.socket.emit('game:action', action, cb)).then(
 		([r]) => r
 	);
 }
@@ -142,7 +153,7 @@ beforeEach(async () => {
 	// caches each game's lobby callbacks bound to the first `io` it saw.
 	vi.resetModules();
 	const { setupParlorSocketHandlers } = await import('./socketServer.js');
-	setupParlorSocketHandlers(io as never);
+	setupParlorSocketHandlers(io);
 	// Every real game now validates its actions, so no client payload can make one
 	// throw unexpectedly. Inject a fault into a copy of crazy-eights to exercise
 	// the INTERNAL → back-to-lobby path through the real wiring.
@@ -174,17 +185,17 @@ afterEach(async () => {
 // --- Liar's Dice helpers ------------------------------------------------------
 
 function activeAndOther(a: Client, b: Client): [Client, Client] {
-	return a.last().isMyTurn ? [a, b] : [b, a];
+	return a.last('liars-dice').isMyTurn ? [a, b] : [b, a];
 }
 
 /** Bid then challenge, leaving the game in the round-1 reveal. */
 async function toReveal(host: Client, guest: Client) {
 	const [bidder, challenger] = activeAndOther(host, guest);
 	expect(await send(bidder, { type: 'bid', quantity: 1, faceValue: 2 })).toEqual({ ok: true });
-	await waitFor(() => challenger.last().isMyTurn, 'turn to pass');
+	await waitFor(() => challenger.last('liars-dice').isMyTurn, 'turn to pass');
 	expect(await send(challenger, { type: 'challenge' })).toEqual({ ok: true });
-	await waitFor(() => host.last().phase === 'challenge' && guest.last().phase === 'challenge', 'reveal');
-	expect(host.last().round).toBe(1);
+	await waitFor(() => host.last('liars-dice').phase === 'challenge' && guest.last('liars-dice').phase === 'challenge', 'reveal');
+	expect(host.last('liars-dice').round).toBe(1);
 }
 
 describe("game:action membership (F-15): Liar's Dice nextRound", () => {
@@ -202,14 +213,14 @@ describe("game:action membership (F-15): Liar's Dice nextRound", () => {
 		expect(host.states.length).toBe(before.host);
 		expect(guest.states.length).toBe(before.guest);
 		expect(spectator!.states.length).toBe(before.spec);
-		expect(spectator!.last().phase).toBe('challenge');
-		expect(spectator!.last().round).toBe(1);
-		expect(spectator!.last().revealedDice).not.toBeNull();
+		expect(spectator!.last('liars-dice').phase).toBe('challenge');
+		expect(spectator!.last('liars-dice').round).toBe(1);
+		expect(spectator!.last('liars-dice').revealedDice).not.toBeNull();
 
 		// A real player's nextRound afterward succeeds.
 		expect(await send(guest, { type: 'nextRound' })).toEqual({ ok: true });
-		await waitFor(() => host.last().round === 2 && spectator!.last().round === 2, 'round 2');
-		expect(host.last().phase).toBe('bidding');
+		await waitFor(() => host.last('liars-dice').round === 2 && spectator!.last('liars-dice').round === 2, 'round 2');
+		expect(host.last('liars-dice').phase).toBe('bidding');
 	});
 
 	it('a seated player cannot call nextRound outside the reveal', async () => {
@@ -226,13 +237,13 @@ describe("game:action membership (F-15): Liar's Dice nextRound", () => {
 		expect(guest.errors).toContain('Cannot start next round from this phase');
 		await settle();
 		expect(host.states.length).toBe(before);
-		expect(host.last().phase).toBe('bidding');
-		expect(host.last().round).toBe(1);
+		expect(host.last('liars-dice').phase).toBe('bidding');
+		expect(host.last('liars-dice').round).toBe(1);
 
 		// The game keeps going: a valid bid succeeds.
 		const [bidder] = activeAndOther(host, guest);
 		expect(await send(bidder, { type: 'bid', quantity: 1, faceValue: 2 })).toEqual({ ok: true });
-		await waitFor(() => host.last().currentBid?.quantity === 1, 'bid broadcast');
+		await waitFor(() => host.last('liars-dice').currentBid?.quantity === 1, 'bid broadcast');
 	});
 
 	it('a socket that never joined is NOT_IN_ROOM', async () => {
@@ -247,14 +258,14 @@ describe("game:action membership (F-15): Liar's Dice nextRound", () => {
 // --- Crazy Eights -------------------------------------------------------------
 
 function c8ActiveAndOther(a: Client, b: Client): [Client, Client] {
-	return a.last().isActivePlayer ? [a, b] : [b, a];
+	return a.last('crazy-eights').isActivePlayer ? [a, b] : [b, a];
 }
 
 describe('game:action envelope (F-04 / B-03 poison payload)', () => {
 	it('a too-deep action is INVALID_ACTION and the room keeps receiving game:state', async () => {
 		const { host, guest } = await startGame('crazy-eights');
 		const [active] = c8ActiveAndOther(host, guest);
-		const card = active.last().playableCards[0] ?? active.last().myHand[0];
+		const card = active.last('crazy-eights').playableCards[0] ?? active.last('crazy-eights').myHand[0];
 		const before = { host: host.states.length, guest: guest.states.length };
 
 		const deep = { type: 'play-card', card: { ...card, junk: [[[[1]]]] } };
@@ -273,7 +284,7 @@ describe('game:action envelope (F-04 / B-03 poison payload)', () => {
 	it('the raw 20k-deep packet from crash/poison.mjs is dropped and broadcasts keep working', async () => {
 		const { host, guest } = await startGame('crazy-eights');
 		const [active] = c8ActiveAndOther(host, guest);
-		const card = active.last().playableCards[0] ?? active.last().myHand[0];
+		const card = active.last('crazy-eights').playableCards[0] ?? active.last('crazy-eights').myHand[0];
 		const before = { host: host.states.length, guest: guest.states.length };
 
 		// Written straight to the transport: socket.io-client itself would blow its
@@ -319,19 +330,19 @@ describe('lobby transitions over the real parlor wiring (F-11, F-12)', () => {
 
 		const returns = vi.fn();
 		host.socket.on('lobby:returned', returns);
-		const before = host.last();
+		const before = host.last('crazy-eights');
 		const stateCount = host.states.length;
 		host.socket.emit('lobby:restartGame');
 		await waitFor(() => host.errors.length > 0, 'restart error');
 		expect(host.errors.at(-1)).toBe('Cannot restart the game yet');
 		expect(returns).not.toHaveBeenCalled();
 		expect(host.states).toHaveLength(stateCount);
-		expect(host.last()).toEqual(before);
+		expect(host.last('crazy-eights')).toEqual(before);
 		expect(await roomIsWaiting(host, 'crazy-eights')).toBe(false);
 
 		expect(await send(host, { type: 'draw-card' })).toEqual({ ok: true });
 		await waitFor(() => host.states.length > stateCount, 'view from original game');
-		expect(host.last().drawPileCount).toBe(before.drawPileCount - 1);
+		expect(host.last('crazy-eights').drawPileCount).toBe(before.drawPileCount - 1);
 	});
 
 	it('restarts with connected seats and sends a returning excluded seat only spectator views', async () => {
@@ -348,13 +359,13 @@ describe('lobby transitions over the real parlor wiring (F-11, F-12)', () => {
 		);
 		await ackOnce((cb) => away.socket.emit('lobby:ready', true, cb));
 		await readyAndStart(host, guest);
-		expect(host.last().players).toHaveLength(3);
+		expect(host.last('crazy-eights').players).toHaveLength(3);
 
 		const disconnected = host.lobbyStates;
 		away.socket.disconnect();
 		await waitFor(() => host.lobbyStates > disconnected, 'third seat disconnect');
 		host.socket.emit('lobby:restartGame');
-		await waitFor(() => host.last().players.length === 2, 'restart view');
+		await waitFor(() => host.last('crazy-eights').players.length === 2, 'restart view');
 
 		const returned = await connect();
 		const [ok] = await ackOnce<[boolean]>((cb) =>
@@ -362,14 +373,14 @@ describe('lobby transitions over the real parlor wiring (F-11, F-12)', () => {
 		);
 		expect(ok).toBe(true);
 		await waitFor(() => returned.states.length > 0, 'returned seat view');
-		expect(returned.last()).toMatchObject({ myHand: [], myIndex: -1 });
+		expect(returned.last('crazy-eights')).toMatchObject({ myHand: [], myIndex: -1 });
 		expect(await send(returned, { type: 'draw-card' })).toMatchObject({ ok: false, code: 'NOT_A_PLAYER' });
 
 		const stateCount = returned.states.length;
 		const [active] = c8ActiveAndOther(host, guest);
 		expect(await send(active, { type: 'draw-card' })).toEqual({ ok: true });
 		await waitFor(() => returned.states.length > stateCount, 'subsequent spectator view');
-		expect(returned.states.every((view) => view.myHand.length === 0)).toBe(true);
+		expect(returned.states.every((view) => view.gameId === 'crazy-eights' && view.view.myHand.length === 0)).toBe(true);
 	});
 
 	it('rejects a game selection below the current occupancy and accepts a valid selection', async () => {
@@ -415,7 +426,7 @@ describe('game:action errors (F-03 / F-17 / F-22)', () => {
 		expect(other.errors).toEqual(['Not your turn']);
 		await settle();
 		expect(host.states.length).toBe(before);
-		expect(other.last().isActivePlayer).toBe(false);
+		expect(other.last('crazy-eights').isActivePlayer).toBe(false);
 
 		expect(await send(active, { type: 'draw-card' })).toEqual({ ok: true });
 	});
@@ -484,8 +495,8 @@ describe('game:action errors (F-03 / F-17 / F-22)', () => {
 describe('per-game validateAction over the real wiring (F-05)', () => {
 	it("Kings Corner: a bogus pile target is INVALID_ACTION and the game keeps running", async () => {
 		const { host, guest } = await startGame('kings-corner');
-		const [active] = c8ActiveAndOther(host, guest);
-		const card = active.last().myHand[0];
+		const active = host.last('kings-corner').isActivePlayer ? host : guest;
+		const card = active.last('kings-corner').myHand[0];
 		const before = host.states.length;
 
 		for (const action of [
@@ -508,7 +519,7 @@ describe('per-game validateAction over the real wiring (F-05)', () => {
 	it('Quixx: a bad row or a string cellIndex is INVALID_ACTION and the game keeps running', async () => {
 		const { host, guest } = await startGame('quixx');
 		// Quixx auto-rolls shortly after start.
-		await waitFor(() => host.last().phase === 'phase1' && guest.last().phase === 'phase1', 'phase1');
+		await waitFor(() => host.last('quixx').phase === 'phase1' && guest.last('quixx').phase === 'phase1', 'phase1');
 		const before = host.states.length;
 
 		for (const action of [
@@ -554,7 +565,7 @@ describe('lobby:startGame preconditions (F-11)', () => {
 		// Still in the lobby: a game can be selected and started.
 		expect(await roomIsWaiting(host, 'liars-dice')).toBe(true);
 		await readyAndStart(host, guest);
-		expect(host.last().phase).toBe('bidding');
+		expect(host.last('liars-dice').phase).toBe('bidding');
 	});
 });
 
@@ -571,11 +582,11 @@ describe('game:state envelopes over the real parlor wiring (plan 3.1b)', () => {
 			expect(c.gameIds.length).toBeGreaterThan(0);
 			expect(new Set(c.gameIds)).toEqual(new Set(['crazy-eights']));
 		}
-		expect(host.last().myHand.length).toBeGreaterThan(0);
-		expect(guest.last().myHand.length).toBeGreaterThan(0);
-		expect(host.last().myIndex).not.toBe(guest.last().myIndex);
+		expect(host.last('crazy-eights').myHand.length).toBeGreaterThan(0);
+		expect(guest.last('crazy-eights').myHand.length).toBeGreaterThan(0);
+		expect(host.last('crazy-eights').myIndex).not.toBe(guest.last('crazy-eights').myIndex);
 		for (const view of spec.states) {
-			expect(view).toMatchObject({ myHand: [], myIndex: -1, playableCards: [], drewCard: null });
+			expect(view.view).toMatchObject({ myHand: [], myIndex: -1, playableCards: [], drewCard: null });
 		}
 	});
 
@@ -583,7 +594,7 @@ describe('game:state envelopes over the real parlor wiring (plan 3.1b)', () => {
 		const { host, guest, spectator } = await startGame('liars-dice', true);
 		for (const c of [host, guest, spectator!]) {
 			expect(new Set(c.gameIds)).toEqual(new Set(['liars-dice']));
-			expect(c.last().phase).toBe('bidding');
+			expect(c.last('liars-dice').phase).toBe('bidding');
 		}
 	});
 
@@ -599,6 +610,6 @@ describe('game:state envelopes over the real parlor wiring (plan 3.1b)', () => {
 		await settle();
 		expect(new Set(host.gameIds.slice(seen.host))).toEqual(new Set(['liars-dice']));
 		expect(new Set(guest.gameIds.slice(seen.guest))).toEqual(new Set(['liars-dice']));
-		expect(host.last().phase).toBe('bidding');
+		expect(host.last('liars-dice').phase).toBe('bidding');
 	});
 });
