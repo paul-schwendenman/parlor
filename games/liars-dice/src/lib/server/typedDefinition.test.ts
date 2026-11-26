@@ -171,30 +171,47 @@ describe("Liar's Dice absent and removed seats (plan 3.9)", () => {
     expect(activeId(engine)).toBe(other.data.playerId);
   });
 
-  it('a disconnected seat is stood in for whenever bidding reaches it, and is eliminated once removed', async () => {
+  it('a disconnected seat raises minimally whenever bidding reaches it, never risking a die, and is eliminated once removed', async () => {
     const h = createLobbyHarness(liarsDiceDefinition, { humans: 3, graceMs: 60_000 });
     const engine = h.getState()!;
     const absent = h.humans.find((s) => s.data.playerId !== activeId(engine))!;
     absent.fire('disconnect');
 
-    // Bid up until the turn reaches the absent seat: it calls the standing bid.
-    for (let quantity = 1; activeId(engine) !== absent.data.playerId; quantity++) {
-      const socket = h.humans.find((s) => s.data.playerId === activeId(engine))!;
-      expect(await h.send(socket, { type: 'bid', quantity, faceValue: 2 })).toEqual({ ok: true });
+    // Bid up until the turn reaches the absent seat: it raises by the smallest
+    // legal amount instead of calling (a call would put a die at stake).
+    for (let lap = 0; lap < 2; lap++) {
+      while (activeId(engine) !== absent.data.playerId) {
+        const socket = h.humans.find((s) => s.data.playerId === activeId(engine))!;
+        // Present players just make the smallest legal raise too.
+        expect(await h.send(socket, { type: 'bid', ...engine.getStandInBid()! })).toEqual({ ok: true });
+      }
+      const standing = engine.getState().currentBid!;
+      await vi.advanceTimersByTimeAsync(1);
+      expect(engine.getState().phase).toBe('bidding');
+      const raised = engine.getState().currentBid!;
+      expect(raised.playerId).toBe(absent.data.playerId);
+      expect(engine.isValidBid(raised, standing)).toBe(true);
+      expect(activeId(engine)).not.toBe(absent.data.playerId);
     }
-    await vi.advanceTimersByTimeAsync(0);
-    expect(engine.getState().phase).toBe('challenge');
-    expect(engine.getState().challengeResult?.challengerId).toBe(absent.data.playerId);
-
-    // The reveal auto-advances, and the next round goes on.
-    await vi.advanceTimersByTimeAsync(3_000);
-    expect(engine.getState().round).toBe(2);
+    // Grace-window stand-ins never cost the seat a die.
+    expect(engine.getState().players.find((p) => p.id === absent.data.playerId)?.diceCount).toBe(5);
 
     await vi.advanceTimersByTimeAsync(60_000);
     const seat = engine.getState().players.find((p) => p.id === absent.data.playerId)!;
     expect(seat).toMatchObject({ eliminated: true, diceCount: 0 });
     expect(engine.getState().gameOver).toBe(false);
     expect(activeId(engine)).not.toBe(absent.data.playerId);
+  });
+
+  it('the stand-in bid is the lowest legal quantity, preferring a non-1 face', () => {
+    const h = createDispatchHarness(liarsDiceDefinition, 2);
+    const engine = h.getState()!;
+    expect(engine.getStandInBid()).toEqual({ quantity: 1, faceValue: 2 });
+    const bidder = activeId(engine);
+    engine.placeBid(bidder, 4, 3);
+    expect(engine.getStandInBid()).toEqual({ quantity: 2, faceValue: 1 }); // wild ones: 1s at half the quantity
+    engine.placeBid(activeId(engine), 2, 1);
+    expect(engine.getStandInBid()).toEqual({ quantity: 3, faceValue: 1 }); // 1s up by one beats 5 of anything
   });
 
   it('F-30: the bot is handed only its own dice and the public table', async () => {
@@ -229,9 +246,9 @@ describe("Liar's Dice absent and removed seats (plan 3.9)", () => {
 
     bot.release();
     await vi.advanceTimersByTimeAsync(0);
-    expect(engine.getState().currentBid).toMatchObject({ playerId: botId, quantity: 5, faceValue: 6 });
-    // The next seat is away: it calls the bot's bid.
-    expect(engine.getState().phase).toBe('challenge');
-    expect(engine.getState().challengeResult?.challengerId).toBe(nextId);
+    expect(engine.getState().bidHistory.at(-2)).toMatchObject({ playerId: botId, quantity: 5, faceValue: 6 });
+    // The next seat is away: it raises the bot's bid by the smallest legal amount.
+    expect(engine.getState().phase).toBe('bidding');
+    expect(engine.getState().currentBid).toMatchObject({ playerId: nextId, quantity: 3, faceValue: 1 });
   });
 });

@@ -65,6 +65,28 @@ export class LiarsDiceEngine {
     };
   }
 
+  /**
+   * The stand-in bid for an absent player in their grace window (plan 3.9): the
+   * least-penalising legal move. It never challenges or calls spot-on, which
+   * would put a die at stake straight away. It is the lowest-quantity legal bid
+   * (an opening bid with no bid standing, otherwise the smallest legal raise);
+   * at equal quantity a non-1 face is preferred, since with wild ones it also
+   * counts the 1s and is the likelier bid to hold. Null only if no legal bid
+   * exists below twice the dice in play plus one (never, in practice).
+   */
+  getStandInBid(): { quantity: number; faceValue: number } | null {
+    const maxQuantity = this.state.totalDiceInPlay * 2 + 1;
+    const faces = [2, 3, 4, 5, 6, 1];
+    for (let quantity = 1; quantity <= maxQuantity; quantity++) {
+      for (const faceValue of faces) {
+        if (this.isValidBid({ playerId: '', quantity, faceValue }, this.state.currentBid)) {
+          return { quantity, faceValue };
+        }
+      }
+    }
+    return null;
+  }
+
   getActivePlayerId(): string {
     return this.state.players[this.state.activePlayerIndex].id;
   }

@@ -194,6 +194,7 @@ describe('Kings Corner absent and removed seats (plan 3.9)', () => {
     const h = createLobbyHarness(kingsCornerDefinition, { humans: 3, graceMs: 60_000 });
     const engine = h.getState()!;
     const [a, b, c] = h.humans;
+    const handAtDisconnect = engine.getPlayerView(c.data.playerId).myHand;
     c.fire('disconnect');
     for (let round = 0; round < 2; round++) {
       await endTurn(h, a);
@@ -202,6 +203,10 @@ describe('Kings Corner absent and removed seats (plan 3.9)', () => {
       expect(engine.getActivePlayerId()).toBe(a.data.playerId);
     }
     const handBefore = engine.getPlayerView(c.data.playerId).myHand.length;
+    // Grace-window stand-ins never draw: the absent hand only loses kings it had to play.
+    for (const card of engine.getPlayerView(c.data.playerId).myHand) expect(handAtDisconnect).toContainEqual(card);
+    expect(engine.getPlayerView(c.data.playerId).myHand.filter((card) => card.rank !== 'K'))
+      .toEqual(handAtDisconnect.filter((card) => card.rank !== 'K'));
 
     await vi.advanceTimersByTimeAsync(60_000);
     expect(h.roomManager.getPlayersInRoom(h.roomCode)).toHaveLength(2);

@@ -179,6 +179,9 @@ describe('Quixx: nobody is left waiting (plan 3.9)', () => {
 
     active.fire('disconnect');
     expect(engine.getPhase()).toBe('rolling');
+    // They passed phase 1, so passing phase 2 would cost a present player a
+    // penalty; a seat in its grace window is not penalised.
+    expect(engine.getPlayers().find((p) => p.id === active.data.playerId)?.penalties).toBe(0);
     await vi.advanceTimersByTimeAsync(501);
     expect(engine.getPhase()).toBe('phase1');
     // Their phase 1 is passed for them too, so the present player decides alone.
@@ -219,6 +222,12 @@ describe('Quixx: nobody is left waiting (plan 3.9)', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(engine.getActivePlayerId()).toBe(roller.data.playerId);
     expect(engine.getPhase()).not.toBe('rolling');
+    // Two stand-in turns, each passing both phases, and still no penalty.
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await h.send(other, { type: 'phase1-pass' })).toEqual({ ok: true });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(engine.getActivePlayerId()).toBe(other.data.playerId);
+    expect(engine.getPlayers().find((p) => p.id === roller.data.playerId)?.penalties).toBe(0);
   });
 
   it('a removed seat passes every phase 1 and is skipped in the rotation', async () => {

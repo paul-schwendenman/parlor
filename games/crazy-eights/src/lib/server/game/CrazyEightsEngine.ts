@@ -184,8 +184,12 @@ export class CrazyEightsEngine {
     this.ensureDrawPile();
 
     if (this.drawPile.length === 0) {
-      // No cards to draw even after reshuffle — check for stalemate
+      // Both piles are exhausted (only the top discard is left). If nobody can
+      // play, that is a stalemate; otherwise this player cannot draw, so their
+      // turn passes. Before, the turn stayed with them and they could neither
+      // draw nor pass, which stalled the game.
       this.checkStalemate();
+      if (this.phase === 'playing') this.advanceTurn();
       return;
     }
 
@@ -335,36 +339,20 @@ export class CrazyEightsEngine {
   }
 
   /**
-   * The stand-in turn for an absent active player: pick a suit for them, or
-   * draw and pass. Always ends their turn (or the game).
+   * The stand-in turn for an absent active player (disconnected in grace, or
+   * leaving). It never penalises the seat: in the suit-choosing phase it picks
+   * a suit for the eight they played; otherwise it passes without drawing.
+   * Always ends their turn (or the game).
    */
   takeAbsentTurn(playerId: string): void {
     if (this.phase === 'game-over' || this.getActivePlayer().id !== playerId) return;
 
     if (this.phase === 'choosing-suit') {
-      // Pick a random suit
       const randomSuit = SUITS[Math.floor(Math.random() * SUITS.length)];
       this.chooseSuit(playerId, randomSuit);
     } else if (this.phase === 'playing') {
-      if (this.drawnThisTurn) {
-        // Already drew, just pass
-        this.advanceTurn();
-      } else {
-        // Draw then pass
-        try {
-          this.drawCard(playerId);
-        } catch {
-          // Can't draw — pass/stalemate
-        }
-        if (this.phase === 'playing' && this.drawnThisTurn) {
-          this.advanceTurn();
-        }
-      }
+      this.advanceTurn();
     }
-
-    // Nothing left to draw and no stalemate yet: pass for them anyway, so an
-    // absent seat can never hold the turn.
-    if (this.phase === 'playing' && this.getActivePlayer().id === playerId) this.advanceTurn();
   }
 
   handleReconnect(playerId: string): void {

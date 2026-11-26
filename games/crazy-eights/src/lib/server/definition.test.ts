@@ -205,6 +205,7 @@ describe('Crazy Eights absent and removed seats', () => {
     const h = createLobbyHarness(crazyEightsDefinition, { humans: 3, graceMs: 60_000 });
     const engine = h.getState()!;
     const absent = h.humans.find((s) => s.data.playerId !== engine.getActivePlayerId())!;
+    const absentHand = engine.getPlayerView(absent.data.playerId).myHand;
     absent.fire('disconnect');
 
     // Two full rounds while they are away: the table never waits on them.
@@ -215,7 +216,8 @@ describe('Crazy Eights absent and removed seats', () => {
       actors.push(await playTurn(h));
     }
     expect(actors).not.toContain(absent.data.playerId);
-    expect(engine.getPlayerView(absent.data.playerId).myHand.length).toBeGreaterThan(5);
+    // Grace-window stand-ins pass without drawing: the absent hand is not penalised.
+    expect(engine.getPlayerView(absent.data.playerId).myHand).toEqual(absentHand);
 
     // Grace expires: the seat leaves the turn order for good.
     await vi.advanceTimersByTimeAsync(60_000);
@@ -226,7 +228,7 @@ describe('Crazy Eights absent and removed seats', () => {
       expect(engine.getActivePlayerId()).not.toBe(absent.data.playerId);
       await playTurn(h);
     }
-    // No stand-ins after removal: the removed hand stops growing.
+    // Skipped outright after removal: the removed hand never changes.
     expect(engine.getPlayerView(absent.data.playerId).myHand.length).toBe(drawnBefore);
   });
 

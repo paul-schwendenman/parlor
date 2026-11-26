@@ -308,12 +308,27 @@ export class KingsCornerEngine {
   }
 
   /**
-   * The stand-in turn for an absent active player: draw, play any mandatory
-   * kings, and pass. Always ends their turn (or the game).
+   * The stand-in turn for an absent active player (disconnected in grace, or
+   * leaving). It never penalises the seat: it does not draw (a drawn card only
+   * adds to their hand), plays any mandatory kings (which only shrinks it), and
+   * passes. Always ends their turn (or the game).
    */
   takeAbsentTurn(playerId: string): void {
     if (this.phase === 'game-over') return;
+    const activePlayer = this.getActivePlayer();
+    if (activePlayer.id !== playerId) return;
 
+    this.phase = 'playing';
+    this.autoPlayKings(activePlayer);
+    if (this.phase === 'playing') this.advanceTurn();
+  }
+
+  /**
+   * The fallback for a bot that overran its time: draw, play any mandatory
+   * kings, and pass (unchanged from before plan 3.9; bots are never absent).
+   */
+  takeTimedOutTurn(playerId: string): void {
+    if (this.phase === 'game-over') return;
     const activePlayer = this.getActivePlayer();
     if (activePlayer.id !== playerId) return;
 

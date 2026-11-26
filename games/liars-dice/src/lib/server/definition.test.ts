@@ -8,11 +8,15 @@ import { RoomManager, type AppServer } from '@parlor/multiplayer';
 import { liarsDiceDefinition } from './definition.js';
 import type { LiarsDiceEngine } from './game/LiarsDiceEngine.js';
 import type { LiarsDiceAction } from '../types/game.js';
+import { AIPlayer } from './ai/AIPlayer.js';
 
 const io = { to: () => ({ emit: () => {} }) } as unknown as AppServer;
 
 beforeEach(() => vi.useFakeTimers());
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 function setup() {
   const rm = new RoomManager();
@@ -38,34 +42,81 @@ function setup() {
   return { rm, roomCode, engine, callbacks, act, active, a, b };
 }
 
+/**
+ * A human ('a') and a bot. The server's own reveal timer is scheduled when the
+ * bot challenges (a disconnected player no longer challenges since plan 3.9:
+ * their stand-in only raises). The bot here acts at once: it opens, or
+ * challenges any standing bid.
+ */
+function setupWithBot() {
+  const botMode = { challenges: true };
+  vi.spyOn(AIPlayer.prototype, 'takeTurn').mockImplementation((view, callbacks) => {
+    if (!view.currentBid) callbacks.onBid(1, 2);
+    else if (botMode.challenges) callbacks.onChallenge();
+    else callbacks.onBid(view.currentBid.quantity + 1, view.currentBid.faceValue);
+    return Promise.resolve();
+  });
+  const rm = new RoomManager();
+  const { roomCode, playerId: a } = rm.createRoom('sa', 'A');
+  rm.selectGame(roomCode, liarsDiceDefinition.meta);
+  const bot = rm.addBot(roomCode, 'Bot').botId!;
+  rm.setPlayerReady(a, true);
+  const players = rm.startGame(roomCode)!;
+  liarsDiceDefinition.createLobbyCallbacks(rm, io).onGameStart!(roomCode, players, io);
+  const engine = rm.getGameData<LiarsDiceEngine>(roomCode)!;
+  const act = (action: LiarsDiceAction): void => {
+    void liarsDiceDefinition.handleGameAction(io, { data: { roomCode, playerId: a }, emit: vi.fn() } as never, rm, action);
+  };
+  const active = () => engine.getState().players[engine.getState().activePlayerIndex].id;
+  /** Let a scheduled bot turn run (well short of the 3 s reveal timer). */
+  const settle = () => vi.advanceTimersByTime(1);
+  /** From the start of a round, play until its reveal: the bot challenges (scheduling the timer). */
+  const botReveal = (): void => {
+    botMode.challenges = true;
+    settle(); // the bot opens if it starts
+    if (active() === a) act({ type: 'bid', quantity: engine.getState().currentBid ? 30 : 1, faceValue: 2 });
+    settle(); // the bot challenges
+  };
+  /** From the start of a round, play until its reveal: the player challenges (no timer). */
+  const playerReveal = (): void => {
+    botMode.challenges = false;
+    settle(); // the bot opens if it starts
+    if (!engine.getState().currentBid) {
+      act({ type: 'bid', quantity: 1, faceValue: 2 });
+      settle(); // the bot raises
+    }
+    act({ type: 'challenge' });
+  };
+  return { engine, act, active, botReveal, playerReveal, a, bot };
+}
+
 describe("Liar's Dice auto-advance timer", () => {
   it('does not cut a later reveal short after a player already advanced', () => {
-    const t = setup();
-    t.act(t.active(), { type: 'bid', quantity: 1, faceValue: 2 });
-    // Active bidder drops → server auto-challenges and schedules the 3 s advance.
-    void t.callbacks.onPlayerDisconnect!(t.roomCode, t.active(), io);
-    expect(t.engine.getState().phase).toBe('challenge');
-    expect(t.engine.getState().round).toBe(1);
-
-    // A seated player advances early, and round 2 reaches its own reveal.
-    t.act(t.a, { type: 'nextRound' });
-    expect(t.engine.getState().round).toBe(2);
-    t.act(t.active(), { type: 'bid', quantity: 1, faceValue: 2 });
-    t.act(t.active(), { type: 'challenge' });
+    const t = setupWithBot();
+    // Round 1: the bot challenges, which schedules the server's 3 s advance.
+    t.botReveal();
+    const round = t.engine.getState().round;
+    const scheduledAt = Date.now();
     expect(t.engine.getState().phase).toBe('challenge');
 
-    // The stale round-1 timer fires: round 2's reveal must survive.
-    vi.advanceTimersByTime(3000);
-    expect(t.engine.getState().round).toBe(2);
+    // The player advances early, and the next round reaches its own reveal.
+    t.act({ type: 'nextRound' });
+    expect(t.engine.getState().round).toBe(round + 1);
+    t.playerReveal();
+    expect(t.engine.getState().phase).toBe('challenge');
+
+    // The stale timer from the earlier round fires: this round's reveal must survive.
+    vi.advanceTimersByTime(scheduledAt + 3000 - Date.now());
+    expect(t.engine.getState().round).toBe(round + 1);
     expect(t.engine.getState().phase).toBe('challenge');
   });
 
   it('still auto-advances when nobody pressed next round', () => {
-    const t = setup();
-    t.act(t.active(), { type: 'bid', quantity: 1, faceValue: 2 });
-    void t.callbacks.onPlayerDisconnect!(t.roomCode, t.active(), io);
+    const t = setupWithBot();
+    t.botReveal();
+    const round = t.engine.getState().round;
     vi.advanceTimersByTime(3000);
-    expect(t.engine.getState().round).toBe(2);
+    expect(t.engine.getState().round).toBe(round + 1);
     expect(t.engine.getState().phase).toBe('bidding');
   });
 

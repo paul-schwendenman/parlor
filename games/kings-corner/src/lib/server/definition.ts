@@ -73,9 +73,8 @@ async function handleAITurn(game: Game, botId: string): Promise<void> {
 
   if (result !== 'timed-out' || !instance.isCurrent() || engine.isGameOver()) return;
 
-  // Auto-play mandatory kings, then advance the turn.
-  engine.handleDisconnect(botId);
-  engine.handleReconnect(botId);
+  // Draw, auto-play mandatory kings, then advance the turn.
+  engine.takeTimedOutTurn(botId);
   game.broadcast();
   driveTurn(game);
 }

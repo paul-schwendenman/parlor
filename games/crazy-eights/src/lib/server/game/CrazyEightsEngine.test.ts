@@ -149,3 +149,62 @@ describe('CrazyEightsEngine', () => {
     });
   });
 });
+
+// Private piles, reached for test setup only.
+type Piles = { drawPile: { suit: string; rank: string }[]; discardPile: { suit: string; rank: string }[]; players: { hand: { suit: string; rank: string }[] }[]; declaredSuit: string | null };
+const piles = (engine: CrazyEightsEngine) => engine as unknown as Piles;
+
+describe('CrazyEightsEngine absent seats and the draw pile (plan 3.9)', () => {
+  it('an active player who disconnects in grace is passed without drawing', () => {
+    const engine = createTestEngine(2);
+    const hand = engine.getPlayerView('player-0').myHand;
+    const drawPile = engine.getPlayerView('player-0').drawPileCount;
+    engine.handleDisconnect('player-0');
+    expect(engine.getActivePlayerId()).toBe('player-1');
+    expect(engine.getPlayerView('player-0').myHand).toEqual(hand);
+    expect(engine.getPlayerView('player-1').drawPileCount).toBe(drawPile);
+  });
+
+  it('reshuffles the discard pile (all but the top card) into an empty draw pile', () => {
+    const engine = createTestEngine(2);
+    const p = piles(engine);
+    const top = { suit: 'hearts', rank: '9' };
+    p.discardPile = [{ suit: 'clubs', rank: '2' }, { suit: 'spades', rank: '3' }, { suit: 'diamonds', rank: '4' }, top];
+    p.drawPile = [];
+    engine.drawCard('player-0');
+    expect(engine.getPlayerView('player-1').topDiscard).toEqual(top);
+    // Three cards went back into the pile, and one of them was drawn.
+    expect(engine.getPlayerView('player-1').drawPileCount).toBe(2);
+    expect(engine.getPlayerView('player-0').myHand).toHaveLength(8);
+  });
+
+  it('with both piles exhausted, a player who cannot play has their turn passed instead of stalling', () => {
+    const engine = createTestEngine(2);
+    const p = piles(engine);
+    p.drawPile = [];
+    p.discardPile = [{ suit: 'hearts', rank: '9' }];
+    p.declaredSuit = null;
+    p.players[0].hand = [{ suit: 'clubs', rank: '2' }];
+    p.players[1].hand = [{ suit: 'hearts', rank: '3' }];
+
+    engine.drawCard('player-0');
+    expect(engine.isGameOver()).toBe(false);
+    expect(engine.getActivePlayerId()).toBe('player-1');
+    engine.playCard('player-1', { suit: 'hearts', rank: '3' });
+    expect(engine.isGameOver()).toBe(true);
+  });
+
+  it('with both piles exhausted and nobody able to play, it is still a stalemate', () => {
+    const engine = createTestEngine(2);
+    const p = piles(engine);
+    p.drawPile = [];
+    p.discardPile = [{ suit: 'hearts', rank: '9' }];
+    p.declaredSuit = null;
+    p.players[0].hand = [{ suit: 'clubs', rank: '2' }, { suit: 'clubs', rank: '4' }];
+    p.players[1].hand = [{ suit: 'spades', rank: '3' }];
+
+    engine.drawCard('player-0');
+    expect(engine.isGameOver()).toBe(true);
+    expect(engine.getPlayerView('player-0').winner).toEqual({ id: 'player-1', name: 'Player 1' });
+  });
+});

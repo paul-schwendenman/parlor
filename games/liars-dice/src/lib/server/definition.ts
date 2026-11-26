@@ -100,19 +100,22 @@ async function handleAITurn(game: Game): Promise<void> {
 }
 
 /**
- * The stand-in bidding turn for an absent player: call the standing bid, or,
- * with no bid to call, make the opening bid the bot timeout fallback makes.
- * Returns false when it was not their bidding turn.
+ * The stand-in bidding turn for an absent player. In the grace window it must
+ * not cost them a die, so it never challenges or calls: it opens with the
+ * minimum bid, or raises the standing bid by the smallest legal amount (see
+ * `LiarsDiceEngine.getStandInBid`). Only if no raise were possible would it
+ * call the bid. Returns false when it was not their bidding turn.
  */
 function standInTurn(game: Game, playerId: string): boolean {
   const state = game.state.getState();
   const activePlayer = state.players[state.activePlayerIndex];
   if (activePlayer.id !== playerId || state.phase !== 'bidding' || state.gameOver) return false;
-  if (state.currentBid) {
+  const bid = game.state.getStandInBid();
+  if (bid) {
+    game.state.placeBid(playerId, bid.quantity, bid.faceValue);
+  } else {
     game.state.challenge(playerId);
     scheduleNextRound(game);
-  } else {
-    game.state.placeBid(playerId, 1, 2);
   }
   return true;
 }

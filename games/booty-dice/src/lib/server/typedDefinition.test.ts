@@ -222,4 +222,21 @@ describe('Booty Dice absent and removed seats (plan 3.9)', () => {
     expect(bot.resumed).toHaveBeenCalledOnce();
     expect(currentId(engine)).toBe(other.data.playerId);
   });
+
+  it('a player who disconnects after rolling has the turn ended unresolved: no score, no loss', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.4);
+    const h = createLobbyHarness(bootyDiceDefinition, { humans: 3, graceMs: 60_000 });
+    const engine = h.getState()!;
+    const active = h.humans.find((s) => s.data.playerId === currentId(engine))!;
+    expect(await h.send(active, { type: 'roll' })).toEqual({ ok: true });
+    const seat = () => engine.getState().players.find((p) => p.id === active.data.playerId)!;
+    const before = (({ doubloons, lives, shields }) => ({ doubloons, lives, shields }))(seat());
+    const others = engine.getState().players.filter((p) => p.id !== active.data.playerId);
+
+    active.fire('disconnect');
+    expect(currentId(engine)).not.toBe(active.data.playerId);
+    expect(seat()).toMatchObject(before);
+    // Nothing was resolved against anyone else either.
+    expect(engine.getState().players.filter((p) => p.id !== active.data.playerId)).toEqual(others);
+  });
 });

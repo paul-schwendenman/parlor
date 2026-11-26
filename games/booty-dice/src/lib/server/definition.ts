@@ -107,32 +107,17 @@ async function handleAITurn(game: Game): Promise<void> {
 }
 
 /**
- * The absent-player stand-in: if it is their turn, finish rolling, aim any
- * pending attacks at the first other live player, score (only if they rolled)
- * and pass the turn. Returns false when it was not their turn.
+ * The stand-in for an absent player whose turn it is (disconnected in grace).
+ * It must not penalise them, so the turn simply ends: nothing they may have
+ * rolled is resolved, which means no score but also no self-inflicted loss
+ * (X Marks the Spot, Walk the Plank) and no attacks. Returns false when it was
+ * not their turn.
  */
 function standInTurn(engine: GameEngine, playerId: string): boolean {
   const state = engine.getState();
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (currentPlayer.id !== playerId || state.phase !== 'playing') return false;
-
-  engine.finishRolling();
-
-  // Auto-resolve any pending actions
-  const updatedState = engine.getState();
-  if (updatedState.turnPhase === 'selecting_targets') {
-    const otherAlive = updatedState.players.filter((p) => p.id !== playerId && !p.isEliminated);
-    for (const action of updatedState.pendingActions) {
-      if (!action.resolved && otherAlive.length > 0) {
-        engine.selectTarget(action.dieIndex, otherAlive[0].id);
-      }
-    }
-  }
-
-  // A player who drops before rolling forfeits the turn rather than scoring
-  // the previous dice (CORE-AUDIT A-06).
-  const resolution = engine.hasRolledThisTurn() ? engine.resolveTurn() : { winner: null };
-  if (!resolution.winner) engine.endTurn();
+  engine.endTurn();
   return true;
 }
 

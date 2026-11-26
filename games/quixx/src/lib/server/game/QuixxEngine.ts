@@ -125,11 +125,13 @@ export class QuixxEngine {
   }
 
   /**
-   * End the turn of a removed active seat without rolling or scoring (no
-   * penalty: the seat has left). Only from `rolling` or `phase2`.
+   * End the turn of an absent active seat (disconnected in grace, or removed)
+   * without rolling, marking or a penalty. Only from `rolling` or `phase2`. A
+   * present player who passes both phases still takes the penalty as usual;
+   * a seat whose player is away for this turn does not (plan 3.9).
    */
-  skipRemovedTurn(): void {
-    if (!this.removed.has(this.getActivePlayerId())) return;
+  skipAbsentTurn(): void {
+    if (!this.isAbsent(this.getActivePlayerId())) return;
     if (this.phase !== 'rolling' && this.phase !== 'phase2') return;
     this.phase = 'turn-end';
     this.advanceTurn();

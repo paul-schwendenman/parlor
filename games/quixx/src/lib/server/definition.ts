@@ -118,10 +118,12 @@ function standInNeeded(engine: QuixxEngine): boolean {
 }
 
 /**
- * The stand-in moves for absent seats, the same ones a disconnect has always
- * made: pass phase 1, pass phase 2, and (player-roll mode) roll for them. A
- * removed active seat is skipped instead, without a roll or a penalty.
- * Runs the follow-up for whatever transition it caused.
+ * The stand-in moves for absent seats. None of them penalises the seat: phase 1
+ * is passed (no cost on its own); an absent active seat's phase 2 is skipped
+ * with no penalty, although a present player passing both phases takes one; in
+ * player-roll mode the roll is made for them (it costs nothing, and the table
+ * needs it); a removed active seat is skipped without a roll. Runs the
+ * follow-up for whatever transition it caused.
  */
 function standIn(game: Game): void {
   const engine = game.state;
@@ -141,20 +143,14 @@ function standIn(game: Game): void {
     }
     case 'rolling':
       if (engine.isRemoved(activeId)) {
-        engine.skipRemovedTurn();
+        engine.skipAbsentTurn();
         return drive(game);
       }
       engine.rollDice();
       return afterRoll(game);
     case 'phase2':
       game.instance.cancel(PHASE_TIMER);
-      if (engine.isRemoved(activeId)) {
-        engine.skipRemovedTurn();
-        return drive(game);
-      }
-      engine.submitPhase2(activeId, { type: 'phase2-pass' });
-      if (engine.isGameOver()) return;
-      engine.advanceTurn();
+      engine.skipAbsentTurn();
       return drive(game);
   }
 }

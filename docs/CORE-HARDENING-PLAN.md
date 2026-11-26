@@ -314,7 +314,7 @@ The reasoning:
   - **Implemented:** game metadata drives start requirements, restart excludes grace seats from the new engine, and returning players excluded from a restart receive spectator views. The client resets on `lobby:returned`. Each game marks its room finished when the engine ends.
 
 ### 3.9 Per-game rule fixes
-- [ ] **3.9**
+- [x] **3.9** *(Done on branch `paul-schwendenman/core-hardening-3.9`; main work in `9d03032`. See the notes at the end of this item.)*
   - **All games:** turn order skips removed and absent seats.
   - **Kings Corner:** fix the bot lookup so it uses the engine's seat order, not the lobby's index.
   - **Quixx:** fix auto-roll after a bot follows a bot.
@@ -323,6 +323,40 @@ The reasoning:
   - **Quixx player-roll mode (`diceRolling: 'player'`):** add a stand-in for an absent active roller.
   - **Use the 3.1b contract:** do the seat skipping in `onPlayerRemoved` and the disconnect hooks of each `defineGame` definition.
   - (F-08, F-09, F-30; F-06 moved to 3.1a)
+  - **Done notes:**
+    - **Absent seats, the same in every game:**
+      - **Disconnected, in the grace window:** the seat is kept. Each time the turn reaches it, it gets a **penalty-free** stand-in move, scheduled through the new core `scheduleAbsentTurn(game, policy)` (`packages/multiplayer/src/absentTurns.ts`). The stand-in runs on `game.instance.schedule`, re-checks the seat when it fires, then broadcasts and moves on. Quixx has its own version because everyone plays phase 1 at once.
+      - **Removed (grace expired or `room:leave`):** the seat leaves for good. Booty Dice and Liar's Dice eliminate it (`forfeit`); Crazy Eights, Kings Corner and Quixx skip it in turn order.
+      - **Too few players:** with fewer than 2 seats left, the game ends through its normal end path. The remaining seat wins by forfeit; Quixx scores the game as it stands.
+      - **Bots** are never absent.
+      - **Pause rule:** if no seat left is present (a connected human or a bot), stand-ins pause. A reconnect resumes them.
+    - **Grace-window stand-ins, with no penalty** (user decision: a 60 s drop shouldn't cost anything):
+      - **Crazy Eights:** passes without drawing. If the player had played an eight, the stand-in still picks a suit.
+      - **Liar's Dice:** never challenges or calls spot-on. It opens with 1×2, or makes the lowest-quantity legal raise. At equal quantity it prefers a non-1 face.
+      - **Kings Corner:** plays any mandatory kings (which only shrinks the hand), then passes, with no draw.
+      - **Booty Dice:** ends the turn without resolving any dice they rolled: no score, no self-damage, no attacks.
+      - **Quixx:** an absent active seat takes no phase-2 penalty. In player-roll mode the roll is still made for them.
+      - **Bot-timeout fallbacks are unchanged.**
+    - **Fixes:**
+      - **Kings Corner:** the bot is found by engine seat id (E-10 / C-05).
+      - **Quixx:**
+        - a single follow-up after every state change fixes the bot-after-bot auto-roll (F-09 / C-03) and the phase-2 disconnect stall
+        - removed seats pass phase 1 automatically
+        - rounds are counted when the rotation wraps
+      - **Liar's Dice:**
+        - the AI takes a `LiarsDiceBotView` with its own dice only, built by `engine.getBotView()`. Passing the full state no longer compiles (F-30 / D-11).
+        - a challenge lost to a seat that had already left used to take a die from it twice; now fixed.
+      - **Crazy Eights:**
+        - the reshuffle of the discard pile into the draw pile already existed.
+        - with both piles exhausted, a player who can't play now passes instead of stalling.
+        - the stalemate check only applies when both piles are exhausted.
+      - **Booty Dice and Liar's Dice** now track `connected`, so the UI greys out disconnected players.
+    - **Accepted by the user:**
+      - forfeit wins
+      - a reconnect only sends the view to the returning player; the others see their `connected` flag on the next broadcast
+      - removed Quixx seats keep their score sheet in the final scores and take no more penalties, which can affect the 4-penalty end condition
+    - **Tests:** 624 → 650 Vitest, 8 Playwright. The `lifecycle/c8-kc.mts`, `lifecycle/quixx-restart.mts` and `crash/quixx.mjs` repros were converted to tests and deleted. Mutation checks confirm that the C-04, E-10, F-09 and disconnect-stall tests fail without their fix. The bot test files were run 10× with no flakes.
+    - **Flagged for later:** see "Revisit at the end" below.
 
 ### 3.10 Infra and randomness
 - [ ] **3.10** *(Infra half done; `crypto.randomInt` still open.)*
@@ -368,6 +402,14 @@ The reasoning:
   - Start from `docs/audit-repros/security/leakcheck.ts`.
 - [ ] **4.3 Lifecycle race suite**: randomized interleavings of reset, restart, switch, leave, grace expiry and reconnect against in-flight bot turns, on a virtual clock. Start from `docs/audit-repros/lifecycle/`.
 
+## Revisit at the end
+
+Rules questions and smaller bugs found during Phase 3. Come back to these once Phase 4 is done.
+
+- [ ] **Kings Corner empty draw pile:** with the draw pile empty, turns can loop forever with everyone present. The user is checking the official rules; Crazy Eights reshuffles, but Kings Corner may differ. (Found in 3.9.)
+- [ ] **Kings Corner bot-timeout fallback overwrites game over:** when the fallback's auto-play of kings wins the game, it still advances the turn, which overwrites the `game-over` state. This was already there and was left alone in 3.9. (Found in 3.9.)
+- [ ] **Booty Dice dodge:** because grace-window stand-ins don't resolve rolled dice, a player can disconnect right after a bad roll to skip its resolution, then return within grace. They lose that turn's good dice too. Decide whether that matters. (Found in 3.9.)
+
 ---
 
 ## Log
@@ -388,3 +430,4 @@ The reasoning:
 | 2026-11-26 | 3.3 boundary limits | Added socket, room, name and log limits with regression tests |
 | 2026-11-26 | 3.4 process safety and observability | Added fatal exit handlers, room failure context, health metrics, and restart recovery coverage |
 | 2026-11-26 | 3.1b typed contract (F-20, F-32 casts) | branch `paul-schwendenman/core-hardening-3.1b`. Crazy-eights pilot in `ed0ab25`, then the other four games migrated and the legacy adapter removed. 624 Vitest and 8 Playwright tests; 0 casts in game definitions. Quixx disconnect stall found and moved to 3.9 |
+| 2026-11-26 | 3.9 per-game rule fixes (F-08, F-09, F-30) | branch `paul-schwendenman/core-hardening-3.9`, main work in `9d03032`, then penalty-free grace stand-ins and the Crazy Eights exhausted-piles pass. 650 Vitest and 8 Playwright tests. Three items added to "Revisit at the end" |
