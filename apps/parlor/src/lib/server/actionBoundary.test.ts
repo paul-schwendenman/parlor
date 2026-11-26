@@ -579,7 +579,7 @@ describe('game:state envelopes over the real parlor wiring (plan 3.1b)', () => {
 		}
 	});
 
-	it('a not-yet-migrated game (liars-dice) reaches players and spectators in its own envelope', async () => {
+	it('liars-dice (a bot game) reaches players and spectators in its own envelope', async () => {
 		const { host, guest, spectator } = await startGame('liars-dice', true);
 		for (const c of [host, guest, spectator!]) {
 			expect(new Set(c.gameIds)).toEqual(new Set(['liars-dice']));

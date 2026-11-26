@@ -6,7 +6,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameRuleError, RoomManager, type AppServer } from '@parlor/multiplayer';
-import { quixxDefinition } from './definition.js';
+import { quixxDefinition, quixxGame } from './definition.js';
+import type { QuixxAction } from '../types/game.js';
 import { QuixxEngine } from './game/QuixxEngine.js';
 
 const io = { to: () => ({ emit: () => {} }) } as unknown as AppServer;
@@ -27,7 +28,7 @@ function setup() {
   rm.selectGame(roomCode, quixxDefinition.meta);
   rm.setPlayerReady(a, true);
   rm.setPlayerReady(b, true);
-  rm.startGame(roomCode);
+  const players = rm.startGame(roomCode)!;
   const engine = new QuixxEngine(
     [
       { id: a, name: 'A', isBot: false },
@@ -36,9 +37,11 @@ function setup() {
     roomCode,
     { diceRolling: 'player', turnTimer: 5, phase1Timer: null },
   );
-  rm.setGameData(roomCode, engine);
+  // Start through the definition so the game owns this engine and its instance.
+  vi.spyOn(quixxGame, 'createState').mockReturnValueOnce(engine);
+  quixxDefinition.createLobbyCallbacks(rm, io).onGameStart?.(roomCode, players, io);
   // Sync handler: a rule error throws straight out of `act`.
-  const act = (playerId: string, action: Record<string, unknown>): void => {
+  const act = (playerId: string, action: QuixxAction): void => {
     void quixxDefinition.handleGameAction(io, { data: { roomCode, playerId }, emit: vi.fn() } as never, rm, action);
   };
   return { engine, act, a, b };
@@ -148,6 +151,6 @@ it('keeps the restarted game bot timer when the previous bot recheck becomes due
   expect(restartedEngine.getPhase()).toBe('phase2');
   expect(originalEngine.getPlayerView(playerId)).toEqual(originalView);
   expect(emit).toHaveBeenLastCalledWith(
-    playerId, 'game:state', expect.objectContaining({ phase: 'phase2', round: 1 }),
+    playerId, 'game:state', { gameId: 'quixx', view: expect.objectContaining({ phase: 'phase2', round: 1 }) },
   );
 });

@@ -42,8 +42,17 @@ export interface RoomDestroyedContext<State> {
   readonly state: State | null;
 }
 
-/** Handler result: a handler may be async, but must follow the `GameContext.instance` rules. */
-export type GameHandlerResult = void | Promise<void>;
+/**
+ * Returned by a lifecycle hook that changed nothing, so the core skips its
+ * automatic broadcast instead of re-sending identical views.
+ */
+export const UNCHANGED = 'unchanged';
+
+/**
+ * Handler result: a handler may be async, but must follow the `GameContext.instance`
+ * rules. Hooks may return (or resolve to) `UNCHANGED` to skip the automatic broadcast.
+ */
+export type GameHandlerResult = void | typeof UNCHANGED | Promise<void | typeof UNCHANGED>;
 
 /**
  * One handler per action type. Each receives only its own member of the union,
@@ -61,6 +70,12 @@ export interface TypedGameDefinition<Id extends GameId, State extends object, Ac
   validateAction: (action: Record<string, unknown>) => ActionValidation<Action>;
   /** Build a fresh game for the seated players. Throwing rolls the start back to the lobby. */
   createState: (roomCode: string, players: LobbyPlayer[]) => State;
+  /**
+   * Runs once the start state has been broadcast, for work that needs the
+   * instance (for example scheduling a bot's first turn). It does not trigger
+   * another broadcast; call `game.broadcast()` after changing state here.
+   */
+  onGameStart?: (game: GameContext<State>) => void;
   actions: GameActionHandlers<State, Action>;
   getPlayerView: (state: State, playerId: string) => GameViewMap[Id];
   /** What spectators and excluded seats receive. Must not reveal anything hidden from every player. */
@@ -98,10 +113,17 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   );
 }
 
-/** Run `after` once `result` settles successfully (sync or async). Rejections pass through. */
-function then(result: GameHandlerResult, after: () => void): GameHandlerResult {
-  if (isPromiseLike(result)) return Promise.resolve(result).then(after);
-  after();
+/**
+ * Run `after` once `result` settles successfully (sync or async), unless the
+ * handler reported `UNCHANGED`. Rejections pass through.
+ */
+function then(result: GameHandlerResult, after: () => void): void | Promise<void> {
+  if (isPromiseLike(result)) {
+    return Promise.resolve(result).then((settled) => {
+      if (settled !== UNCHANGED) after();
+    });
+  }
+  if (result !== UNCHANGED) after();
 }
 
 export function defineGame<const Id extends GameId, State extends object, Action extends { type: string }>(
@@ -113,11 +135,12 @@ export function defineGame<const Id extends GameId, State extends object, Action
   const states = new WeakMap<GameRoom, StateEntry<State>>();
 
   function envelope(view: GameViewMap[Id]): GameStateEnvelope {
-    // `meta.id` and `view` are both tied to `Id` by the signature. Note this
-    // compiles inside this package only because every map entry visible here is
-    // still a loose legacy one; once the last legacy id is gone it will need an
-    // assertion (TypeScript cannot distribute a generic `Id` over the union).
-    return { gameId: meta.id, view };
+    // The one assertion in the contract. `meta.id` and `view` are both tied to
+    // `Id` by this function's signature, so the pair is always a valid member of
+    // the envelope union; TypeScript just cannot distribute a generic `Id` over
+    // that union (and inside this package, with no games augmenting the map,
+    // the union is empty).
+    return { gameId: meta.id, view } as GameStateEnvelope;
   }
 
   function current(roomManager: RoomManager, roomCode: string): StateEntry<State> | null {
@@ -146,6 +169,21 @@ export function defineGame<const Id extends GameId, State extends object, Action
     });
   }
 
+  function gameContext(
+    io: AppServer,
+    roomManager: RoomManager,
+    roomCode: string,
+    entry: StateEntry<State>,
+  ): GameContext<State> {
+    return {
+      roomCode,
+      state: entry.state,
+      instance: entry.instance,
+      roomManager,
+      broadcast: () => broadcast(io, roomManager, roomCode, entry),
+    };
+  }
+
   function playerContext(
     io: AppServer,
     roomManager: RoomManager,
@@ -153,14 +191,7 @@ export function defineGame<const Id extends GameId, State extends object, Action
     entry: StateEntry<State>,
     playerId: string,
   ): PlayerContext<State> {
-    return {
-      roomCode,
-      playerId,
-      state: entry.state,
-      instance: entry.instance,
-      roomManager,
-      broadcast: () => broadcast(io, roomManager, roomCode, entry),
-    };
+    return { ...gameContext(io, roomManager, roomCode, entry), playerId };
   }
 
   function createLobbyCallbacks(roomManager: RoomManager, io: AppServer): LobbyCallbacks {
@@ -169,7 +200,7 @@ export function defineGame<const Id extends GameId, State extends object, Action
       hook: ((game: PlayerContext<State>) => GameHandlerResult) | undefined,
       roomCode: string,
       playerId: string,
-    ): GameHandlerResult => {
+    ): void | Promise<void> => {
       const entry = current(roomManager, roomCode);
       if (!entry) return;
       const work = hook?.(playerContext(io, roomManager, roomCode, entry, playerId));
@@ -185,6 +216,7 @@ export function defineGame<const Id extends GameId, State extends object, Action
         states.set(room, entry);
         roomManager.setGameData(roomCode, entry.state);
         broadcast(startIo, roomManager, roomCode, entry);
+        definition.onGameStart?.(gameContext(startIo, roomManager, roomCode, entry));
       },
 
       onGameReset: (roomCode) => {
@@ -234,7 +266,7 @@ export function defineGame<const Id extends GameId, State extends object, Action
       const { roomCode, playerId } = socket.data;
       const entry = current(roomManager, roomCode);
       // The boundary has checked there is a running game, so this is a bug, not a user error.
-      if (!entry) throw new Error(`No ${meta.id} game state for room ${roomCode}`);
+      if (!entry) throw new Error(`No ${meta.name} game state for room ${roomCode}`);
       const type: Action['type'] = action.type;
       const handler = definition.actions[type];
       const work = handler(playerContext(io, roomManager, roomCode, entry, playerId), action);

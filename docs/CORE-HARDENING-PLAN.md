@@ -191,12 +191,42 @@ The reasoning:
       - a mid-game `lobby:state` is still treated as a reset by the client (3.8)
       - envelope and membership rejections only send an ack, so the current GameViews show nothing for them
     - **Also in this branch:** `.claude/worktrees/` was added to `.gitignore` and the ESLint ignores, after an in-repo agent worktree broke `pnpm lint`.
-- [ ] **3.1b Typed contract, piloted on one game, then migrated.**
+- [x] **3.1b Typed contract, piloted on one game, then migrated.** *(Done on branch `paul-schwendenman/core-hardening-3.1b`; pilot in `ed0ab25`. See the notes at the end of this item.)*
   - **Design** `ServerGameDefinition<State, Action, View>`. Optionally replace 3.1a's hand-written validators with schemas (zod or valibot) that infer `Action`; the runtime behaviour must stay identical, and the 3.1a validator tests are the contract.
   - **Wire typing:** the shared socket carries every game, so `game:state` becomes an envelope: `{ gameId, view }`, typed as a union keyed by `gameId` (a `GameViewMap` in `game-types`, extended by each game via module augmentation or a central map). That's what actually removes the 35 `as never` casts rather than moving them.
   - **Lifecycle contract:** require `onPlayerRemoved` and carry the `onRoomDestroyed` callback from 3.2 into the typed definition.
   - **Pilot:** migrate **one** game end to end (crazy-eights is the simplest: no bots) and review the shape. Then migrate the other four.
   - **Remove the duplicated plumbing:** `broadcastViews`, the action switch, and the remaining `as unknown as` action casts. (F-20, F-32 casts)
+  - **Done notes:**
+    - **Contract:** every game is `defineGame(TypedGameDefinition<Id, State, Action>)` (`packages/multiplayer/src/defineGame.ts`), which produces `ServerGameDefinition<State, Action, GameViewMap[Id]>`.
+      - Hooks: `createState`, optional `onGameStart`, a typed `actions` map (one handler per action type, no switch), the player and spectator views, `isGameOver`, optional disconnect and reconnect, and required `onPlayerRemoved` and `onRoomDestroyed`.
+      - The 3.1a hand-written validators are kept (no zod or valibot) and now return the typed action.
+    - **Core owns the plumbing:**
+      - state lookup through a per-instance `WeakMap` (no `getGameData<T>`)
+      - action routing
+      - an automatic broadcast after every action and hook; a hook returns `UNCHANGED` to skip it
+      - the reconnect view
+      - stale-instance guards
+    - **Wire:** `game:state` is `{ gameId, view }`. `GameViewMap` in `game-types` is empty and filled by **module augmentation** from each game's `types/game.ts`. A central map would have made `game-types` import from the games, which already depend on it. `GameRenderer` and the standalone clients narrow on `gameId` with no casts. The only assertion left is one `as GameStateEnvelope` in `defineGame`'s `envelope()`, with a comment.
+    - **Removal:** each game's `onPlayerRemoved` reuses its disconnect stand-in, so a removed seat can't stall the *current* turn. Behaviour changes:
+      - **Liar's Dice:** if the removed seat is due to open a round, it places the timeout fallback bid of 1×2.
+      - **Quixx:** removal passes for the seat, then carries the game on the way an action does.
+      - **Kings Corner and Booty Dice:** removal behaves the same as a disconnect.
+      - Skipping the seat's *later* turns is 3.9.
+    - **Legacy adapter:** the temporary `withGameStateEnvelope` adapter, the placeholder map entries and the client `onView` path are all gone.
+    - **Test harness:** `createLobbyHarness` in `@parlor/multiplayer/testing` drives the lobby lifecycle through the real `setupLobbyHandlers`.
+    - **Casts (production / test):**
+      - `as never`: 17/18 → 5/26. The 5 production ones are fake socket stubs in the test-only `testing` module.
+      - `as unknown as`: 5/10 → 0/10.
+      - `as any`: 5/2 → 0/2.
+      - No game definition has a cast left.
+    - **Tests:** 581 → 624 Vitest, 7 → 8 Playwright. Each game has a new `typedDefinition.test.ts` covering:
+      - which views players and spectators receive
+      - removal
+      - `onRoomDestroyed`
+      - bot work that starts before a restart or removal and finishes after it
+    - **Lint:** 0 errors, 144 warnings (was 156).
+    - **Left for later:** see 3.9 (the Quixx disconnect stall, the player-roll mode) and 3.5 (stale event types, `BaseGameState`, sharing the test helpers).
 
 ### 3.2 Game-instance lifetime and scheduling
 - [x] **3.2** Give everything a game does a **game-instance lifetime**, separate from the room's lifetime.
@@ -245,7 +275,10 @@ The reasoning:
 - [ ] **3.5**
   - Delete the unused protocol surface: `room:*`, `chat:*`, `game:start`, `Room`, `RoomStatus`, `ChatMessage`, and `createGameServer`.
   - Decide whether `room:leave` and `lobby:spectate` get a UI or are removed.
-  - Remove the remaining `as never` / `as any` / `getGameData<T>` casts left after 3.1b.
+  - Remove the remaining `as never` / `as any` / `getGameData<T>` casts left after 3.1b. Production code is down to the 5 fake socket stubs in `@parlor/multiplayer/testing`. Tests still have 26 `as never`, 10 `as unknown as` and 2 `as any`.
+  - Delete the stale `types/events.ts` in quixx and booty-dice (they still describe `game:state` as a bare view) and the unused `BaseGameState`.
+  - Optionally move `defineGame.test.ts` and crazy-eights' `definition.test.ts` onto `createLobbyHarness` instead of their copied fake-socket helpers.
+  - Decide whether to type client actions with a `GameActionMap` (`game:action` is still `Record<string, unknown>` from the client).
   - Raise the hardening lint rules to `error` (requires 0.5). (F-32)
 
 ### 3.6 Leak fixes: dropped
@@ -286,6 +319,9 @@ The reasoning:
   - **Kings Corner:** fix the bot lookup so it uses the engine's seat order, not the lobby's index.
   - **Quixx:** fix auto-roll after a bot follows a bot.
   - **Liar's Dice:** the bot sees only its own dice.
+  - **Quixx disconnect stall (found in 3.1b):** when the active player disconnects in phase 2, the disconnect path passes or advances without auto-rolling or rescheduling bots. The table sits in `rolling` until grace expires, and permanently if the player reconnects. `onPlayerRemoved` already carries the game on; make disconnect do the same.
+  - **Quixx player-roll mode (`diceRolling: 'player'`):** add a stand-in for an absent active roller.
+  - **Use the 3.1b contract:** do the seat skipping in `onPlayerRemoved` and the disconnect hooks of each `defineGame` definition.
   - (F-08, F-09, F-30; F-06 moved to 3.1a)
 
 ### 3.10 Infra and randomness
@@ -351,3 +387,4 @@ The reasoning:
 | 2026-11-26 | 3.2 game-instance lifetime and scheduling | Covered by regressions for in-flight bot work, bot deadlines, restart, room destruction, scheduler failures, and reconnect grace |
 | 2026-11-26 | 3.3 boundary limits | Added socket, room, name and log limits with regression tests |
 | 2026-11-26 | 3.4 process safety and observability | Added fatal exit handlers, room failure context, health metrics, and restart recovery coverage |
+| 2026-11-26 | 3.1b typed contract (F-20, F-32 casts) | branch `paul-schwendenman/core-hardening-3.1b`. Crazy-eights pilot in `ed0ab25`, then the other four games migrated and the legacy adapter removed. 624 Vitest and 8 Playwright tests; 0 casts in game definitions. Quixx disconnect stall found and moved to 3.9 |

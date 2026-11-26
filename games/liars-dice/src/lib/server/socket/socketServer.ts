@@ -10,13 +10,8 @@ import {
   dispatchGameAction,
   returnRoomToLobby,
   setupLobbyHandlers,
-  withGameStateEnvelope,
 } from '@parlor/multiplayer';
-import { liarsDiceDefinition as unwrappedDefinition } from '../definition.js';
-
-// Not migrated to the typed contract yet (plan 3.1b): wrap its bare views in the
-// `{ gameId, view }` envelope the client runtime expects.
-const liarsDiceDefinition = withGameStateEnvelope(unwrappedDefinition);
+import { liarsDiceDefinition } from '../definition.js';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 

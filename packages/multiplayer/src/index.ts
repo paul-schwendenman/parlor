@@ -42,6 +42,7 @@ export {
 } from './gameDefinition.js';
 export {
   defineGame,
+  UNCHANGED,
   type TypedGameDefinition,
   type GameActionHandlers,
   type GameContext,
@@ -49,11 +50,6 @@ export {
   type RoomDestroyedContext,
   type GameHandlerResult,
 } from './defineGame.js';
-export {
-  withGameStateEnvelope,
-  envelopeGameStateEmits,
-  isTypedGameDefinition,
-} from './legacyGameDefinition.js';
 export {
   GameRuleError,
   isGameRuleError,

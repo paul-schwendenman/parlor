@@ -1,49 +1,24 @@
-import type { Socket } from 'socket.io';
-import type {
-  ClientToServerEvents,
-  ServerToClientEvents,
-  InterServerEvents,
-  SocketData,
-  GameMeta,
-} from '@parlor/game-types';
-import {
-  GameRuleError,
-  RoomManager,
-  type ServerGameDefinition,
-  type AppServer,
-} from '@parlor/multiplayer';
-
-type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-import type { QuixxAction } from '../types/game.js';
+import { defineGame, GameRuleError, type GameContext, type TypedGameDefinition } from '@parlor/multiplayer';
+import { DEFAULT_CONFIG, type QuixxAction } from '../types/game.js';
 import { QuixxEngine } from './game/QuixxEngine.js';
-import { DEFAULT_CONFIG } from '../types/game.js';
 import { scheduleBotActions } from './game/botController.js';
 import { validateQuixxAction } from './validateAction.js';
+
+type Game = GameContext<QuixxEngine>;
 
 const PHASE_TIMER = 'phase';
 const AUTO_ROLL = 'auto-roll';
 
-function scheduleBots(
-  io: AppServer,
-  roomCode: string,
-  engine: QuixxEngine,
-  roomManager: RoomManager,
-): void {
-  const instance = roomManager.getGameInstance(roomCode);
-  if (!instance || roomManager.getGameData(roomCode) !== engine) return;
-  scheduleBotActions(instance, engine, () => broadcastViews(io, roomCode, engine, roomManager));
+function scheduleBots(game: Game): void {
+  scheduleBotActions(game.instance, game.state, () => game.broadcast());
 }
 
-function startPhase1Timer(
-  io: AppServer,
-  roomCode: string,
-  engine: QuixxEngine,
-  roomManager: RoomManager,
-): void {
+function startPhase1Timer(game: Game): void {
+  const engine = game.state;
   const { phase1Timer } = engine.getConfig();
   if (!phase1Timer) return;
 
-  roomManager.getGameInstance(roomCode)?.schedule(() => {
+  game.instance.schedule(() => {
     if (engine.getPhase() !== 'phase1' || engine.isGameOver()) return;
 
     for (const player of engine.getPlayers()) {
@@ -54,236 +29,182 @@ function startPhase1Timer(
 
     if (engine.allPhase1Submitted()) {
       engine.resolvePhase1();
-      broadcastViews(io, roomCode, engine, roomManager);
+      game.broadcast();
       if (!engine.isGameOver()) {
-        startPhase2Timer(io, roomCode, engine, roomManager);
-        scheduleBots(io, roomCode, engine, roomManager);
+        startPhase2Timer(game);
+        scheduleBots(game);
       }
     }
   }, phase1Timer * 1000, PHASE_TIMER);
 }
 
-function startPhase2Timer(
-  io: AppServer,
-  roomCode: string,
-  engine: QuixxEngine,
-  roomManager: RoomManager,
-): void {
+function startPhase2Timer(game: Game): void {
+  const engine = game.state;
   const { turnTimer } = engine.getConfig();
   if (!turnTimer) return;
 
-  roomManager.getGameInstance(roomCode)?.schedule(() => {
+  game.instance.schedule(() => {
     if (engine.getPhase() !== 'phase2' || engine.isGameOver()) return;
 
     const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
     engine.submitPhase2(activePlayer.id, { type: 'phase2-pass' });
     if (engine.isGameOver()) {
-      broadcastViews(io, roomCode, engine, roomManager);
+      game.broadcast();
       return;
     }
 
     engine.advanceTurn();
-    broadcastViews(io, roomCode, engine, roomManager);
-    if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) {
-      autoRollIfNeeded(io, roomCode, engine, roomManager);
-    }
-    scheduleBots(io, roomCode, engine, roomManager);
+    game.broadcast();
+    if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) autoRollIfNeeded(game);
+    scheduleBots(game);
   }, turnTimer * 1000, PHASE_TIMER);
 }
 
-function autoRollIfNeeded(
-  io: AppServer,
-  roomCode: string,
-  engine: QuixxEngine,
-  roomManager: RoomManager,
-): void {
-  roomManager.getGameInstance(roomCode)?.schedule(() => {
+function autoRollIfNeeded(game: Game): void {
+  const engine = game.state;
+  game.instance.schedule(() => {
     if (engine.getPhase() !== 'rolling' || engine.isGameOver()) return;
 
     engine.rollDice();
-    broadcastViews(io, roomCode, engine, roomManager);
-    startPhase1Timer(io, roomCode, engine, roomManager);
-    scheduleBots(io, roomCode, engine, roomManager);
+    game.broadcast();
+    startPhase1Timer(game);
+    scheduleBots(game);
   }, 500, AUTO_ROLL);
 }
 
-function broadcastViews(
-  io: AppServer,
-  roomCode: string,
-  engine: QuixxEngine,
-  roomManager: RoomManager,
-): void {
-  if (roomManager.getGameData(roomCode) !== engine) return;
-  roomManager.getGameInstance(roomCode)?.emitIfCurrent(() => {
-    if (engine.isGameOver()) roomManager.finishGame(roomCode, engine);
-
-    for (const player of roomManager.getGamePlayers(roomCode)) {
-      if (RoomManager.isBotPlayer(player.id)) continue;
-      const view = engine.getPlayerView(player.id);
-      io.to(player.id).emit('game:state', view as never);
-    }
-
-    const spectators = roomManager.getGameSpectators(roomCode);
-    if (spectators.length > 0) {
-      const spectatorView = engine.getSpectatorView();
-      for (const spectatorId of spectators) {
-        io.to(spectatorId).emit('game:state', spectatorView as never);
+/**
+ * The disconnect stand-in: pass for the player in phase 1, and pass their
+ * phase 2 turn if it is theirs. Returns which transition it caused.
+ */
+function passForAbsentPlayer(engine: QuixxEngine, playerId: string): 'resolved-phase1' | 'advanced' | null {
+  let transition: 'resolved-phase1' | 'advanced' | null = null;
+  if (engine.getPhase() === 'phase1') {
+    try {
+      engine.submitPhase1(playerId, { type: 'phase1-pass' });
+      if (engine.allPhase1Submitted()) {
+        engine.resolvePhase1();
+        transition = 'resolved-phase1';
       }
+    } catch {
+      // Already submitted
     }
-  });
+  }
+
+  const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
+  if (activePlayer.id === playerId && engine.getPhase() === 'phase2') {
+    try {
+      engine.submitPhase2(playerId, { type: 'phase2-pass' });
+      if (!engine.isGameOver()) {
+        engine.advanceTurn();
+        transition = 'advanced';
+      }
+    } catch {
+      // Ignore
+    }
+  }
+  return transition;
 }
 
-const meta: GameMeta = {
-  id: 'quixx',
-  name: 'Quixx',
-  description: 'A fast-paced dice game of marking numbers and strategic choices',
-  minPlayers: 2,
-  maxPlayers: 5,
-  estimatedMinutes: '15-20',
-  tags: ['dice', 'strategy', 'quick'],
-  displayModes: ['peer'],
-  supportsBots: true,
-};
-
-export const quixxDefinition: ServerGameDefinition = {
-  meta,
-
-  createLobbyCallbacks: (roomManager: RoomManager, io: AppServer) => ({
-    onGameStart: (roomCode, players, io) => {
-      const engine = new QuixxEngine(
-        players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot })),
-        roomCode,
-        DEFAULT_CONFIG,
-      );
-      roomManager.setGameData(roomCode, engine);
-
-      broadcastViews(io, roomCode, engine, roomManager);
-      if (engine.shouldAutoRoll()) {
-        autoRollIfNeeded(io, roomCode, engine, roomManager);
-      } else {
-        scheduleBots(io, roomCode, engine, roomManager);
-      }
-    },
-
-    onPlayerDisconnect: (roomCode, playerId) => {
-      const engine = roomManager.getGameData<QuixxEngine>(roomCode);
-      if (!engine) return;
-
-      // Auto-pass for disconnected player in phase1
-      if (engine.getPhase() === 'phase1') {
-        try {
-          engine.submitPhase1(playerId, { type: 'phase1-pass' });
-          if (engine.allPhase1Submitted()) {
-            engine.resolvePhase1();
-          }
-        } catch {
-          // Already submitted
-        }
-      }
-
-      // If active player disconnected during phase2, auto-pass
-      const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
-      if (activePlayer.id === playerId && engine.getPhase() === 'phase2') {
-        try {
-          engine.submitPhase2(playerId, { type: 'phase2-pass' });
-          if (!engine.isGameOver()) {
-            engine.advanceTurn();
-          }
-        } catch {
-          // Ignore
-        }
-      }
-
-      // Broadcast updated state
-      broadcastViews(io, roomCode, engine, roomManager);
-    },
-
-    onPlayerReconnect: (roomCode, playerId) => {
-      const engine = roomManager.getGameData<QuixxEngine>(roomCode);
-      if (!engine) return;
-
-      const view = roomManager.isGameParticipant(roomCode, playerId)
-        ? engine.getPlayerView(playerId)
-        : engine.getSpectatorView();
-      roomManager.getGameInstance(roomCode)?.emitIfCurrent(() => {
-        io.to(playerId).emit('game:state', view as never);
-      });
-    },
-  }),
+/** Quixx on the typed game contract (plan 3.1b). Servers use `quixxDefinition`. */
+export const quixxGame: TypedGameDefinition<'quixx', QuixxEngine, QuixxAction> = {
+  meta: {
+    id: 'quixx',
+    name: 'Quixx',
+    description: 'A fast-paced dice game of marking numbers and strategic choices',
+    minPlayers: 2,
+    maxPlayers: 5,
+    estimatedMinutes: '15-20',
+    tags: ['dice', 'strategy', 'quick'],
+    displayModes: ['peer'],
+    supportsBots: true,
+  },
 
   validateAction: validateQuixxAction,
 
-  handleGameAction: (
-    io: AppServer,
-    socket: AppSocket,
-    roomManager: RoomManager,
-    rawAction: Record<string, unknown>,
-  ) => {
-    const roomCode = socket.data.roomCode;
-    if (!roomCode) return;
+  createState: (roomCode, players) =>
+    new QuixxEngine(
+      players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot })),
+      roomCode,
+      DEFAULT_CONFIG,
+    ),
 
-    const engine = roomManager.getGameData<QuixxEngine>(roomCode);
-    if (!engine) return;
-
-    const action = rawAction as unknown as QuixxAction;
-
-    switch (action.type) {
-      case 'roll-dice': {
-        const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
-        if (activePlayer.id !== socket.data.playerId) {
-          throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
-        }
-        engine.rollDice();
-        broadcastViews(io, roomCode, engine, roomManager);
-        startPhase1Timer(io, roomCode, engine, roomManager);
-        scheduleBots(io, roomCode, engine, roomManager);
-        break;
-      }
-
-      case 'phase1-mark':
-      case 'phase1-pass': {
-        engine.submitPhase1(socket.data.playerId, action);
-        broadcastViews(io, roomCode, engine, roomManager);
-
-        if (engine.allPhase1Submitted()) {
-          roomManager.getGameInstance(roomCode)?.cancel(PHASE_TIMER);
-          engine.resolvePhase1();
-          broadcastViews(io, roomCode, engine, roomManager);
-
-          if (!engine.isGameOver()) {
-            startPhase2Timer(io, roomCode, engine, roomManager);
-            scheduleBots(io, roomCode, engine, roomManager);
-          }
-        } else {
-          scheduleBots(io, roomCode, engine, roomManager);
-        }
-        break;
-      }
-
-      case 'phase2-mark':
-      case 'phase2-pass': {
-        // submitPhase2 validates phase + active player before mutating; only a
-        // successful submit may cancel the turn timer (CORE-AUDIT A-12).
-        engine.submitPhase2(socket.data.playerId, action);
-        roomManager.getGameInstance(roomCode)?.cancel(PHASE_TIMER);
-
-        if (engine.isGameOver()) {
-          broadcastViews(io, roomCode, engine, roomManager);
-        } else {
-          engine.advanceTurn();
-          broadcastViews(io, roomCode, engine, roomManager);
-
-          // Auto-roll after turn advance
-          if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) {
-            autoRollIfNeeded(io, roomCode, engine, roomManager);
-          }
-          scheduleBots(io, roomCode, engine, roomManager);
-        }
-        break;
-      }
-
-      default:
-        throw new GameRuleError('Unknown action', 'INVALID_ACTION');
-    }
+  onGameStart: (game) => {
+    if (game.state.shouldAutoRoll()) autoRollIfNeeded(game);
+    else scheduleBots(game);
   },
+
+  actions: {
+    'roll-dice': (game) => {
+      const engine = game.state;
+      const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
+      if (activePlayer.id !== game.playerId) {
+        throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
+      }
+      engine.rollDice();
+      startPhase1Timer(game);
+      scheduleBots(game);
+    },
+    'phase1-mark': (game, action) => submitPhase1(game, action),
+    'phase1-pass': (game, action) => submitPhase1(game, action),
+    'phase2-mark': (game, action) => submitPhase2(game, action),
+    'phase2-pass': (game, action) => submitPhase2(game, action),
+  },
+
+  getPlayerView: (engine, playerId) => engine.getPlayerView(playerId),
+  getSpectatorView: (engine) => engine.getSpectatorView(),
+  isGameOver: (engine) => engine.isGameOver(),
+
+  onPlayerDisconnect: (game) => {
+    passForAbsentPlayer(game.state, game.playerId);
+  },
+
+  // Same stand-in as a disconnect, then carry the game on the way an action
+  // would (phase 2 timer, auto-roll, bots) so the table cannot stall on this
+  // seat right now. Skipping the seat in later rounds is plan 3.9.
+  onPlayerRemoved: (game) => {
+    const engine = game.state;
+    const transition = passForAbsentPlayer(engine, game.playerId);
+    if (engine.isGameOver()) return;
+    if (transition === 'resolved-phase1') startPhase2Timer(game);
+    if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) autoRollIfNeeded(game);
+    scheduleBots(game);
+  },
+
+  // Timers and bots live on the game instance, which the core has already invalidated.
+  onRoomDestroyed: () => undefined,
 };
+
+type Phase1Action = Extract<QuixxAction, { type: 'phase1-mark' | 'phase1-pass' }>;
+type Phase2Action = Extract<QuixxAction, { type: 'phase2-mark' | 'phase2-pass' }>;
+
+function submitPhase1(game: Game & { playerId: string }, action: Phase1Action): void {
+  const engine = game.state;
+  engine.submitPhase1(game.playerId, action);
+  if (!engine.allPhase1Submitted()) {
+    scheduleBots(game);
+    return;
+  }
+  // Show everyone's submission before resolving, as before.
+  game.broadcast();
+  game.instance.cancel(PHASE_TIMER);
+  engine.resolvePhase1();
+  if (!engine.isGameOver()) {
+    startPhase2Timer(game);
+    scheduleBots(game);
+  }
+}
+
+function submitPhase2(game: Game & { playerId: string }, action: Phase2Action): void {
+  const engine = game.state;
+  // submitPhase2 validates phase + active player before mutating; only a
+  // successful submit may cancel the turn timer (CORE-AUDIT A-12).
+  engine.submitPhase2(game.playerId, action);
+  game.instance.cancel(PHASE_TIMER);
+  if (engine.isGameOver()) return;
+
+  engine.advanceTurn();
+  if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) autoRollIfNeeded(game);
+  scheduleBots(game);
+}
+
+export const quixxDefinition = defineGame(quixxGame);

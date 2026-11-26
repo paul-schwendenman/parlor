@@ -59,12 +59,7 @@ export interface ParlorRuntimeAdapter {
    * Receives each `game:state` envelope. Narrow on `state.gameId` to get the
    * game's typed view (plan 3.1b).
    */
-  onGameState?: (state: GameStateEnvelope) => void;
-  /**
-   * Pre-3.1b form: receives only the unwrapped view, which the app casts.
-   * Kept for the games that have not been migrated yet.
-   */
-  onView?: (view: unknown) => void;
+  onGameState: (state: GameStateEnvelope) => void;
   /**
    * When true, restore `playerState` on a successful `player:reconnect`
    * (parlor / liars-dice / booty-dice behavior). When false/omitted, a
@@ -253,8 +248,7 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
       // Game views arrive as `{ gameId, view }`.
       socket.on('game:state', (state) => {
         if (typeof state !== 'object' || state === null) return;
-        adapter.onGameState?.(state);
-        adapter.onView?.(state.view);
+        adapter.onGameState(state);
       });
 
       socket.on('error', (message) => {

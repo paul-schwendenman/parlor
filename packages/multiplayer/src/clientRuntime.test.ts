@@ -99,7 +99,7 @@ function makeAdapter(overrides: Partial<ParlorRuntimeAdapter> = {}): ParlorRunti
       set: vi.fn(),
       reset: vi.fn(),
     },
-    onView: vi.fn(),
+    onGameState: vi.fn(),
     ...overrides,
   };
 }
@@ -472,14 +472,6 @@ describe('createParlorRuntime', () => {
     expect(adapter.gameState.setGameId).toHaveBeenCalledWith('crazy-eights');
   });
 
-  it('passes the unwrapped view of a game:state envelope to onView', () => {
-    const adapter = makeAdapter();
-    const runtime = createParlorRuntime(adapter);
-    runtime.getSocket();
-    latestSocket().trigger('game:state', { gameId: 'quixx', view: { hello: 'world' } });
-    expect(adapter.onView).toHaveBeenCalledExactlyOnceWith({ hello: 'world' });
-  });
-
   it('passes the whole game:state envelope to onGameState', () => {
     const onGameState = vi.fn();
     const adapter = makeAdapter({ onGameState });
@@ -488,7 +480,6 @@ describe('createParlorRuntime', () => {
     const envelope = { gameId: 'quixx', view: { phase: 'phase1' } };
     latestSocket().trigger('game:state', envelope);
     expect(onGameState).toHaveBeenCalledExactlyOnceWith(envelope);
-    expect(adapter.onView).toHaveBeenCalledExactlyOnceWith({ phase: 'phase1' });
   });
 
   it('ignores a game:state payload that is not an envelope object', () => {
@@ -498,7 +489,6 @@ describe('createParlorRuntime', () => {
     runtime.getSocket();
     expect(() => latestSocket().trigger('game:state', null)).not.toThrow();
     expect(onGameState).not.toHaveBeenCalled();
-    expect(adapter.onView).not.toHaveBeenCalled();
   });
 
   it('createRoomAction stores session and selects a pre-chosen game when enabled', async () => {

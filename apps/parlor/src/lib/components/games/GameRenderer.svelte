@@ -18,17 +18,17 @@
   let { state, socket, playerId, onBackToLobby }: Props = $props();
 </script>
 
-<!-- Migrated games (plan 3.1b) get their typed view from the envelope; the rest still cast. -->
+<!-- Each game gets its typed view by narrowing the envelope on `gameId` (plan 3.1b). -->
 {#if state.gameId === 'crazy-eights'}
   <CrazyEightsGame view={state.view} {socket} {playerId} />
 {:else if state.gameId === 'quixx'}
-  <QuixxGame view={state.view as any} {socket} {playerId} />
+  <QuixxGame view={state.view} {socket} {playerId} />
 {:else if state.gameId === 'booty-dice'}
-  <BootyDiceGame view={state.view as any} {socket} {playerId} {onBackToLobby} />
+  <BootyDiceGame view={state.view} {socket} {playerId} {onBackToLobby} />
 {:else if state.gameId === 'liars-dice'}
-  <LiarsDiceGame view={state.view as any} {socket} {playerId} {onBackToLobby} />
+  <LiarsDiceGame view={state.view} {socket} {playerId} {onBackToLobby} />
 {:else if state.gameId === 'kings-corner'}
-  <KingsCornerGame view={state.view as any} {socket} {playerId} {onBackToLobby} />
+  <KingsCornerGame view={state.view} {socket} {playerId} {onBackToLobby} />
 {:else}
   <div style="text-align: center; padding: 4rem 1rem; color: #a8a29e;">
     <p>Unknown game type</p>

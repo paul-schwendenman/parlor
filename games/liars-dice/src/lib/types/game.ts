@@ -120,3 +120,11 @@ export type LiarsDiceAction =
   | { type: 'challenge' }
   | { type: 'spot-on' }
   | { type: 'nextRound' };
+
+// Liar's Dice's entry in the `game:state` wire map (plan 3.1b). Spectators get
+// the same shape with `myIndex: -1` and no dice.
+declare module '@parlor/game-types' {
+  interface GameViewMap {
+    'liars-dice': LiarsDicePlayerView;
+  }
+}

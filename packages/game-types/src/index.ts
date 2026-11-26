@@ -99,35 +99,19 @@ export type ActionResult = { ok: true } | { ok: false; code: ActionErrorCode; me
 
 /**
  * View type each game sends over `game:state`, keyed by game id (plan 3.1b).
- *
- * A migrated game adds its own entry by module augmentation, next to its view type:
+ * Empty here: each game adds its own entry by module augmentation, next to its
+ * view type, so core never depends on a game package:
  *
  * ```ts
  * declare module '@parlor/game-types' {
  *   interface GameViewMap { 'crazy-eights': CrazyEightsPlayerView }
  * }
  * ```
- *
- * The games listed here have not moved to the typed contract yet, so their views
- * are still loose. Migrating one deletes its entry here and from
- * `LEGACY_GAME_IDS`, then augments the map from the game package.
  */
-export interface GameViewMap {
-  quixx: unknown;
-  'booty-dice': unknown;
-  'liars-dice': unknown;
-  'kings-corner': unknown;
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- filled by module augmentation
+export interface GameViewMap {}
 
-/** Game ids that still use the pre-3.1b loose definition (see `GameViewMap`). */
-export const LEGACY_GAME_IDS = ['quixx', 'booty-dice', 'liars-dice', 'kings-corner'] as const satisfies readonly (keyof GameViewMap)[];
-export type LegacyGameId = (typeof LEGACY_GAME_IDS)[number];
-
-export function isLegacyGameId(id: string): id is LegacyGameId {
-  return (LEGACY_GAME_IDS as readonly string[]).includes(id);
-}
-
-/** Every game id the wire knows about (legacy entries plus augmentations). */
+/** Every game id the wire knows about (the keys games have added to `GameViewMap`). */
 export type GameId = Extract<keyof GameViewMap, string>;
 
 /**

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RoomManager, type AppServer } from '@parlor/multiplayer';
 import { liarsDiceDefinition } from './definition.js';
 import type { LiarsDiceEngine } from './game/LiarsDiceEngine.js';
+import type { LiarsDiceAction } from '../types/game.js';
 
 const io = { to: () => ({ emit: () => {} }) } as unknown as AppServer;
 
@@ -25,7 +26,7 @@ function setup() {
   callbacks.onGameStart!(roomCode, players, io);
   const engine = rm.getGameData<LiarsDiceEngine>(roomCode)!;
   // Sync handler: a rule error throws straight out of `act`.
-  const act = (playerId: string, action: Record<string, unknown>): void => {
+  const act = (playerId: string, action: LiarsDiceAction): void => {
     void liarsDiceDefinition.handleGameAction(
       io,
       { data: { roomCode, playerId }, emit: vi.fn() } as never,
@@ -42,7 +43,7 @@ describe("Liar's Dice auto-advance timer", () => {
     const t = setup();
     t.act(t.active(), { type: 'bid', quantity: 1, faceValue: 2 });
     // Active bidder drops → server auto-challenges and schedules the 3 s advance.
-    t.callbacks.onPlayerDisconnect!(t.roomCode, t.active(), io);
+    void t.callbacks.onPlayerDisconnect!(t.roomCode, t.active(), io);
     expect(t.engine.getState().phase).toBe('challenge');
     expect(t.engine.getState().round).toBe(1);
 
@@ -62,7 +63,7 @@ describe("Liar's Dice auto-advance timer", () => {
   it('still auto-advances when nobody pressed next round', () => {
     const t = setup();
     t.act(t.active(), { type: 'bid', quantity: 1, faceValue: 2 });
-    t.callbacks.onPlayerDisconnect!(t.roomCode, t.active(), io);
+    void t.callbacks.onPlayerDisconnect!(t.roomCode, t.active(), io);
     vi.advanceTimersByTime(3000);
     expect(t.engine.getState().round).toBe(2);
     expect(t.engine.getState().phase).toBe('bidding');
