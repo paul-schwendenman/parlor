@@ -1,0 +1,6 @@
+{
+  // Lint-only project (not used by tsc or svelte-check). It adds the server entry point
+  // so eslint can lint it with type information. See eslint.config.js.
+  "extends": "./tsconfig.json",
+  "include": [".svelte-kit/ambient.d.ts", ".svelte-kit/non-ambient.d.ts", "src/**/*.d.ts", "server/**/*.ts"]
+}

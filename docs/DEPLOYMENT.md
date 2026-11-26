@@ -11,6 +11,19 @@ Parlor's deployment needs are shaped by a few key constraints:
 5. **Cost-effective** - This is a passion project, not a VC-funded startup
 6. **Simple ops** - Minimal DevOps burden, ideally deploy-on-push
 
+## Production checklist (any platform)
+
+The current deployment is k3s; see `k8s/README.md` for details.
+
+- **`CORS_ORIGIN` is required.** Set it to a comma-separated list of the public origins
+  (e.g. `https://parlor.whatsdoom.com`). The Socket.io server rejects polling and
+  WebSocket handshakes from any other `Origin`. Requests with no `Origin` header
+  (non-browser clients) are allowed. If it's unset, every origin is accepted and a
+  warning is logged in production.
+- **Non-root, read-only:** the image runs as `node` (uid/gid 1000) and writes nothing
+  under `/app`. If the platform mounts the root filesystem read-only, give it a
+  writable `/tmp` (tsx's cache lives there).
+
 ---
 
 ## Platform Comparison

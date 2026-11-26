@@ -42,7 +42,13 @@ Started: 2026-11-25. Follow-on to `WEBSOCKET-FIX-PLAN.md` (reconnect work, merge
   - floating or unhandled promises
   - `any`
 - [x] **0.4** Add `lint` to the CI gate (start as warnings if the backlog is large, then tighten)
-- [ ] **0.5** Bring the files currently linted without type info under type-aware linting. These are the `apps/*/server/**`, `games/*/server/**` and `apps/*/e2e/**` files, and the multiplayer `*.test.ts`. Add a `tsconfig.eslint.json` (or per-package ones) that includes them, and remove the `disableTypeChecked` block from `eslint.config.js`. Without this, raising `no-floating-promises` to `error` still won't cover the server entry points. **Do before tightening the hardening rules to `error`.**
+- [x] **0.5** Bring the files currently linted without type info under type-aware linting. These are the `apps/*/server/**`, `games/*/server/**` and `apps/*/e2e/**` files, and the multiplayer `*.test.ts`. Add a `tsconfig.eslint.json` (or per-package ones) that includes them, and remove the `disableTypeChecked` block from `eslint.config.js`. Without this, raising `no-floating-promises` to `error` still won't cover the server entry points. **Do before tightening the hardening rules to `error`.**
+  - **Done:**
+    - **Lint-only tsconfigs:** a `tsconfig.eslint.json` in `apps/parlor`, each game and `packages/multiplayer`, each extending that package's tsconfig. `tsc` and `svelte-check` don't use them, so build output is unchanged.
+    - **ESLint:** the `disableTypeChecked` block was replaced by glob-based `parserOptions.project`, so new test, entry-point and e2e files are covered automatically.
+    - **Turbo:** `turbo.json` `check` now caches the generated `.svelte-kit` tsconfig and types. Without that, a cache hit left games with no `.svelte-kit/`, and type-aware linting quietly broke. Small `packages/{game-types,multiplayer,ui}/turbo.json` files quiet the "no outputs" warnings.
+    - **First type-aware run:** it found 3 unnecessary `!` assertions in 3.1a's `RoomManager.test.ts`, which were autofixed.
+    - **Lint count:** 0 errors, 162 warnings.
 
 **Phase 0 notes**
 - **CI:**
@@ -276,12 +282,34 @@ The reasoning:
   - (F-08, F-09, F-30; F-06 moved to 3.1a)
 
 ### 3.10 Infra and randomness
-- [ ] **3.10**
+- [ ] **3.10** *(Infra half done; `crypto.randomInt` still open.)*
   - **Randomness:** `crypto.randomInt` for room codes, shuffles and dice.
   - **Origins:** a `CORS_ORIGIN` allowlist set in k8s, plus an `allowRequest` origin check for websocket connections.
   - **Container:** a non-root image and a k8s `securityContext`.
   - **Workflows:** top-level `permissions` and actions pinned to commit SHAs.
   - (F-19, F-23, F-24, F-25)
+  - **Done (infra half):**
+    - **Container:** non-root `USER node` (uid 1000). Files are `--chown`ed; a stricter option is root-owned files, which matters little because k8s mounts the filesystem read-only. tsx's cache goes to `/tmp`.
+    - **k8s:**
+      - pod and container `securityContext`: `runAsNonRoot`, uid/gid/fsGroup 1000, `seccompProfile: RuntimeDefault`, `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem: true`, `capabilities: drop [ALL]`
+      - a 64Mi in-memory `/tmp` emptyDir
+      - `automountServiceAccountToken: false`
+      - `CORS_ORIGIN=https://parlor.whatsdoom.com`, taken from the ingress host
+    - **WebSocket and polling origin check:** `createOriginCheck` in `packages/multiplayer/src/server.ts`, via `allowRequest`, applied only when an allowlist is configured.
+      - Requests with no `Origin` header are allowed; the literal origin `null` is rejected.
+      - With `CORS_ORIGIN` unset, any origin is accepted, and a warning is logged in production.
+      - Covered by a real-socket test over both websocket and polling.
+    - **Workflows:** top-level `permissions: contents: read`, `packages: write` only on `build-and-push`, and every action pinned to a SHA resolved with `gh api`.
+    - **Docs:** `k8s/README.md` and a production checklist in `docs/DEPLOYMENT.md`.
+    - **Verified:** `docker build` succeeded. A smoke run with a read-only filesystem, `--cap-drop ALL` and no-new-privileges served `/healthz` as uid 1000. A disallowed origin got 403 (polling) and 400 (WebSocket); an allowed one got 200 and 101.
+  - **Still open:**
+    - `crypto.randomInt` for room codes, shuffles and dice (touches the engines)
+  - **Deferred, consider later:**
+    - bundling the server so the image doesn't need tsx and `src/` (the game packages export raw TS)
+    - deploying by `sha-` tag or digest instead of `:main`
+    - a NetworkPolicy
+    - Dependabot for the action pins
+    - failing closed when `CORS_ORIGIN` is unset in production
 
 ## Phase 4: Prove it (broad coverage; targeted regressions ship with each fix)
 
@@ -310,4 +338,5 @@ The reasoning:
 | 2026-11-25 | Phase 2 triage: all 32 findings `now` | proposed buckets and order accepted |
 | 2026-11-25 | 3.0 hotfix (F-01) | branch `paul-schwendenman/core-hardening-3.0`, uncommitted |
 | 2026-11-25 | Plan revised after a second external review | 3.1a now requires validators for every action, handlers can't reject by returning silently, Booty Dice F-06 moved to 3.1a; 3.8 restart gets its own transition (check first, keep the game on failure); 3.7 validates the new seat before releasing the old one |
-| 2026-11-25 | 3.1a core action boundary + validators (F-15, F-05, F-04, F-03, F-17, F-22, F-06) | branch `paul-schwendenman/core-hardening-3.1a`, uncommitted; 532 tests |
+| 2026-11-25 | 3.1a core action boundary + validators (F-15, F-05, F-04, F-03, F-17, F-22, F-06) | branch `paul-schwendenman/core-hardening-3.1a`, commits `5fbd189`..`66003c8`; 532 tests |
+| 2026-11-25 | 0.5 type-aware lint everywhere + 3.10 infra half | built in a worktree (`paul-schwendenman/core-hardening-0.5-infra`), merged onto the committed 3.1a branch, uncommitted |

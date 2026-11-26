@@ -304,7 +304,7 @@ describe('RoomManager.isSeatedPlayer', () => {
     const { host, guest } = seatTwoInGame(rm);
     expect(rm.isSeatedPlayer(host.roomCode, host.playerId)).toBe(true);
     expect(rm.isSeatedPlayer(host.roomCode, host.playerId, 'sockA')).toBe(true);
-    expect(rm.isSeatedPlayer(host.roomCode.toLowerCase(), guest.playerId!, 'sockB')).toBe(true);
+    expect(rm.isSeatedPlayer(host.roomCode.toLowerCase(), guest.playerId, 'sockB')).toBe(true);
   });
 
   it('rejects a missing id, an unknown room, and a player from another room', () => {
@@ -331,13 +331,13 @@ describe('RoomManager.isSeatedPlayer', () => {
     rm.addSpectator(host.roomCode, 'sockS');
     expect(rm.isSpectator('sockS')).toBe(true);
     expect(rm.isSeatedPlayer(host.roomCode, host.playerId, 'sockS')).toBe(false);
-    expect(rm.isSeatedPlayer(host.roomCode, bot.botId!)).toBe(false);
+    expect(rm.isSeatedPlayer(host.roomCode, bot.botId)).toBe(false);
   });
 
   it('rejects a player after they leave', () => {
     const rm = new RoomManager();
     const { host, guest } = seatTwoInGame(rm);
     rm.leaveRoom('sockB');
-    expect(rm.isSeatedPlayer(host.roomCode, guest.playerId!, 'sockB')).toBe(false);
+    expect(rm.isSeatedPlayer(host.roomCode, guest.playerId, 'sockB')).toBe(false);
   });
 });

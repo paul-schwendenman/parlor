@@ -32,6 +32,57 @@ export function parseCorsOrigin(value?: string): string | string[] {
   return origins;
 }
 
+/** Origins compare as scheme://host[:port]; ignore case and a stray trailing slash. */
+function normalizeOrigin(origin: string): string {
+  return origin.trim().replace(/\/+$/, '').toLowerCase();
+}
+
+/**
+ * Whether a handshake's `Origin` header is allowed by the CORS allowlist.
+ *
+ * - `'*'` allows everything (the dev fallback when `CORS_ORIGIN` is unset).
+ * - A request with **no** `Origin` header is allowed. Browsers always send `Origin`
+ *   on WebSocket upgrades and cross-origin requests, so a missing header means a
+ *   non-browser client (curl, a bot, a test harness) or a same-origin polling GET.
+ *   An origin check can't stop non-browser clients anyway, since they can forge the
+ *   header; its job is stopping third-party *pages* from driving visitors' browsers.
+ * - Anything else, including the literal `'null'` origin (sandboxed iframes,
+ *   `file://`), must match an allowlist entry.
+ */
+export function isOriginAllowed(origin: string | undefined, allowlist: string | string[]): boolean {
+  if (allowsAnyOrigin(allowlist)) return true;
+  if (origin === undefined || origin === '') return true;
+  const allowed = (Array.isArray(allowlist) ? allowlist : [allowlist]).map(normalizeOrigin);
+  return allowed.includes(normalizeOrigin(origin));
+}
+
+/** True for the permissive `'*'` allowlist (alone or as one of several entries). */
+function allowsAnyOrigin(allowlist: string | string[]): boolean {
+  return Array.isArray(allowlist) ? allowlist.some((o) => o.trim() === '*') : allowlist.trim() === '*';
+}
+
+/** Engine.io `allowRequest` hook: only the request headers are needed. */
+type AllowRequest = (
+  req: { headers: { origin?: string | string[] } },
+  fn: (err: string | null | undefined, success: boolean) => void,
+) => void;
+
+/**
+ * Build an engine.io `allowRequest` that rejects handshakes (polling *and* WebSocket)
+ * whose `Origin` isn't in the allowlist. Socket.io's `cors` option only adds CORS
+ * headers to long-polling responses; it never blocks a WebSocket upgrade, so this is
+ * what actually enforces the allowlist (CORE-AUDIT D-06). Rejected polling handshakes
+ * get a 403; rejected WebSocket upgrades are aborted with a 400 (engine.io's behaviour).
+ */
+export function createOriginCheck(allowlist: string | string[]): AllowRequest {
+  return (req, fn) => {
+    const header = req.headers.origin;
+    const origin = Array.isArray(header) ? header[0] : header;
+    if (isOriginAllowed(origin, allowlist)) fn(null, true);
+    else fn('Origin not allowed', false);
+  };
+}
+
 export interface SocketServerOptionsInput {
   /** Explicit CORS origin(s). When omitted, read from `CORS_ORIGIN` env (comma-separated). */
   corsOrigin?: string | string[];
@@ -49,11 +100,20 @@ export interface SocketServerOptionsInput {
  * `connectionStateRecovery` is an optimization for short blips only — the app-level
  * `player:reconnect` + token flow remains the source of truth for identity. Recovered
  * sockets are re-bound in the RoomManager by `setupLobbyHandlers` (see `socket.recovered`).
+ *
+ * When an allowlist is configured, an `allowRequest` origin check is installed too
+ * (see `createOriginCheck`). With no allowlist (`'*'`), every origin is accepted, so
+ * production must set `CORS_ORIGIN`; a warning is logged if it doesn't.
  */
 export function buildSocketServerOptions(input: SocketServerOptionsInput = {}): Partial<ServerOptions> {
   const corsOrigin = input.corsOrigin ?? parseCorsOrigin(process.env.CORS_ORIGIN);
+  const permissive = allowsAnyOrigin(corsOrigin);
+  if (permissive && process.env.NODE_ENV === 'production') {
+    console.warn('[socket] CORS_ORIGIN is not set: accepting socket connections from any origin');
+  }
   return {
     cors: { origin: corsOrigin },
+    ...(permissive ? {} : { allowRequest: createOriginCheck(corsOrigin) }),
     pingInterval: input.pingInterval ?? DEFAULT_PING_INTERVAL,
     pingTimeout: input.pingTimeout ?? DEFAULT_PING_TIMEOUT,
     connectionStateRecovery: {

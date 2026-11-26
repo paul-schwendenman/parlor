@@ -16,6 +16,16 @@ spec:
     spec:
       # Give the SIGTERM drain handler time to close sockets before SIGKILL.
       terminationGracePeriodSeconds: 30
+      # The app never talks to the k8s API; don't mount a service-account token.
+      automountServiceAccountToken: false
+      securityContext:
+        # Matches the `node` user (uid/gid 1000) the image runs as (Dockerfile `USER node`).
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: parlor
           image: ghcr.io/paul-schwendenman/parlor:main
@@ -27,6 +37,20 @@ spec:
               value: production
             - name: PORT
               value: "3010"
+            # Required in production: the socket server only accepts handshakes whose
+            # Origin is in this comma-separated allowlist. Keep it in sync with the
+            # host in ingress.yaml. Unset means any origin is accepted.
+            - name: CORS_ORIGIN
+              value: https://parlor.whatsdoom.com
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # The root filesystem is read-only; tsx keeps its transform cache in /tmp.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: 100m
@@ -52,3 +76,8 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi

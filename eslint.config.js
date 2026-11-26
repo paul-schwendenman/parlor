@@ -88,15 +88,28 @@ export default tseslint.config(
 	},
 
 	{
-		// Files outside any tsconfig (server entrypoints, e2e specs, multiplayer tests,
-		// which that package's tsconfig excludes from its build): lint without type info.
+		// Files outside every build tsconfig: server entry points, e2e specs, and the
+		// multiplayer tests (that package's tsconfig excludes them from its build). They
+		// are type-checked through lint-only `tsconfig.eslint.json` projects instead of
+		// the project service. The globs pick up new files (e.g. new *.test.ts) automatically.
+		// apps/*/src/**/*.test.ts needs nothing here: the SvelteKit tsconfig includes src/**.
 		files: [
 			'apps/*/server/**/*.ts',
-			'games/*/server/**/*.ts',
 			'apps/*/e2e/**/*.ts',
+			'games/*/server/**/*.ts',
 			'packages/multiplayer/src/**/*.test.ts',
 		],
-		...tseslint.configs.disableTypeChecked,
+		languageOptions: {
+			parserOptions: {
+				projectService: false,
+				project: [
+					'./apps/*/tsconfig.eslint.json',
+					'./games/*/tsconfig.eslint.json',
+					'./packages/multiplayer/tsconfig.eslint.json',
+				],
+				tsconfigRootDir: import.meta.dirname,
+			},
+		},
 	},
 
 	{
