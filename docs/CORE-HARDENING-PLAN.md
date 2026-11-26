@@ -390,11 +390,13 @@ The reasoning:
 
 ## Phase 4: Prove it (broad coverage; targeted regressions ship with each fix)
 
-- [ ] **4.1 Socket fuzz test**: run the real Socket.io server and send random or malformed payloads to every client-to-server event. After each payload:
+- [x] **4.1 Socket fuzz test**: run the real Socket.io server and send random or malformed payloads to every client-to-server event. After each payload:
   - the process stays up
   - room state is unchanged
   - a valid request still succeeds
   - error responses use only the stable codes
+  - **Implemented:** `apps/parlor/src/lib/server/socketInputs.test.ts` runs 49 seeded cases across all 13 client-to-server events. It checks the action error code and each lobby event's existing reply format, snapshots the room, engine and socket memberships, then sends a valid lobby request or gameplay action.
+  - **Fixed:** start, reset, restart and leave reject unexpected arguments before changing room state.
 - [ ] **4.2 Seeded random playthroughs per engine**: play many games using only legal moves, with a seeded RNG so failures can be reproduced. Pass means:
   - nothing throws
   - invariants hold (card count is conserved, turn order is valid)

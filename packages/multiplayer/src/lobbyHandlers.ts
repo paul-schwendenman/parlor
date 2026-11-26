@@ -28,6 +28,8 @@ export interface LobbyHandlerOptions {
   defaultGame?: GameMeta;
 }
 
+const UNEXPECTED_ARGUMENTS = 'Unexpected request arguments';
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -396,6 +398,10 @@ export function setupLobbyHandlers(
         ack(false, RATE_LIMIT_MESSAGE);
         return;
       }
+      if (callback !== undefined && typeof callback !== 'function') {
+        socket.emit('error', UNEXPECTED_ARGUMENTS);
+        return;
+      }
       const roomCode = socket.data.roomCode;
       if (!roomCode) {
         ack(false, 'Not in a room');
@@ -432,10 +438,14 @@ export function setupLobbyHandlers(
     }
   });
 
-  socket.on('lobby:resetGame', () => {
+  socket.on('lobby:resetGame', (...args: unknown[]) => {
     try {
       if (!allowSocketRequest(socket)) {
         socket.emit('error', RATE_LIMIT_MESSAGE);
+        return;
+      }
+      if (args.length > 0) {
+        socket.emit('error', UNEXPECTED_ARGUMENTS);
         return;
       }
       const roomCode = socket.data.roomCode;
@@ -449,10 +459,14 @@ export function setupLobbyHandlers(
     }
   });
 
-  socket.on('lobby:restartGame', () => {
+  socket.on('lobby:restartGame', (...args: unknown[]) => {
     try {
       if (!allowSocketRequest(socket)) {
         socket.emit('error', RATE_LIMIT_MESSAGE);
+        return;
+      }
+      if (args.length > 0) {
+        socket.emit('error', UNEXPECTED_ARGUMENTS);
         return;
       }
       const roomCode = socket.data.roomCode;
@@ -488,10 +502,14 @@ export function setupLobbyHandlers(
     }
   });
 
-  socket.on('room:leave', () => {
+  socket.on('room:leave', (...args: unknown[]) => {
     try {
       if (!allowSocketRequest(socket)) {
         socket.emit('error', RATE_LIMIT_MESSAGE);
+        return;
+      }
+      if (args.length > 0) {
+        socket.emit('error', UNEXPECTED_ARGUMENTS);
         return;
       }
       const result = roomManager.leaveRoom(socket.id);

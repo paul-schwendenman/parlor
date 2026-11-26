@@ -149,8 +149,7 @@ beforeEach(async () => {
 	process.on('uncaughtException', onUncaught);
 	http = createServer();
 	io = new Server(http);
-	// Fresh module per test: socketServer.ts keeps a module-level RoomManager and
-	// caches each game's lobby callbacks bound to the first `io` it saw.
+	// Fresh registry per test so the injected faulty game stays local to this fixture.
 	vi.resetModules();
 	const { setupParlorSocketHandlers } = await import('./socketServer.js');
 	setupParlorSocketHandlers(io);
