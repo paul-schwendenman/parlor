@@ -106,31 +106,18 @@ describe('Booty Dice game:state envelopes', () => {
 });
 
 describe('Booty Dice lifecycle hooks', () => {
-  it('onPlayerRemoved: a removed seat whose turn came round forfeits it, and play returns', async () => {
+  it('onPlayerRemoved: removing a seat from a two-player game eliminates it, and the last pirate wins', async () => {
     const removed = vi.spyOn(bootyDiceGame, 'onPlayerRemoved');
     const h = createLobbyHarness(bootyDiceDefinition);
     const engine = h.getState()!;
-    const active = h.humans.find((s) => s.data.playerId === currentId(engine))!;
-    const absent = h.humans.find((s) => s !== active)!;
+    const [stays, leaves] = h.humans;
 
-    h.emitted.length = 0;
-    absent.fire('disconnect');
-    // Not their turn: nothing changes, so no view is re-sent.
-    expect(received(h.emitted, active.data.playerId)).toEqual([]);
-
-    await playTurn(h, active);
-    expect(currentId(engine)).toBe(absent.data.playerId);
-    const coins = engine.getState().players.map((p) => p.doubloons);
-
-    h.emitted.length = 0;
+    leaves.fire('disconnect');
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(removed).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ playerId: absent.data.playerId, state: engine }));
-    expect(currentId(engine)).toBe(active.data.playerId);
-    // No roll this turn, so nothing was scored for the absent seat.
-    expect(engine.getState().players.map((p) => p.doubloons)).toEqual(coins);
-    expect(received(h.emitted, active.data.playerId).at(-1)?.view.isMyTurn).toBe(true);
-    expect(received(h.emitted, absent.data.playerId)).toEqual([]);
-    expect(await h.send(active, { type: 'roll' })).toEqual({ ok: true });
+    expect(removed).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ playerId: leaves.data.playerId, state: engine }));
+    expect(engine.getState()).toMatchObject({ phase: 'ended', winnerId: stays.data.playerId });
+    expect(engine.getState().players.find((p) => p.id === leaves.data.playerId)?.isEliminated).toBe(true);
+    expect(h.roomManager.getRoom(h.roomCode)?.status).toBe('finished');
   });
 
   it('onRoomDestroyed gets the running engine, and an in-flight bot turn changes nothing afterwards', async () => {
@@ -186,5 +173,53 @@ describe('Booty Dice bot work across a restart and a removal', () => {
     expect(engine.getState().turnNumber).toBeGreaterThan(turn);
     expect(received(h.emitted, host.data.playerId).length).toBeGreaterThan(0);
     expect(received(h.emitted, guest.data.playerId)).toEqual([]);
+  });
+});
+
+describe('Booty Dice absent and removed seats (plan 3.9)', () => {
+  it('a disconnected seat gets an unscored stand-in turn whenever the turn reaches it, and is skipped once removed', async () => {
+    const h = createLobbyHarness(bootyDiceDefinition, { humans: 3, graceMs: 60_000 });
+    const engine = h.getState()!;
+    const absent = h.humans.find((s) => s.data.playerId !== currentId(engine))!;
+    absent.fire('disconnect');
+    expect(engine.getState().players.find((p) => p.id === absent.data.playerId)?.isConnected).toBe(false);
+    const coins = () => engine.getState().players.find((p) => p.id === absent.data.playerId)!.doubloons;
+    const before = coins();
+
+    const actors: string[] = [];
+    for (let turn = 0; turn < 6 && engine.getState().phase !== 'ended'; turn++) {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(currentId(engine)).not.toBe(absent.data.playerId);
+      actors.push(currentId(engine));
+      await playTurn(h, h.humans.find((s) => s.data.playerId === currentId(engine))!);
+    }
+    expect(actors).not.toContain(absent.data.playerId);
+    // Stand-in turns never roll, so they never score (others may still steal).
+    expect(coins()).toBeLessThanOrEqual(before);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(engine.getState().players.find((p) => p.id === absent.data.playerId)?.isEliminated).toBe(true);
+    const turn = engine.getState().turnNumber;
+    for (let i = 0; i < 4 && engine.getState().phase !== 'ended'; i++) {
+      expect(currentId(engine)).not.toBe(absent.data.playerId);
+      await playTurn(h, h.humans.find((s) => s.data.playerId === currentId(engine))!);
+    }
+    // Skipped outright, without even a stand-in turn.
+    expect(engine.getState().turnNumber - turn).toBeLessThanOrEqual(4);
+  });
+
+  it('a bot turn in flight when the next human disconnects lands, then that human gets a stand-in', async () => {
+    const { bot, h, engine, botId } = await botTurnInFlight(2);
+    const order = engine.getState().players.map((p) => p.id);
+    const nextId = order[(order.indexOf(botId) + 1) % order.length];
+    const next = h.humans.find((s) => s.data.playerId === nextId)!;
+    const other = h.humans.find((s) => s !== next)!;
+    next.fire('disconnect');
+    expect(currentId(engine)).toBe(botId);
+
+    bot.release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(bot.resumed).toHaveBeenCalledOnce();
+    expect(currentId(engine)).toBe(other.data.playerId);
   });
 });

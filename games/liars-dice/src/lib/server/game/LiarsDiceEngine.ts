@@ -1,4 +1,5 @@
 import { appendGameLog, GameRuleError } from '@parlor/multiplayer';
+import type { LiarsDiceBotView } from '../ai/AIStrategy.js';
 import type {
   LiarsDiceGameState,
   LiarsDicePlayer,
@@ -47,6 +48,70 @@ export class LiarsDiceEngine {
       players: this.state.players.map((p) => ({ ...p, dice: [...p.dice] })),
       gameLog: [...this.state.gameLog],
     };
+  }
+
+  /**
+   * What a bot may see on its turn: its own dice and the public table, built
+   * fresh with no other field (CORE-AUDIT D-11 / F-30).
+   */
+  getBotView(botId: string): LiarsDiceBotView {
+    const bot = this.state.players.find((p) => p.id === botId);
+    return {
+      myDice: bot ? [...bot.dice] : [],
+      totalDiceInPlay: this.state.totalDiceInPlay,
+      currentBid: this.state.currentBid ? { ...this.state.currentBid } : null,
+      wildOnes: this.state.wildOnes,
+      spotOnEnabled: this.state.spotOnEnabled,
+    };
+  }
+
+  getActivePlayerId(): string {
+    return this.state.players[this.state.activePlayerIndex].id;
+  }
+
+  /** Track a player's connection (shown in views as `connected`). */
+  setConnected(playerId: string, connected: boolean): void {
+    const player = this.state.players.find((p) => p.id === playerId);
+    if (player) player.connected = connected;
+  }
+
+  isAbsent(playerId: string): boolean {
+    const player = this.state.players.find((p) => p.id === playerId);
+    return !!player && !player.isAI && !player.connected;
+  }
+
+  /** A seat still in the game whose player is connected, or a bot. */
+  hasPresentPlayer(): boolean {
+    return this.state.players.some((p) => !p.eliminated && (p.isAI || p.connected));
+  }
+
+  /**
+   * A player left for good (plan 3.9): the seat is eliminated, the same way
+   * losing its last die eliminates it, so turn order already skips it and the
+   * last player standing wins. Their dice leave the table at once.
+   */
+  forfeit(playerId: string): void {
+    const player = this.state.players.find((p) => p.id === playerId);
+    if (!player || player.eliminated) return;
+    player.connected = false;
+    player.diceCount = 0;
+    player.dice = [];
+    player.eliminated = true;
+    this.addLog(playerId, `${player.name} left the game`, 'elimination');
+    if (this.state.gameOver) return;
+
+    const alivePlayers = this.state.players.filter((p) => !p.eliminated);
+    if (alivePlayers.length <= 1) {
+      this.state.winner = alivePlayers[0]?.id ?? null;
+      this.state.gameOver = true;
+      this.state.phase = 'game-over';
+      if (this.state.winner) {
+        const winnerPlayer = this.state.players.find((p) => p.id === this.state.winner)!;
+        this.addLog(this.state.winner, `${winnerPlayer.name} wins the game!`, 'win');
+      }
+      return;
+    }
+    if (this.state.phase === 'bidding' && this.getActivePlayerId() === playerId) this.advanceToNextPlayer();
   }
 
   getNewLogEntries(): LogEntry[] {
@@ -413,7 +478,8 @@ export class LiarsDiceEngine {
 
   private removeDie(playerId: string): void {
     const player = this.state.players.find((p) => p.id === playerId);
-    if (!player) return;
+    // A seat that already left (forfeit) has no die to lose.
+    if (!player || player.eliminated) return;
 
     player.diceCount--;
     if (player.diceCount <= 0) {

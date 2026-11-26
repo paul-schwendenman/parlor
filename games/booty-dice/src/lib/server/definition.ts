@@ -1,4 +1,10 @@
-import { defineGame, GameRuleError, UNCHANGED, type GameContext, type TypedGameDefinition } from '@parlor/multiplayer';
+import {
+  defineGame,
+  GameRuleError,
+  scheduleAbsentTurn,
+  type GameContext,
+  type TypedGameDefinition,
+} from '@parlor/multiplayer';
 import { GameEngine } from './game/GameEngine.js';
 import { createPlayer, type BootyDiceAction } from '../types/game.js';
 import { AIPlayer } from './ai/AIPlayer.js';
@@ -9,11 +15,33 @@ type Game = GameContext<GameEngine>;
 const aiPlayer = new AIPlayer();
 const AI_TURN_TIMEOUT = 30_000;
 
-function scheduleAITurnIfNeeded(game: Game): void {
-  const state = game.state.getState();
+/**
+ * After any change of turn: a bot's turn is scheduled; a disconnected player's
+ * turn gets its stand-in (plan 3.9). Eliminated (and removed) seats are skipped
+ * by the engine.
+ */
+function driveTurn(game: Game): void {
+  const engine = game.state;
+  const state = engine.getState();
   const player = state.players[state.currentPlayerIndex];
-  if (state.phase === 'ended' || !player.isAI || player.isEliminated) return;
-  game.instance.schedule(() => handleAITurn(game), 0, 'bot-turn');
+  if (state.phase === 'ended' || player.isEliminated) return;
+  if (player.isAI) {
+    game.instance.schedule(() => handleAITurn(game), 0, 'bot-turn');
+    return;
+  }
+
+  scheduleAbsentTurn(game, {
+    activePlayer: () => (engine.getState().phase === 'ended' ? null : engine.getCurrentPlayer().id),
+    isAbsent: (playerId) => {
+      const seat = engine.getState().players.find((p) => p.id === playerId);
+      return !!seat && !seat.isAI && !seat.isConnected;
+    },
+    anyonePresent: () => engine.hasPresentPlayer(),
+    takeTurn: (playerId) => standInTurn(engine, playerId),
+    afterTurn: () => {
+      if (engine.getCurrentPlayer().isAI) driveTurn(game);
+    },
+  });
 }
 
 /** Score the turn and pass it on. The caller broadcasts. */
@@ -26,7 +54,7 @@ function endTurn(game: Game): void {
     if (resolution.winner) return;
   }
   engine.endTurn();
-  scheduleAITurnIfNeeded(game);
+  driveTurn(game);
 }
 
 async function handleAITurn(game: Game): Promise<void> {
@@ -83,8 +111,7 @@ async function handleAITurn(game: Game): Promise<void> {
  * pending attacks at the first other live player, score (only if they rolled)
  * and pass the turn. Returns false when it was not their turn.
  */
-function playTurnForAbsentPlayer(game: Game, playerId: string): boolean {
-  const engine = game.state;
+function standInTurn(engine: GameEngine, playerId: string): boolean {
   const state = engine.getState();
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (currentPlayer.id !== playerId || state.phase !== 'playing') return false;
@@ -105,10 +132,7 @@ function playTurnForAbsentPlayer(game: Game, playerId: string): boolean {
   // A player who drops before rolling forfeits the turn rather than scoring
   // the previous dice (CORE-AUDIT A-06).
   const resolution = engine.hasRolledThisTurn() ? engine.resolveTurn() : { winner: null };
-  if (!resolution.winner) {
-    engine.endTurn();
-    scheduleAITurnIfNeeded(game);
-  }
+  if (!resolution.winner) engine.endTurn();
   return true;
 }
 
@@ -148,7 +172,7 @@ export const bootyDiceGame: TypedGameDefinition<'booty-dice', GameEngine, BootyD
   createState: (roomCode, players) =>
     new GameEngine(players.map((p) => createPlayer(p.id, p.name, p.isBot)), roomCode),
 
-  onGameStart: scheduleAITurnIfNeeded,
+  onGameStart: driveTurn,
 
   actions: {
     roll: (game) => {
@@ -189,12 +213,25 @@ export const bootyDiceGame: TypedGameDefinition<'booty-dice', GameEngine, BootyD
   getSpectatorView: (engine) => engine.getSpectatorView(),
   isGameOver: (engine) => engine.getState().phase === 'ended',
 
-  // If it's the disconnected player's turn, auto-resolve and end it.
-  onPlayerDisconnect: (game) => (playTurnForAbsentPlayer(game, game.playerId) ? undefined : UNCHANGED),
+  // A disconnected player keeps their seat for the grace window: their turn
+  // gets a stand-in now and each time it comes round until they return.
+  onPlayerDisconnect: (game) => {
+    game.state.setConnected(game.playerId, false);
+    standInTurn(game.state, game.playerId);
+    driveTurn(game);
+  },
+  onPlayerReconnect: (game) => {
+    game.state.setConnected(game.playerId, true);
+    // Stand-ins pause while nobody is connected; a return resumes them.
+    driveTurn(game);
+  },
 
-  // Same stand-in as a disconnect, for a seat whose turn came round while it
-  // was in grace. Skipping the seat on later turns is plan 3.9.
-  onPlayerRemoved: (game) => (playTurnForAbsentPlayer(game, game.playerId) ? undefined : UNCHANGED),
+  // The seat is gone for good: it is eliminated (its turn, if current, ends
+  // unscored), and the last pirate standing wins.
+  onPlayerRemoved: (game) => {
+    game.state.forfeit(game.playerId);
+    driveTurn(game);
+  },
 
   // Bot turns live on the game instance, which the core has already invalidated.
   onRoomDestroyed: () => undefined,

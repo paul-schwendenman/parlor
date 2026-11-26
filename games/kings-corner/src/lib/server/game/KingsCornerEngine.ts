@@ -33,6 +33,8 @@ export class KingsCornerEngine {
   private winner: { id: string; name: string } | null = null;
   private roomCode: string;
   private config: KingsCornerConfig;
+  /** Seats whose player left for good: out of the turn order (plan 3.9). */
+  private removed = new Set<string>();
 
   constructor(
     playerInfos: { id: string; name: string }[],
@@ -267,13 +269,54 @@ export class KingsCornerEngine {
   handleDisconnect(playerId: string): void {
     const player = this.players.find((p) => p.id === playerId);
     if (player) player.connected = false;
+    this.takeAbsentTurn(playerId);
+  }
 
+  /** The id of the seat whose turn it is, in engine seat order. */
+  getActivePlayerId(): string {
+    return this.getActivePlayer().id;
+  }
+
+  isConnected(playerId: string): boolean {
+    return this.players.find((p) => p.id === playerId)?.connected ?? false;
+  }
+
+  /** At least one seat still in the game is connected (bots always are). */
+  hasConnectedPlayer(): boolean {
+    return this.players.some((p) => p.connected && !this.removed.has(p.id));
+  }
+
+  /**
+   * A player left for good (plan 3.9): stand in for their turn if it is theirs,
+   * then take the seat out of the turn order. With fewer than two seats left the
+   * game ends and the last seat wins.
+   */
+  removePlayer(playerId: string): void {
+    if (this.removed.has(playerId) || !this.players.some((p) => p.id === playerId)) return;
+    this.handleDisconnect(playerId);
+    this.removed.add(playerId);
+    if (this.phase === 'game-over') return;
+
+    const remaining = this.players.filter((p) => !this.removed.has(p.id));
+    if (remaining.length < 2) {
+      const last = remaining[0];
+      this.winner = last ? { id: last.id, name: last.name } : null;
+      this.phase = 'game-over';
+      return;
+    }
+    if (this.getActivePlayer().id === playerId) this.advanceTurn();
+  }
+
+  /**
+   * The stand-in turn for an absent active player: draw, play any mandatory
+   * kings, and pass. Always ends their turn (or the game).
+   */
+  takeAbsentTurn(playerId: string): void {
     if (this.phase === 'game-over') return;
 
     const activePlayer = this.getActivePlayer();
     if (activePlayer.id !== playerId) return;
 
-    // Auto-action for disconnected active player
     if (this.phase === 'drawing') {
       if (this.drawPile.length > 0) {
         this.drawCard(playerId);
@@ -303,7 +346,12 @@ export class KingsCornerEngine {
   }
 
   private advanceTurn(): void {
-    this.activePlayerIndex = (this.activePlayerIndex + 1) % this.players.length;
+    // Skip seats that have left the game.
+    let next = (this.activePlayerIndex + 1) % this.players.length;
+    for (let i = 0; i < this.players.length && this.removed.has(this.players[next].id); i++) {
+      next = (next + 1) % this.players.length;
+    }
+    this.activePlayerIndex = next;
 
     if (this.drawPile.length > 0) {
       this.phase = 'drawing';

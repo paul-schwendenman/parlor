@@ -8,9 +8,38 @@ type Game = GameContext<QuixxEngine>;
 
 const PHASE_TIMER = 'phase';
 const AUTO_ROLL = 'auto-roll';
+const ABSENT = 'absent-turn';
 
-function scheduleBots(game: Game): void {
-  scheduleBotActions(game.instance, game.state, () => game.broadcast());
+/*
+ * Every state change ends in one of three follow-ups, whoever made it (a
+ * player, a bot, a timer or a stand-in):
+ *   afterRoll     -> phase 1 timer, then drive
+ *   afterResolve  -> phase 2 timer, then drive
+ *   drive         -> auto-roll, stand-ins for absent seats, the next bot move
+ * (CORE-AUDIT C-03 / B-04: before, only the human paths auto-rolled.)
+ */
+
+function afterRoll(game: Game): void {
+  startPhase1Timer(game);
+  drive(game);
+}
+
+function afterResolve(game: Game): void {
+  startPhase2Timer(game);
+  drive(game);
+}
+
+function drive(game: Game): void {
+  const engine = game.state;
+  if (!game.instance.isCurrent() || engine.isGameOver()) return;
+  if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) autoRollIfNeeded(game);
+  scheduleBotActions(game.instance, engine, {
+    broadcast: () => game.broadcast(),
+    rolled: () => afterRoll(game),
+    resolved: () => afterResolve(game),
+    advanced: () => drive(game),
+  });
+  scheduleStandIn(game);
 }
 
 function startPhase1Timer(game: Game): void {
@@ -30,10 +59,7 @@ function startPhase1Timer(game: Game): void {
     if (engine.allPhase1Submitted()) {
       engine.resolvePhase1();
       game.broadcast();
-      if (!engine.isGameOver()) {
-        startPhase2Timer(game);
-        scheduleBots(game);
-      }
+      if (!engine.isGameOver()) afterResolve(game);
     }
   }, phase1Timer * 1000, PHASE_TIMER);
 }
@@ -55,8 +81,7 @@ function startPhase2Timer(game: Game): void {
 
     engine.advanceTurn();
     game.broadcast();
-    if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) autoRollIfNeeded(game);
-    scheduleBots(game);
+    drive(game);
   }, turnTimer * 1000, PHASE_TIMER);
 }
 
@@ -67,42 +92,82 @@ function autoRollIfNeeded(game: Game): void {
 
     engine.rollDice();
     game.broadcast();
-    startPhase1Timer(game);
-    scheduleBots(game);
+    afterRoll(game);
   }, 500, AUTO_ROLL);
 }
 
 /**
- * The disconnect stand-in: pass for the player in phase 1, and pass their
- * phase 2 turn if it is theirs. Returns which transition it caused.
+ * Does an absent seat (disconnected in grace, or removed) hold up the game right
+ * now? Phase 1: an absent seat has not decided. Rolling: the active seat is
+ * removed, or is disconnected in player-roll mode (auto-roll rolls for it
+ * otherwise). Phase 2: the active seat is absent.
  */
-function passForAbsentPlayer(engine: QuixxEngine, playerId: string): 'resolved-phase1' | 'advanced' | null {
-  let transition: 'resolved-phase1' | 'advanced' | null = null;
-  if (engine.getPhase() === 'phase1') {
-    try {
-      engine.submitPhase1(playerId, { type: 'phase1-pass' });
-      if (engine.allPhase1Submitted()) {
-        engine.resolvePhase1();
-        transition = 'resolved-phase1';
-      }
-    } catch {
-      // Already submitted
-    }
+function standInNeeded(engine: QuixxEngine): boolean {
+  if (engine.isGameOver()) return false;
+  const activeId = engine.getActivePlayerId();
+  switch (engine.getPhase()) {
+    case 'phase1':
+      return engine.getPlayers().some((p) => p.phase1Decision === null && engine.isAbsent(p.id));
+    case 'rolling':
+      return engine.isAbsent(activeId) && (engine.isRemoved(activeId) || !engine.shouldAutoRoll());
+    case 'phase2':
+      return engine.isAbsent(activeId);
+    default:
+      return false;
   }
+}
 
-  const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
-  if (activePlayer.id === playerId && engine.getPhase() === 'phase2') {
-    try {
-      engine.submitPhase2(playerId, { type: 'phase2-pass' });
-      if (!engine.isGameOver()) {
-        engine.advanceTurn();
-        transition = 'advanced';
+/**
+ * The stand-in moves for absent seats, the same ones a disconnect has always
+ * made: pass phase 1, pass phase 2, and (player-roll mode) roll for them. A
+ * removed active seat is skipped instead, without a roll or a penalty.
+ * Runs the follow-up for whatever transition it caused.
+ */
+function standIn(game: Game): void {
+  const engine = game.state;
+  const activeId = engine.getActivePlayerId();
+  switch (engine.getPhase()) {
+    case 'phase1': {
+      for (const player of engine.getPlayers()) {
+        if (player.phase1Decision === null && engine.isAbsent(player.id)) {
+          engine.submitPhase1(player.id, { type: 'phase1-pass' });
+        }
       }
-    } catch {
-      // Ignore
+      if (!engine.allPhase1Submitted()) return drive(game);
+      game.instance.cancel(PHASE_TIMER);
+      engine.resolvePhase1();
+      if (!engine.isGameOver()) afterResolve(game);
+      return;
     }
+    case 'rolling':
+      if (engine.isRemoved(activeId)) {
+        engine.skipRemovedTurn();
+        return drive(game);
+      }
+      engine.rollDice();
+      return afterRoll(game);
+    case 'phase2':
+      game.instance.cancel(PHASE_TIMER);
+      if (engine.isRemoved(activeId)) {
+        engine.skipRemovedTurn();
+        return drive(game);
+      }
+      engine.submitPhase2(activeId, { type: 'phase2-pass' });
+      if (engine.isGameOver()) return;
+      engine.advanceTurn();
+      return drive(game);
   }
-  return transition;
+}
+
+/** Schedule the stand-in when an absent seat holds up the game, unless nobody is present. */
+function scheduleStandIn(game: Game): void {
+  const engine = game.state;
+  if (!standInNeeded(engine) || !engine.hasPresentPlayer()) return;
+  game.instance.schedule(() => {
+    if (!standInNeeded(engine) || !engine.hasPresentPlayer()) return;
+    standIn(game);
+    game.broadcast();
+  }, 0, ABSENT);
 }
 
 /** Quixx on the typed game contract (plan 3.1b). Servers use `quixxDefinition`. */
@@ -128,10 +193,7 @@ export const quixxGame: TypedGameDefinition<'quixx', QuixxEngine, QuixxAction> =
       DEFAULT_CONFIG,
     ),
 
-  onGameStart: (game) => {
-    if (game.state.shouldAutoRoll()) autoRollIfNeeded(game);
-    else scheduleBots(game);
-  },
+  onGameStart: drive,
 
   actions: {
     'roll-dice': (game) => {
@@ -141,8 +203,7 @@ export const quixxGame: TypedGameDefinition<'quixx', QuixxEngine, QuixxAction> =
         throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
       }
       engine.rollDice();
-      startPhase1Timer(game);
-      scheduleBots(game);
+      afterRoll(game);
     },
     'phase1-mark': (game, action) => submitPhase1(game, action),
     'phase1-pass': (game, action) => submitPhase1(game, action),
@@ -154,20 +215,26 @@ export const quixxGame: TypedGameDefinition<'quixx', QuixxEngine, QuixxAction> =
   getSpectatorView: (engine) => engine.getSpectatorView(),
   isGameOver: (engine) => engine.isGameOver(),
 
+  // A disconnected player keeps their seat for the grace window: they pass
+  // phase 1, pass phase 2 when it is their turn, and (player-roll mode) have
+  // their roll made for them, now and until they return.
   onPlayerDisconnect: (game) => {
-    passForAbsentPlayer(game.state, game.playerId);
+    game.state.setConnected(game.playerId, false);
+    if (standInNeeded(game.state)) standIn(game);
+    else drive(game);
+  },
+  onPlayerReconnect: (game) => {
+    game.state.setConnected(game.playerId, true);
+    // Stand-ins pause while nobody is present; a return resumes them.
+    drive(game);
   },
 
-  // Same stand-in as a disconnect, then carry the game on the way an action
-  // would (phase 2 timer, auto-roll, bots) so the table cannot stall on this
-  // seat right now. Skipping the seat in later rounds is plan 3.9.
+  // The seat is gone for good: it passes phase 1 from now on and its turns are
+  // skipped. With one seat left, the game ends and is scored.
   onPlayerRemoved: (game) => {
-    const engine = game.state;
-    const transition = passForAbsentPlayer(engine, game.playerId);
-    if (engine.isGameOver()) return;
-    if (transition === 'resolved-phase1') startPhase2Timer(game);
-    if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) autoRollIfNeeded(game);
-    scheduleBots(game);
+    game.state.removePlayer(game.playerId);
+    if (standInNeeded(game.state)) standIn(game);
+    else drive(game);
   },
 
   // Timers and bots live on the game instance, which the core has already invalidated.
@@ -181,17 +248,14 @@ function submitPhase1(game: Game & { playerId: string }, action: Phase1Action): 
   const engine = game.state;
   engine.submitPhase1(game.playerId, action);
   if (!engine.allPhase1Submitted()) {
-    scheduleBots(game);
+    drive(game);
     return;
   }
   // Show everyone's submission before resolving, as before.
   game.broadcast();
   game.instance.cancel(PHASE_TIMER);
   engine.resolvePhase1();
-  if (!engine.isGameOver()) {
-    startPhase2Timer(game);
-    scheduleBots(game);
-  }
+  if (!engine.isGameOver()) afterResolve(game);
 }
 
 function submitPhase2(game: Game & { playerId: string }, action: Phase2Action): void {
@@ -203,8 +267,7 @@ function submitPhase2(game: Game & { playerId: string }, action: Phase2Action): 
   if (engine.isGameOver()) return;
 
   engine.advanceTurn();
-  if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) autoRollIfNeeded(game);
-  scheduleBots(game);
+  drive(game);
 }
 
 export const quixxDefinition = defineGame(quixxGame);

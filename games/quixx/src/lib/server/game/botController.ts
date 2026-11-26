@@ -8,10 +8,25 @@ function randomDelay(): number {
   return 700 + Math.random() * 500;
 }
 
+/**
+ * What the bot driver reports back after each move, so the definition can run
+ * the same follow-up (phase timers, auto-roll, stand-ins, the next bot move) it
+ * runs after a human's move. Each is called after the move has been broadcast.
+ */
+export interface BotMoveHooks {
+  broadcast(): void;
+  /** A bot rolled the dice. */
+  rolled(): void;
+  /** Phase 1 resolved after the bots' submissions (the game is still on). */
+  resolved(): void;
+  /** A bot finished its phase 2 and the turn moved on (the game is still on). */
+  advanced(): void;
+}
+
 export function scheduleBotActions(
   instance: GameInstance,
   engine: QuixxEngine,
-  broadcastViews: () => void,
+  hooks: BotMoveHooks,
 ): void {
   if (!instance.isCurrent() || engine.isGameOver()) return;
   if (engine.getBotPlayerIds().length === 0) return;
@@ -21,13 +36,14 @@ export function scheduleBotActions(
 
   if (phase === 'rolling') {
     const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
+    // With auto-roll on, the definition's auto-roll timer rolls for everyone.
     if (!activePlayer.isBot || engine.shouldAutoRoll()) return;
 
     instance.schedule(() => {
       if (engine.getPhase() !== 'rolling' || engine.isGameOver()) return;
       engine.rollDice();
-      broadcastViews();
-      scheduleBotActions(instance, engine, broadcastViews);
+      hooks.broadcast();
+      hooks.rolled();
     }, randomDelay(), BOT_TIMER);
     return;
   }
@@ -48,12 +64,12 @@ export function scheduleBotActions(
         );
         engine.submitPhase1(bot.id, action);
       }
-      broadcastViews();
+      hooks.broadcast();
 
       if (engine.allPhase1Submitted()) {
         engine.resolvePhase1();
-        broadcastViews();
-        if (!engine.isGameOver()) scheduleBotActions(instance, engine, broadcastViews);
+        hooks.broadcast();
+        if (!engine.isGameOver()) hooks.resolved();
       }
     }, randomDelay(), BOT_TIMER);
     return;
@@ -76,18 +92,15 @@ export function scheduleBotActions(
       engine.submitPhase2(activePlayer.id, action);
 
       if (engine.isGameOver()) {
-        broadcastViews();
+        hooks.broadcast();
         return;
       }
 
       engine.advanceTurn();
-      broadcastViews();
-      if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) {
-        // Recheck for bot work after the auto-roll interval.
-        instance.schedule(() => scheduleBotActions(instance, engine, broadcastViews), 600, BOT_TIMER);
-      } else {
-        scheduleBotActions(instance, engine, broadcastViews);
-      }
+      hooks.broadcast();
+      // The next seat may be another bot: the definition auto-rolls and
+      // reschedules from here (CORE-AUDIT C-03 / B-04, F-09).
+      hooks.advanced();
     }, randomDelay(), BOT_TIMER);
   }
 }

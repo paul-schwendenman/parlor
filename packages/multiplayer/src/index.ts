@@ -76,6 +76,7 @@ export {
   type DispatchGameActionOptions,
 } from './actionBoundary.js';
 export { appendGameLog, MAX_GAME_LOG_ENTRIES } from './gameLog.js';
+export { scheduleAbsentTurn, ABSENT_TURN_SLOT, type AbsentTurnPolicy } from './absentTurns.js';
 
 export { allowSocketRequest, RATE_LIMIT_MESSAGE } from './rateLimit.js';
 export { setupFatalProcessHandlers } from './processSafety.js';

@@ -1,4 +1,4 @@
-import { defineGame, UNCHANGED, type GameContext, type TypedGameDefinition } from '@parlor/multiplayer';
+import { defineGame, scheduleAbsentTurn, type GameContext, type TypedGameDefinition } from '@parlor/multiplayer';
 import { LiarsDiceEngine } from './game/LiarsDiceEngine.js';
 import { createPlayer, type LiarsDiceAction } from '../types/game.js';
 import { AIPlayer } from './ai/AIPlayer.js';
@@ -10,11 +10,31 @@ const aiPlayer = new AIPlayer();
 const AI_TURN_TIMEOUT = 30_000;
 const REVEAL_DELAY_MS = 3000;
 
-function scheduleAITurnIfNeeded(game: Game): void {
-  const state = game.state.getState();
+/**
+ * After any change of turn: a bot's turn is scheduled; a disconnected player's
+ * bidding turn gets its stand-in (plan 3.9). Eliminated (and removed) seats are
+ * skipped by the engine.
+ */
+function driveTurn(game: Game): void {
+  const engine = game.state;
+  const state = engine.getState();
   const activePlayer = state.players[state.activePlayerIndex];
-  if (state.gameOver || state.phase !== 'bidding' || !activePlayer.isAI || activePlayer.eliminated) return;
-  game.instance.schedule(() => handleAITurn(game), 0, 'bot-turn');
+  if (state.gameOver || state.phase !== 'bidding' || activePlayer.eliminated) return;
+  if (activePlayer.isAI) {
+    game.instance.schedule(() => handleAITurn(game), 0, 'bot-turn');
+    return;
+  }
+
+  scheduleAbsentTurn(game, {
+    activePlayer: () => {
+      const current = engine.getState();
+      return current.gameOver || current.phase !== 'bidding' ? null : engine.getActivePlayerId();
+    },
+    isAbsent: (playerId) => engine.isAbsent(playerId),
+    anyonePresent: () => engine.hasPresentPlayer(),
+    takeTurn: (playerId) => standInTurn(game, playerId),
+    afterTurn: () => driveTurn(game),
+  });
 }
 
 /** Bind the reveal timer to its round because a player can advance it early. */
@@ -27,7 +47,7 @@ function scheduleNextRound(game: Game): void {
     if (state.round !== round || state.gameOver) return;
     engine.startNextRound();
     game.broadcast();
-    scheduleAITurnIfNeeded(game);
+    driveTurn(game);
   }, REVEAL_DELAY_MS, 'round-reveal');
 }
 
@@ -45,12 +65,13 @@ async function handleAITurn(game: Game): Promise<void> {
       && current.players[current.activePlayerIndex].id === activePlayer.id;
   }
 
-  const outcome = await instance.runWithTimeout((signal) => aiPlayer.takeTurn(state, {
+  // The bot sees its own dice and the public table only (CORE-AUDIT D-11 / F-30).
+  const outcome = await instance.runWithTimeout((signal) => aiPlayer.takeTurn(engine.getBotView(activePlayer.id), {
     onBid: (quantity, faceValue) => {
       if (signal.aborted || !canAct()) return;
       engine.placeBid(activePlayer.id, quantity, faceValue);
       game.broadcast();
-      scheduleAITurnIfNeeded(game);
+      driveTurn(game);
     },
     onChallenge: () => {
       if (signal.aborted || !canAct()) return;
@@ -74,21 +95,25 @@ async function handleAITurn(game: Game): Promise<void> {
   } else {
     engine.placeBid(activePlayer.id, 1, 2);
     game.broadcast();
-    scheduleAITurnIfNeeded(game);
+    driveTurn(game);
   }
 }
 
-/** The active bidder dropped: call the standing bid so the table is not left waiting. */
-function challengeForAbsentBidder(game: Game, playerId: string): boolean {
+/**
+ * The stand-in bidding turn for an absent player: call the standing bid, or,
+ * with no bid to call, make the opening bid the bot timeout fallback makes.
+ * Returns false when it was not their bidding turn.
+ */
+function standInTurn(game: Game, playerId: string): boolean {
   const state = game.state.getState();
   const activePlayer = state.players[state.activePlayerIndex];
-  if (activePlayer.id !== playerId || state.phase !== 'bidding' || !state.currentBid) return false;
-  try {
+  if (activePlayer.id !== playerId || state.phase !== 'bidding' || state.gameOver) return false;
+  if (state.currentBid) {
     game.state.challenge(playerId);
-  } catch {
-    return false;
+    scheduleNextRound(game);
+  } else {
+    game.state.placeBid(playerId, 1, 2);
   }
-  scheduleNextRound(game);
   return true;
 }
 
@@ -112,12 +137,12 @@ export const liarsDiceGame: TypedGameDefinition<'liars-dice', LiarsDiceEngine, L
     new LiarsDiceEngine(players.map((p) => createPlayer(p.id, p.name, p.isBot)), roomCode),
 
   // If the first player is a bot, start its turn.
-  onGameStart: scheduleAITurnIfNeeded,
+  onGameStart: driveTurn,
 
   actions: {
     bid: (game, action) => {
       game.state.placeBid(game.playerId, action.quantity, action.faceValue);
-      scheduleAITurnIfNeeded(game);
+      driveTurn(game);
     },
     challenge: (game) => game.state.challenge(game.playerId),
     'spot-on': (game) => game.state.spotOn(game.playerId),
@@ -126,7 +151,7 @@ export const liarsDiceGame: TypedGameDefinition<'liars-dice', LiarsDiceEngine, L
       // the reveal) may advance, but only from a reveal phase; the engine checks both.
       game.state.requestNextRound(game.playerId);
       game.instance.cancel('round-reveal');
-      scheduleAITurnIfNeeded(game);
+      driveTurn(game);
     },
   },
 
@@ -134,19 +159,24 @@ export const liarsDiceGame: TypedGameDefinition<'liars-dice', LiarsDiceEngine, L
   getSpectatorView: (engine) => engine.getSpectatorView(),
   isGameOver: (engine) => engine.getState().gameOver,
 
-  // If the disconnected player is the active bidder, auto-challenge.
-  onPlayerDisconnect: (game) => (challengeForAbsentBidder(game, game.playerId) ? undefined : UNCHANGED),
+  // A disconnected player keeps their seat for the grace window: their bidding
+  // turn gets a stand-in now and each time it comes round until they return.
+  onPlayerDisconnect: (game) => {
+    game.state.setConnected(game.playerId, false);
+    standInTurn(game, game.playerId);
+    driveTurn(game);
+  },
+  onPlayerReconnect: (game) => {
+    game.state.setConnected(game.playerId, true);
+    // Stand-ins pause while nobody is connected; a return resumes them.
+    driveTurn(game);
+  },
 
-  // A removed seat must not stall the table. Same stand-in as a disconnect; if
-  // they were due to open the round (no bid to call), make the opening bid the
-  // bot timeout fallback makes. Skipping their later turns is plan 3.9.
+  // The seat is gone for good: it is eliminated with its dice, and the last
+  // player standing wins.
   onPlayerRemoved: (game) => {
-    if (challengeForAbsentBidder(game, game.playerId)) return;
-    const state = game.state.getState();
-    const activePlayer = state.players[state.activePlayerIndex];
-    if (activePlayer.id !== game.playerId || state.phase !== 'bidding' || state.gameOver) return UNCHANGED;
-    game.state.placeBid(game.playerId, 1, 2);
-    scheduleAITurnIfNeeded(game);
+    game.state.forfeit(game.playerId);
+    driveTurn(game);
   },
 
   // Bot turns and the reveal timer live on the game instance, which the core

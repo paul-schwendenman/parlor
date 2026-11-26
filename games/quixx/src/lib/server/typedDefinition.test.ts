@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameStateEnvelope } from '@parlor/game-types';
 import { createDispatchHarness, createLobbyHarness, type CapturedEmit } from '@parlor/multiplayer/testing';
 import { quixxDefinition, quixxGame } from './definition.js';
+import { QuixxEngine } from './game/QuixxEngine.js';
+import type { LobbyHarness } from '@parlor/multiplayer/testing';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -65,23 +67,15 @@ describe('Quixx lifecycle hooks', () => {
     expect(received(h.emitted, host.data.playerId).length).toBeGreaterThan(0);
   });
 
-  it('onPlayerRemoved: removal after the disconnect stand-in already advanced still auto-rolls the next turn', async () => {
+  it('onPlayerRemoved: removing a seat from a two-player game ends it and scores it', async () => {
     const h = createLobbyHarness(quixxDefinition, { graceMs: 100 });
     const engine = h.getState()!;
-    await vi.advanceTimersByTimeAsync(500);
-    const activeId = engine.getPlayers()[engine.getActivePlayerIndex()].id;
-    const active = h.humans.find((s) => s.data.playerId === activeId)!;
-    const other = h.humans.find((s) => s !== active)!;
-    expect(await h.send(other, { type: 'phase1-pass' })).toEqual({ ok: true });
-    expect(await h.send(active, { type: 'phase1-pass' })).toEqual({ ok: true });
-    expect(engine.getPhase()).toBe('phase2');
-
-    // The active seat drops in phase 2: its turn is passed, leaving a 'rolling' phase
-    // that the disconnect path does not auto-roll. Removal carries the game on.
-    active.fire('disconnect');
-    expect(engine.getPhase()).toBe('rolling');
-    await vi.advanceTimersByTimeAsync(100 + 500);
-    expect(engine.getPhase()).toBe('phase1');
+    h.humans[1].fire('disconnect');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(engine.isGameOver()).toBe(true);
+    expect(engine.getPhase()).toBe('game-over');
+    expect(engine.getPlayerView(h.humans[0].data.playerId).scores).not.toBeNull();
+    expect(h.roomManager.getRoom(h.roomCode)?.status).toBe('finished');
   });
 
   it('onRoomDestroyed gets the running engine, and a pending bot move never lands', async () => {
@@ -140,5 +134,125 @@ describe('Quixx bot work across a restart and a removal', () => {
     expect(engine.getPlayers().find((p) => p.isBot)!.phase1Decision).not.toBeNull();
     expect(received(h.emitted, host.data.playerId).length).toBeGreaterThan(0);
     expect(received(h.emitted, guest.data.playerId)).toEqual([]);
+  });
+});
+
+/** The human move a passive player makes from where the game is. */
+async function passIfDue(h: LobbyHarness<QuixxEngine>): Promise<void> {
+  const engine = h.getState()!;
+  for (const socket of h.humans) {
+    const id = socket.data.playerId;
+    if (engine.isGameOver() || engine.isAbsent(id)) continue;
+    const me = engine.getPlayers().find((p) => p.id === id)!;
+    const active = engine.getActivePlayerId() === id;
+    if (engine.getPhase() === 'rolling' && active && !engine.shouldAutoRoll()) await h.send(socket, { type: 'roll-dice' });
+    else if (engine.getPhase() === 'phase1' && me.phase1Decision === null) await h.send(socket, { type: 'phase1-pass' });
+    else if (engine.getPhase() === 'phase2' && active) await h.send(socket, { type: 'phase2-pass' });
+  }
+}
+
+describe('Quixx: nobody is left waiting (plan 3.9)', () => {
+  it('F-09 / C-03: host plus two bots keeps rolling when a bot follows a bot', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const h = createLobbyHarness(quixxDefinition, { humans: 1, bots: 2 });
+    const engine = h.getState()!;
+    const seen = new Set<string>();
+    for (let i = 0; i < 200 && !engine.isGameOver(); i++) {
+      await passIfDue(h);
+      await vi.advanceTimersByTimeAsync(250);
+      seen.add(`${engine.getRound()}:${engine.getActivePlayerId()}:${engine.getPhase()}`);
+    }
+    // Before the fix the game sat at round 1, phase 'rolling', on the second bot.
+    expect(engine.getRound() >= 3 || engine.isGameOver()).toBe(true);
+    for (const botId of h.botIds) {
+      expect([...seen].some((key) => key.includes(`${botId}:phase2`))).toBe(true);
+    }
+  });
+
+  it('an active player who disconnects in phase 2 is passed, and the next turn auto-rolls', async () => {
+    const h = createLobbyHarness(quixxDefinition, { graceMs: 60_000 });
+    const engine = h.getState()!;
+    await vi.advanceTimersByTimeAsync(500);
+    for (const socket of h.humans) expect(await h.send(socket, { type: 'phase1-pass' })).toEqual({ ok: true });
+    expect(engine.getPhase()).toBe('phase2');
+    const active = h.humans.find((s) => s.data.playerId === engine.getActivePlayerId())!;
+
+    active.fire('disconnect');
+    expect(engine.getPhase()).toBe('rolling');
+    await vi.advanceTimersByTimeAsync(501);
+    expect(engine.getPhase()).toBe('phase1');
+    // Their phase 1 is passed for them too, so the present player decides alone.
+    expect(engine.getPlayers().find((p) => p.id === active.data.playerId)?.phase1Decision).toEqual({ type: 'pass' });
+  });
+
+  it('player-roll mode: an absent active roller has the roll made for them', async () => {
+    const created: QuixxEngine[] = [];
+    vi.spyOn(quixxGame, 'createState').mockImplementationOnce((roomCode, players) => {
+      const engine = new QuixxEngine(
+        players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot })),
+        roomCode,
+        { diceRolling: 'player', turnTimer: null, phase1Timer: null },
+      );
+      created.push(engine);
+      return engine;
+    });
+    const h = createLobbyHarness(quixxDefinition, { graceMs: 60_000 });
+    const engine = h.getState()!;
+    expect(engine).toBe(created[0]);
+    const roller = h.humans.find((s) => s.data.playerId === engine.getActivePlayerId())!;
+    const other = h.humans.find((s) => s !== roller)!;
+
+    roller.fire('disconnect');
+    expect(engine.getPhase()).toBe('phase1');
+    expect(await h.send(other, { type: 'phase1-pass' })).toEqual({ ok: true });
+    // Phase 1 resolves; their phase 2 is passed for them; the present player rolls next.
+    await vi.advanceTimersByTimeAsync(1);
+    expect(engine.getPhase()).toBe('rolling');
+    expect(engine.getActivePlayerId()).toBe(other.data.playerId);
+
+    // And when their roll comes round again while still away, it is made for them.
+    expect(await h.send(other, { type: 'roll-dice' })).toEqual({ ok: true });
+    expect(await h.send(other, { type: 'phase1-pass' })).toEqual({ ok: true });
+    await vi.advanceTimersByTimeAsync(1); // the absent seat's phase 1 pass
+    expect(engine.getPhase()).toBe('phase2');
+    expect(await h.send(other, { type: 'phase2-pass' })).toEqual({ ok: true });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(engine.getActivePlayerId()).toBe(roller.data.playerId);
+    expect(engine.getPhase()).not.toBe('rolling');
+  });
+
+  it('a removed seat passes every phase 1 and is skipped in the rotation', async () => {
+    const h = createLobbyHarness(quixxDefinition, { humans: 3, graceMs: 100 });
+    const engine = h.getState()!;
+    const gone = h.humans[2];
+    gone.fire('disconnect');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(engine.isRemoved(gone.data.playerId)).toBe(true);
+
+    const actives = new Set<string>();
+    for (let i = 0; i < 80 && !engine.isGameOver(); i++) {
+      await passIfDue(h);
+      await vi.advanceTimersByTimeAsync(250);
+      actives.add(engine.getActivePlayerId());
+    }
+    expect(actives.has(gone.data.playerId)).toBe(false);
+    expect(engine.getRound()).toBeGreaterThan(2);
+  });
+
+  it('a bot move scheduled before a seat disconnects lands, and the round carries on without them', async () => {
+    const h = createLobbyHarness(quixxDefinition, { humans: 2, bots: 1, graceMs: 60_000 });
+    const engine = h.getState()!;
+    const [host, guest] = h.humans;
+    await vi.advanceTimersByTimeAsync(500);
+    expect(engine.getPhase()).toBe('phase1');
+    expect(await h.send(host, { type: 'phase1-pass' })).toEqual({ ok: true });
+
+    guest.fire('disconnect');
+    expect(engine.getPlayers().find((p) => p.id === guest.data.playerId)?.phase1Decision).toEqual({ type: 'pass' });
+    expect(engine.getPlayers().find((p) => p.isBot)?.phase1Decision).toBeNull();
+
+    await vi.advanceTimersByTimeAsync(1_200);
+    expect(engine.getPlayers().find((p) => p.isBot)?.phase1Decision).not.toBeNull();
+    expect(engine.getPhase()).not.toBe('phase1');
   });
 });

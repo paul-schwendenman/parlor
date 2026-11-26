@@ -55,6 +55,8 @@ export class QuixxEngine {
   private roomCode: string;
   private config: QuixxConfig;
   private activePlayerPhase1Passed = false;
+  /** Seats whose player left for good: out of the turn order and auto-passing (plan 3.9). */
+  private removed = new Set<string>();
 
   constructor(
     playerInfos: { id: string; name: string; isBot: boolean }[],
@@ -73,6 +75,64 @@ export class QuixxEngine {
       phase1Decision: null,
       lockedRows: [],
     }));
+  }
+
+  getActivePlayerId(): string {
+    return this.players[this.activePlayerIndex].id;
+  }
+
+  isRemoved(playerId: string): boolean {
+    return this.removed.has(playerId);
+  }
+
+  /** Track a player's connection (shown in views as `connected`). */
+  setConnected(playerId: string, connected: boolean): void {
+    const player = this.players.find((p) => p.id === playerId);
+    if (player) player.connected = connected;
+  }
+
+  /** A human seat whose player is disconnected (in grace) or removed. Bots are never absent. */
+  isAbsent(playerId: string): boolean {
+    const player = this.players.find((p) => p.id === playerId);
+    return !!player && !player.isBot && (!player.connected || this.removed.has(playerId));
+  }
+
+  /** A seat still in the game whose player is connected, or a bot. */
+  hasPresentPlayer(): boolean {
+    return this.players.some((p) => !this.removed.has(p.id) && (p.isBot || p.connected));
+  }
+
+  /**
+   * A player left for good (plan 3.9): the seat stops taking turns and passes
+   * every phase 1 from now on. With fewer than two seats left the game ends and
+   * is scored as it stands.
+   */
+  removePlayer(playerId: string): void {
+    const player = this.players.find((p) => p.id === playerId);
+    if (!player || this.removed.has(playerId)) return;
+    this.removed.add(playerId);
+    player.connected = false;
+    if (this.gameOver) return;
+
+    if (this.phase === 'phase1' && player.phase1Decision === null) {
+      player.phase1Decision = { type: 'pass' };
+      if (playerId === this.getActivePlayerId()) this.activePlayerPhase1Passed = true;
+    }
+    if (this.players.filter((p) => !this.removed.has(p.id)).length < 2) {
+      this.gameOver = true;
+      this.phase = 'game-over';
+    }
+  }
+
+  /**
+   * End the turn of a removed active seat without rolling or scoring (no
+   * penalty: the seat has left). Only from `rolling` or `phase2`.
+   */
+  skipRemovedTurn(): void {
+    if (!this.removed.has(this.getActivePlayerId())) return;
+    if (this.phase !== 'rolling' && this.phase !== 'phase2') return;
+    this.phase = 'turn-end';
+    this.advanceTurn();
   }
 
   getBotPlayerIds(): string[] {
@@ -116,9 +176,9 @@ export class QuixxEngine {
     this.phase = 'phase1';
     this.activePlayerPhase1Passed = false;
 
-    // Clear phase1 decisions
+    // Clear phase1 decisions; seats that have left pass automatically.
     for (const player of this.players) {
-      player.phase1Decision = null;
+      player.phase1Decision = this.removed.has(player.id) ? { type: 'pass' } : null;
     }
 
     return { ...this.dice };
@@ -254,8 +314,14 @@ export class QuixxEngine {
       throw new Error('Cannot advance turn outside of turn-end phase');
     }
 
-    this.activePlayerIndex = (this.activePlayerIndex + 1) % this.players.length;
-    if (this.activePlayerIndex === 0) {
+    // Skip seats that have left; a new round starts each time play wraps around.
+    const previous = this.activePlayerIndex;
+    let next = (previous + 1) % this.players.length;
+    for (let i = 0; i < this.players.length && this.removed.has(this.players[next].id); i++) {
+      next = (next + 1) % this.players.length;
+    }
+    this.activePlayerIndex = next;
+    if (next <= previous) {
       this.round += 1;
     }
     this.phase = 'rolling';

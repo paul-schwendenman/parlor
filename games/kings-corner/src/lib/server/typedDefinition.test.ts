@@ -94,24 +94,20 @@ describe('Kings Corner game:state envelopes', () => {
 });
 
 describe('Kings Corner lifecycle hooks', () => {
-  it('onPlayerRemoved: a removed seat whose turn it is gets the disconnect stand-in, and play returns', async () => {
+  it('onPlayerRemoved: removing a seat from a two-player game ends it, and the last seat wins', async () => {
     const removed = vi.spyOn(kingsCornerGame, 'onPlayerRemoved');
     const h = createLobbyHarness(kingsCornerDefinition);
     const engine = h.getState()!;
     const [host, guest] = h.humans;
-    expect(engine.getPlayerView(host.data.playerId).isActivePlayer).toBe(true);
 
     guest.fire('disconnect');
-    await endTurn(h, host);
-    expect(engine.getPlayerView(guest.data.playerId).isActivePlayer).toBe(true);
-
     h.emitted.length = 0;
     await vi.advanceTimersByTimeAsync(1_000);
     expect(removed).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ playerId: guest.data.playerId, state: engine }));
-    expect(engine.getPlayerView(host.data.playerId).isActivePlayer).toBe(true);
-    expect(received(h.emitted, host.data.playerId)).toHaveLength(1);
+    expect(engine.isGameOver()).toBe(true);
+    expect(engine.getPlayerView(host.data.playerId).winner).toEqual({ id: host.data.playerId, name: 'Host' });
+    expect(h.roomManager.getRoom(h.roomCode)?.status).toBe('finished');
     expect(received(h.emitted, guest.data.playerId)).toEqual([]);
-    expect(await h.send(host, { type: 'draw-card' })).toEqual({ ok: true });
   });
 
   it('onRoomDestroyed gets the running engine, and an in-flight bot turn changes nothing afterwards', async () => {
@@ -166,5 +162,67 @@ describe('Kings Corner bot work across a restart and a removal', () => {
     expect(engine.getPlayerView(botId).isActivePlayer).toBe(false);
     expect(received(h.emitted, host.data.playerId).length).toBeGreaterThan(0);
     expect(received(h.emitted, guest.data.playerId)).toEqual([]);
+  });
+});
+
+describe('Kings Corner absent and removed seats (plan 3.9)', () => {
+  it('C-05 / E-10: after a mid-game leave, the bot is found by engine seat and still takes its turn', async () => {
+    const h = createLobbyHarness(kingsCornerDefinition, { humans: 2, bots: 1 });
+    const engine = h.getState()!;
+    const [a, b] = h.humans;
+    const [botId] = h.botIds;
+
+    const takeTurn = vi.spyOn(AIPlayer.prototype, 'takeTurn');
+    await endTurn(h, a);
+    a.fire('room:leave');
+    expect(h.roomManager.getPlayersInRoom(h.roomCode).map((p) => p.id)).toEqual([b.data.playerId, botId]);
+    // B's turn: lobby index 1 is now the bot, but the bot must not be started out of turn.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(takeTurn).not.toHaveBeenCalled();
+
+    await endTurn(h, b);
+    expect(engine.getActivePlayerId()).toBe(botId);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(takeTurn).toHaveBeenCalledOnce();
+
+    // The real bot plays its turn; the removed seat is skipped and play returns to B.
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(engine.getActivePlayerId()).toBe(b.data.playerId);
+  });
+
+  it('a disconnected seat gets a stand-in turn whenever the turn reaches it, and is skipped once removed', async () => {
+    const h = createLobbyHarness(kingsCornerDefinition, { humans: 3, graceMs: 60_000 });
+    const engine = h.getState()!;
+    const [a, b, c] = h.humans;
+    c.fire('disconnect');
+    for (let round = 0; round < 2; round++) {
+      await endTurn(h, a);
+      await endTurn(h, b);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(engine.getActivePlayerId()).toBe(a.data.playerId);
+    }
+    const handBefore = engine.getPlayerView(c.data.playerId).myHand.length;
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.roomManager.getPlayersInRoom(h.roomCode)).toHaveLength(2);
+    await endTurn(h, a);
+    expect(engine.getActivePlayerId()).toBe(b.data.playerId);
+    await endTurn(h, b);
+    expect(engine.getActivePlayerId()).toBe(a.data.playerId);
+    expect(engine.getPlayerView(c.data.playerId).myHand.length).toBe(handBefore);
+  });
+
+  it('a bot turn in flight when the next human disconnects lands, then that human gets a stand-in', async () => {
+    const { bot, h, engine, botId } = await botTurnInFlight(2);
+    const [host, guest] = h.humans;
+    // Seats: host, guest, bot. After the bot comes the host.
+    host.fire('disconnect');
+    expect(engine.getActivePlayerId()).toBe(botId);
+
+    bot.release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(bot.resumed).toHaveBeenCalledOnce();
+    // The host's turn was stood in for, so it is the guest's turn now.
+    expect(engine.getActivePlayerId()).toBe(guest.data.playerId);
   });
 });

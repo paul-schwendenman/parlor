@@ -30,6 +30,8 @@ export class CrazyEightsEngine {
   private winner: { id: string; name: string } | null = null;
   private roomCode: string;
   private config: CrazyEightsConfig;
+  /** Seats whose player left for good: out of the turn order (plan 3.9). */
+  private removed = new Set<string>();
 
   constructor(
     playerInfos: { id: string; name: string }[],
@@ -294,11 +296,51 @@ export class CrazyEightsEngine {
     if (player) player.connected = false;
 
     if (this.phase === 'game-over') return;
+    if (this.getActivePlayer().id !== playerId) return;
+    this.takeAbsentTurn(playerId);
+  }
 
-    const activePlayer = this.getActivePlayer();
-    if (activePlayer.id !== playerId) return;
+  getActivePlayerId(): string {
+    return this.getActivePlayer().id;
+  }
 
-    // Auto-action for disconnected active player
+  isConnected(playerId: string): boolean {
+    return this.players.find((p) => p.id === playerId)?.connected ?? false;
+  }
+
+  /** At least one seat still in the game has its player connected. */
+  hasConnectedPlayer(): boolean {
+    return this.players.some((p) => p.connected && !this.removed.has(p.id));
+  }
+
+  /**
+   * A player left for good (plan 3.9). Their turn, if it is theirs, gets the
+   * disconnect stand-in; then the seat leaves the turn order. With fewer than
+   * two seats left the game ends and the last seat wins.
+   */
+  removePlayer(playerId: string): void {
+    if (this.removed.has(playerId) || !this.players.some((p) => p.id === playerId)) return;
+    this.handleDisconnect(playerId);
+    this.removed.add(playerId);
+    if (this.phase === 'game-over') return;
+
+    const remaining = this.players.filter((p) => !this.removed.has(p.id));
+    if (remaining.length < 2) {
+      const last = remaining[0];
+      this.winner = last ? { id: last.id, name: last.name } : null;
+      this.phase = 'game-over';
+      return;
+    }
+    if (this.getActivePlayer().id === playerId) this.advanceTurn();
+  }
+
+  /**
+   * The stand-in turn for an absent active player: pick a suit for them, or
+   * draw and pass. Always ends their turn (or the game).
+   */
+  takeAbsentTurn(playerId: string): void {
+    if (this.phase === 'game-over' || this.getActivePlayer().id !== playerId) return;
+
     if (this.phase === 'choosing-suit') {
       // Pick a random suit
       const randomSuit = SUITS[Math.floor(Math.random() * SUITS.length)];
@@ -319,6 +361,10 @@ export class CrazyEightsEngine {
         }
       }
     }
+
+    // Nothing left to draw and no stalemate yet: pass for them anyway, so an
+    // absent seat can never hold the turn.
+    if (this.phase === 'playing' && this.getActivePlayer().id === playerId) this.advanceTurn();
   }
 
   handleReconnect(playerId: string): void {
@@ -331,7 +377,12 @@ export class CrazyEightsEngine {
   }
 
   private advanceTurn(): void {
-    this.activePlayerIndex = (this.activePlayerIndex + 1) % this.players.length;
+    // Skip seats that have left the game.
+    let next = (this.activePlayerIndex + 1) % this.players.length;
+    for (let i = 0; i < this.players.length && this.removed.has(this.players[next].id); i++) {
+      next = (next + 1) % this.players.length;
+    }
+    this.activePlayerIndex = next;
     this.drawnThisTurn = false;
     this.drewCard = null;
     this.phase = 'playing';
@@ -360,8 +411,10 @@ export class CrazyEightsEngine {
   }
 
   private checkStalemate(): void {
+    const seated = this.players.filter((p) => !this.removed.has(p.id));
+
     // Check if any player can play
-    for (const player of this.players) {
+    for (const player of seated) {
       const playable = getPlayableCards(player.hand, this.getTopDiscard(), this.declaredSuit);
       if (playable.length > 0) return; // Not a stalemate, someone can play
     }
@@ -369,7 +422,7 @@ export class CrazyEightsEngine {
     // True stalemate — fewest cards wins
     let minCards = Infinity;
     let stalemateWinner: Player | null = null;
-    for (const player of this.players) {
+    for (const player of seated) {
       if (player.hand.length < minCards) {
         minCards = player.hand.length;
         stalemateWinner = player;

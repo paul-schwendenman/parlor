@@ -3,10 +3,17 @@
  * a full game through the action boundary, and the lifecycle hooks over the
  * real lobby handlers.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameStateEnvelope } from '@parlor/game-types';
 import { RoomManager, dispatchGameAction, setupLobbyHandlers, type AppServer, type AppSocket } from '@parlor/multiplayer';
-import { createDispatchHarness, type CapturedEmit } from '@parlor/multiplayer/testing';
+import {
+  createDispatchHarness,
+  createLobbyHarness,
+  type CapturedEmit,
+  type FakeSocket,
+  type LobbyHarness,
+} from '@parlor/multiplayer/testing';
+import type { CrazyEightsEngine } from './game/CrazyEightsEngine.js';
 import { crazyEightsDefinition, crazyEightsGame } from './definition.js';
 import type { CrazyEightsPlayerView } from '../types/game.js';
 
@@ -160,41 +167,6 @@ function startLobbyGame() {
 }
 
 describe('Crazy Eights lifecycle hooks', () => {
-  it('onPlayerRemoved: a removed seat whose turn it is gets the disconnect stand-in turn, and the table moves on', async () => {
-    vi.useFakeTimers();
-    const removed = vi.spyOn(crazyEightsGame, 'onPlayerRemoved');
-    const { emitted, host, guest, engine, send } = startLobbyGame();
-    const sockets = [host, guest];
-    const [active, waiting] = engine.getPlayerView(host.data.playerId).isActivePlayer ? sockets : [guest, host];
-
-    // The waiting seat drops out of turn: nothing to do for it yet.
-    waiting.fire('disconnect');
-    expect(engine.getPlayerView(active.data.playerId).isActivePlayer).toBe(true);
-
-    // The active player ends their turn, so the turn lands on the absent seat.
-    expect(await send(active, { type: 'draw-card' })).toEqual({ ok: true });
-    if (engine.getPlayerView(active.data.playerId).isActivePlayer) {
-      expect(await send(active, { type: 'pass' })).toEqual({ ok: true });
-    }
-    expect(engine.getPlayerView(waiting.data.playerId).isActivePlayer).toBe(true);
-
-    emitted.length = 0;
-    vi.advanceTimersByTime(1_000);
-
-    expect(removed).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ playerId: waiting.data.playerId, state: engine }),
-    );
-    expect(engine.getPlayerView(active.data.playerId).isActivePlayer).toBe(true);
-    const views = received(emitted, active.data.playerId);
-    expect(views).toHaveLength(1);
-    expect(views[0].view.isActivePlayer).toBe(true);
-    expect(views[0].view.players.find((p) => p.id === waiting.data.playerId)?.connected).toBe(false);
-    expect(received(emitted, waiting.data.playerId)).toEqual([]);
-
-    // The game keeps going for the remaining player.
-    expect(await send(active, { type: 'draw-card' })).toEqual({ ok: true });
-  });
-
   it('onRoomDestroyed is called with the running engine when the room goes away, and nothing is emitted', () => {
     const destroyed = vi.spyOn(crazyEightsGame, 'onRoomDestroyed');
     const { rm, emitted, host, guest, roomCode, engine } = startLobbyGame();
@@ -205,5 +177,105 @@ describe('Crazy Eights lifecycle hooks', () => {
     expect(rm.getRoom(roomCode)).toBeUndefined();
     expect(destroyed).toHaveBeenCalledExactlyOnceWith({ roomCode, state: engine });
     expect(emitted.filter((e) => e.event === 'game:state')).toEqual([]);
+  });
+});
+
+// --- Absent and removed seats (plan 3.9, CORE-AUDIT C-04) -------------------------
+
+/** The active player's whole turn: play a card if they can, else draw (and pass if still theirs). */
+async function playTurn(h: LobbyHarness<CrazyEightsEngine>): Promise<string> {
+  const engine = h.getState()!;
+  const id = engine.getActivePlayerId();
+  const socket = h.humans.find((s) => s.data.playerId === id)!;
+  expect(await h.send(socket, nextMove(engine.getPlayerView(id)))).toEqual({ ok: true });
+  if (!engine.isGameOver() && engine.getActivePlayerId() === id) {
+    expect(await h.send(socket, nextMove(engine.getPlayerView(id)))).toEqual({ ok: true });
+  }
+  return id;
+}
+
+const seat = (h: LobbyHarness<CrazyEightsEngine>, i: number): FakeSocket => h.humans[i];
+
+describe('Crazy Eights absent and removed seats', () => {
+  beforeEach(() => vi.useFakeTimers());
+
+  it('C-04: a disconnected seat gets a stand-in turn whenever the turn reaches it, and is skipped once removed', async () => {
+    seedRandom(7);
+    const removed = vi.spyOn(crazyEightsGame, 'onPlayerRemoved');
+    const h = createLobbyHarness(crazyEightsDefinition, { humans: 3, graceMs: 60_000 });
+    const engine = h.getState()!;
+    const absent = h.humans.find((s) => s.data.playerId !== engine.getActivePlayerId())!;
+    absent.fire('disconnect');
+
+    // Two full rounds while they are away: the table never waits on them.
+    const actors: string[] = [];
+    for (let turn = 0; turn < 6 && !engine.isGameOver(); turn++) {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(engine.getActivePlayerId()).not.toBe(absent.data.playerId);
+      actors.push(await playTurn(h));
+    }
+    expect(actors).not.toContain(absent.data.playerId);
+    expect(engine.getPlayerView(absent.data.playerId).myHand.length).toBeGreaterThan(5);
+
+    // Grace expires: the seat leaves the turn order for good.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(removed).toHaveBeenCalledOnce();
+    const drawnBefore = engine.getPlayerView(absent.data.playerId).myHand.length;
+    for (let turn = 0; turn < 4 && !engine.isGameOver(); turn++) {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(engine.getActivePlayerId()).not.toBe(absent.data.playerId);
+      await playTurn(h);
+    }
+    // No stand-ins after removal: the removed hand stops growing.
+    expect(engine.getPlayerView(absent.data.playerId).myHand.length).toBe(drawnBefore);
+  });
+
+  it('a player who comes back is waited for again', async () => {
+    const h = createLobbyHarness(crazyEightsDefinition, { humans: 2, graceMs: 60_000 });
+    const engine = h.getState()!;
+    const [first, second] = engine.getActivePlayerId() === seat(h, 0).data.playerId
+      ? [seat(h, 0), seat(h, 1)] : [seat(h, 1), seat(h, 0)];
+    second.fire('disconnect');
+    await playTurn(h);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(engine.getActivePlayerId()).toBe(first.data.playerId);
+
+    const returned = h.connect('returned-socket');
+    returned.fire('player:reconnect', h.roomCode, second.data.playerId, h.tokens.get(second.data.playerId), () => undefined);
+    await playTurn(h);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(engine.getActivePlayerId()).toBe(second.data.playerId);
+  });
+
+  it('stand-ins pause while nobody is connected and resume when someone returns', async () => {
+    const h = createLobbyHarness(crazyEightsDefinition, { humans: 2, graceMs: 60_000 });
+    const engine = h.getState()!;
+    const active = h.humans.find((s) => s.data.playerId === engine.getActivePlayerId())!;
+    const other = h.humans.find((s) => s !== active)!;
+    other.fire('disconnect');
+    active.fire('disconnect'); // their own turn: stand-in, then the turn reaches `other`
+    const before = engine.getActivePlayerId();
+    await vi.advanceTimersByTimeAsync(1_000);
+    // Nobody is here: the turn is not played out for an empty table.
+    expect(engine.getActivePlayerId()).toBe(before);
+
+    const returned = h.connect('returned-socket');
+    returned.fire('player:reconnect', h.roomCode, active.data.playerId, h.tokens.get(active.data.playerId), () => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(engine.getActivePlayerId()).toBe(active.data.playerId);
+  });
+
+  it('removing a seat from a two-player game ends it, and the last seat wins', async () => {
+    const h = createLobbyHarness(crazyEightsDefinition, { humans: 2, graceMs: 1_000 });
+    const engine = h.getState()!;
+    const [stays, leaves] = h.humans;
+    leaves.fire('disconnect');
+    h.emitted.length = 0;
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(engine.isGameOver()).toBe(true);
+    expect(engine.getPlayerView(stays.data.playerId).winner).toEqual({ id: stays.data.playerId, name: 'Host' });
+    expect(h.roomManager.getRoom(h.roomCode)?.status).toBe('finished');
+    expect(received(h.emitted, stays.data.playerId).at(-1)?.view.gameOver).toBe(true);
   });
 });

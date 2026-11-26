@@ -85,6 +85,41 @@ export class GameEngine {
     return this.state.players[this.state.currentPlayerIndex];
   }
 
+  /** Track a player's connection (shown in views as `isConnected`). */
+  setConnected(playerId: string, connected: boolean): void {
+    const player = this.state.players.find((p) => p.id === playerId);
+    if (player) player.isConnected = connected;
+  }
+
+  /** A seat still in the game whose player is connected, or a bot. */
+  hasPresentPlayer(): boolean {
+    return this.state.players.some((p) => !p.isEliminated && (p.isAI || p.isConnected));
+  }
+
+  /**
+   * A player left for good (plan 3.9): the seat is eliminated, the same way
+   * losing every life eliminates it, so turn order already skips it and the
+   * last pirate standing wins. If it was their turn, the turn ends unscored.
+   */
+  forfeit(playerId: string): void {
+    const player = this.state.players.find((p) => p.id === playerId);
+    if (!player || player.isEliminated) return;
+    player.isConnected = false;
+    player.isEliminated = true;
+    this.addLog(playerId, `${player.name} left the game`, 'elimination');
+    if (this.state.phase === 'ended') return;
+
+    const winner = this.checkWinCondition();
+    if (winner) {
+      this.state.winnerId = winner;
+      this.state.phase = 'ended';
+      const winnerPlayer = this.state.players.find((p) => p.id === winner);
+      this.addLog(winner, `${winnerPlayer?.name} wins by last standing!`, 'win');
+      return;
+    }
+    if (this.getCurrentPlayer().id === playerId) this.endTurn();
+  }
+
   lockDice(diceIndices: number[]): void {
     this.state.dice = this.state.dice.map((die, i) => ({
       ...die,

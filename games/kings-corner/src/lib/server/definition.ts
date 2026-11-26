@@ -1,4 +1,11 @@
-import { defineGame, isGameRuleError, RoomManager, type GameContext, type TypedGameDefinition } from '@parlor/multiplayer';
+import {
+  defineGame,
+  isGameRuleError,
+  RoomManager,
+  scheduleAbsentTurn,
+  type GameContext,
+  type TypedGameDefinition,
+} from '@parlor/multiplayer';
 import { KingsCornerEngine } from './game/KingsCornerEngine.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 import { DEFAULT_CONFIG, type KingsCornerAction } from '../types/game.js';
@@ -8,18 +15,31 @@ type Game = GameContext<KingsCornerEngine>;
 
 const AI_TURN_TIMEOUT = 30_000;
 
-function scheduleAITurnIfNeeded(game: Game): void {
-  const { state: engine, instance, roomManager, roomCode } = game;
+/**
+ * After any change of turn: a bot's turn is scheduled; a disconnected player's
+ * turn gets its stand-in (plan 3.9). Removed seats are skipped by the engine.
+ */
+function driveTurn(game: Game): void {
+  const { state: engine, instance } = game;
   if (!instance.isCurrent() || engine.isGameOver()) return;
 
-  // Known issue (CORE-AUDIT E-10, plan 3.9): this indexes the lobby's seat list
-  // with the engine's active index. Kept as is until 3.9.
-  const activeIndex = engine.getActivePlayerIndex();
-  const players = roomManager.getGamePlayers(roomCode);
-  const activePlayer = players[activeIndex];
-  if (!activePlayer || !RoomManager.isBotPlayer(activePlayer.id)) return;
+  // The active seat comes from the engine's own seat order (CORE-AUDIT E-10 / C-05):
+  // the lobby list shrinks when someone leaves, the engine's does not.
+  const activeId = engine.getActivePlayerId();
+  if (RoomManager.isBotPlayer(activeId)) {
+    instance.schedule(() => handleAITurn(game, activeId), 0, 'bot-turn');
+    return;
+  }
 
-  instance.schedule(() => handleAITurn(game, activePlayer.id), 0, 'bot-turn');
+  scheduleAbsentTurn(game, {
+    activePlayer: () => (engine.isGameOver() ? null : engine.getActivePlayerId()),
+    isAbsent: (playerId) => !engine.isConnected(playerId),
+    anyonePresent: () => engine.hasConnectedPlayer(),
+    takeTurn: (playerId) => engine.takeAbsentTurn(playerId),
+    afterTurn: () => {
+      if (RoomManager.isBotPlayer(engine.getActivePlayerId())) driveTurn(game);
+    },
+  });
 }
 
 async function handleAITurn(game: Game, botId: string): Promise<void> {
@@ -45,7 +65,7 @@ async function handleAITurn(game: Game, botId: string): Promise<void> {
       onPlayCard: (card, target) => applyMove(() => engine.playCard(botId, card, target)),
       onMovePile: (from, to) => applyMove(() => engine.movePile(botId, from, to)),
       onEndTurn: () => {
-        if (applyMove(() => engine.endTurn(botId))) scheduleAITurnIfNeeded(game);
+        if (applyMove(() => engine.endTurn(botId))) driveTurn(game);
       },
       getView: () => engine.getPlayerView(botId),
     }, signal, instance);
@@ -57,7 +77,7 @@ async function handleAITurn(game: Game, botId: string): Promise<void> {
   engine.handleDisconnect(botId);
   engine.handleReconnect(botId);
   game.broadcast();
-  scheduleAITurnIfNeeded(game);
+  driveTurn(game);
 }
 
 /** Kings Corner on the typed game contract (plan 3.1b). Servers use `kingsCornerDefinition`. */
@@ -83,18 +103,18 @@ export const kingsCornerGame: TypedGameDefinition<'kings-corner', KingsCornerEng
       DEFAULT_CONFIG,
     ),
 
-  onGameStart: scheduleAITurnIfNeeded,
+  onGameStart: driveTurn,
 
   actions: {
     'draw-card': (game) => game.state.drawCard(game.playerId),
     'play-card': (game, action) => {
       game.state.playCard(game.playerId, action.card, action.target);
-      scheduleAITurnIfNeeded(game);
+      driveTurn(game);
     },
     'move-pile': (game, action) => game.state.movePile(game.playerId, action.from, action.to),
     'end-turn': (game) => {
       game.state.endTurn(game.playerId);
-      scheduleAITurnIfNeeded(game);
+      driveTurn(game);
     },
   },
 
@@ -104,15 +124,19 @@ export const kingsCornerGame: TypedGameDefinition<'kings-corner', KingsCornerEng
 
   onPlayerDisconnect: (game) => {
     game.state.handleDisconnect(game.playerId);
-    scheduleAITurnIfNeeded(game);
+    driveTurn(game);
   },
-  onPlayerReconnect: (game) => game.state.handleReconnect(game.playerId),
+  onPlayerReconnect: (game) => {
+    game.state.handleReconnect(game.playerId);
+    // Stand-ins pause while nobody is connected; a return resumes them.
+    driveTurn(game);
+  },
 
-  // Same stand-in as a disconnect: mark the seat gone and, if it is their turn,
-  // play their mandatory kings and pass. Skipping their later turns is plan 3.9.
+  // The seat is gone for good: stand in for this turn if it is theirs, then
+  // take it out of the turn order (the game ends if one seat is left).
   onPlayerRemoved: (game) => {
-    game.state.handleDisconnect(game.playerId);
-    scheduleAITurnIfNeeded(game);
+    game.state.removePlayer(game.playerId);
+    driveTurn(game);
   },
 
   // Bot turns live on the game instance, which the core has already invalidated.
