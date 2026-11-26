@@ -284,14 +284,20 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
 
   function createRoomAction(playerName: string, gameId?: string): Promise<string> {
     const s = getSocket();
-    return new Promise((resolve) => {
-      s.emit('lobby:create', playerName, (result) => {
+    return new Promise((resolve, reject) => {
+      s.emit('lobby:create', playerName, (result, error) => {
+        if (!result) {
+          reject(new Error(error ?? 'Failed to create room'));
+          return;
+        }
+
         const { roomCode, playerId, reconnectToken } = result;
+        const name = playerName.normalize('NFC').trim();
         gameState.reset();
         lobbyState.reset();
-        playerState.set({ id: playerId, name: playerName, roomCode });
+        playerState.set({ id: playerId, name, roomCode });
         lobbyState.setHost(playerId);
-        saveSession({ playerId, playerName, roomCode, reconnectToken });
+        saveSession({ playerId, playerName: name, roomCode, reconnectToken });
 
         // If a game was pre-selected, select it
         if (adapter.enableGameSelection && gameId) {
@@ -315,12 +321,13 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
         const { success, error } = result;
         if (success && result.playerId) {
           const normalizedCode = result.roomCode ?? roomCode.toUpperCase();
+          const name = playerName.normalize('NFC').trim();
           gameState.reset();
           lobbyState.reset();
-          playerState.set({ id: result.playerId, name: playerName, roomCode: normalizedCode });
+          playerState.set({ id: result.playerId, name, roomCode: normalizedCode });
           saveSession({
             playerId: result.playerId,
-            playerName,
+            playerName: name,
             roomCode: normalizedCode,
             reconnectToken: result.reconnectToken,
           });

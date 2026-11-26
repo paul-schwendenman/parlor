@@ -1,5 +1,7 @@
 export {
   createGameServer,
+  createSocketServer,
+  type SocketServerInput,
   type GameServerOptions,
   type AppServer,
   buildSocketServerOptions,
@@ -58,3 +60,6 @@ export {
   ACTION_LIMITS,
   type DispatchGameActionOptions,
 } from './actionBoundary.js';
+export { appendGameLog, MAX_GAME_LOG_ENTRIES } from './gameLog.js';
+
+export { allowSocketRequest, RATE_LIMIT_MESSAGE } from './rateLimit.js';

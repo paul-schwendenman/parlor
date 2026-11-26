@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { getSocket, createRoomAction, joinRoomAction } from '$lib/stores/socketClient.js';
-  import type { GameMeta } from '@parlor/game-types';
+  import { ROOM_CODE_LENGTH, type GameMeta } from '@parlor/game-types';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
   // Game metadata - static list matching server registry
@@ -112,8 +112,8 @@
     try {
       const roomCode = await createRoomAction(createName.trim(), selectedGameForCreate);
       goto(`/lobby/${roomCode}`);
-    } catch {
-      error = 'Failed to create room';
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to create room';
     } finally {
       loading = false;
     }
@@ -169,8 +169,8 @@
         <input
           type="text"
           bind:value={joinCode}
-          placeholder="ABCD"
-          maxlength="4"
+          placeholder="ABCDEF"
+          maxlength={ROOM_CODE_LENGTH}
           class="input input-code"
           onkeydown={handleJoinKeydown}
         />

@@ -46,8 +46,9 @@ describe('lobbyHandlers malformed payloads', () => {
     const io = makeIo();
     const socket = makeSocket('s1');
     wire(rm, io, socket);
-    expect(() => socket.fire('lobby:create', 123, vi.fn())).not.toThrow();
-    expect(socket.emit).toHaveBeenCalledWith('error', expect.any(String));
+    const ack = vi.fn();
+    expect(() => socket.fire('lobby:create', 123, ack)).not.toThrow();
+    expect(ack).toHaveBeenCalledWith(null, 'Invalid player name');
   });
 
   it('does not throw on a null join name', () => {
@@ -77,6 +78,84 @@ describe('lobbyHandlers malformed payloads', () => {
     const cb = vi.fn();
     expect(() => host.fire('lobby:ready', 'yes', cb)).not.toThrow();
     expect(cb).toHaveBeenCalledWith(false, expect.any(String));
+  });
+});
+
+describe('lobby player names', () => {
+  it('rejects a disallowed create name without changing the existing seat, then accepts a valid create', () => {
+    const rm = new RoomManager();
+    const io = makeIo();
+    const host = makeSocket('host');
+    wire(rm, io, host);
+    host.fire('lobby:create', 'Original', vi.fn());
+    const original = rm.getRoom(host.data.roomCode!);
+    const before = structuredClone(original);
+
+    for (const name of ['x'.repeat(25), 'Bob\u200b', 'Alex👏', 'Bοt Alice']) {
+      const ack = vi.fn();
+      host.fire('lobby:create', name, ack);
+      expect(ack).toHaveBeenCalledExactlyOnceWith(null, expect.any(String));
+      expect(rm.getRoom(host.data.roomCode!)).toEqual(before);
+      expect(rm.getPlayerIdBySocket(host.id)).toBe(host.data.playerId);
+    }
+
+    const ack = vi.fn();
+    host.fire('lobby:create', '  Jose\u0301 ', ack);
+    expect(ack).toHaveBeenCalledOnce();
+    expect(rm.getPlayersInRoom(host.data.roomCode!)).toContainEqual(
+      expect.objectContaining({ name: 'José' }),
+    );
+  });
+
+  it('rejects lookalike duplicates and bot names without changing either room', () => {
+    const rm = new RoomManager();
+    const io = makeIo();
+    const host = makeSocket('host');
+    const guest = makeSocket('guest');
+    wire(rm, io, host);
+    wire(rm, io, guest);
+    host.fire('lobby:create', 'José', vi.fn());
+    guest.fire('lobby:create', 'Original', vi.fn());
+    const roomCode = host.data.roomCode!;
+    const guestRoomCode = guest.data.roomCode!;
+    const targetBefore = structuredClone(rm.getRoom(roomCode));
+    const guestBefore = structuredClone(rm.getRoom(guestRoomCode));
+
+    for (const [name, error] of [
+      ['  jＯse\u0301  ', 'Name already taken in this room'],
+      ['Jоsé', 'Name already taken in this room'],
+      ['Ｂot Alice', 'Names starting with Bot are reserved'],
+    ]) {
+      const ack = vi.fn();
+      guest.fire('lobby:join', roomCode, name, ack);
+      expect(ack).toHaveBeenCalledExactlyOnceWith({ success: false, error });
+      expect(rm.getRoom(roomCode)).toEqual(targetBefore);
+      expect(rm.getRoom(guestRoomCode)).toEqual(guestBefore);
+      expect(guest.data.roomCode).toBe(guestRoomCode);
+    }
+
+    const ack = vi.fn();
+    guest.fire('lobby:join', roomCode, '  李 明 ', ack);
+    expect(ack).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    expect(rm.getPlayersInRoom(roomCode)).toContainEqual(expect.objectContaining({ name: '李 明' }));
+  });
+
+  it('uses an available bot name after a bot is removed', () => {
+    const rm = new RoomManager();
+    const io = makeIo();
+    const host = makeSocket('host');
+    wire(rm, io, host);
+    host.fire('lobby:create', 'Host', vi.fn());
+    const roomCode = host.data.roomCode!;
+    rm.selectGame(roomCode, gameRules);
+    host.fire('lobby:addBot', vi.fn());
+    host.fire('lobby:addBot', vi.fn());
+    const first = rm.getPlayersInRoom(roomCode).find((player) => player.isBot);
+    expect(first?.name).toBe('Bot Alice');
+
+    host.fire('lobby:removeBot', first?.id, vi.fn());
+    host.fire('lobby:addBot', vi.fn());
+    expect(rm.getPlayersInRoom(roomCode).map((player) => player.name)).toEqual(['Host', 'Bot Bob', 'Bot Alice']);
   });
 });
 
@@ -403,4 +482,42 @@ describe('lobby game instance lifecycle', () => {
     expect(mutate).not.toHaveBeenCalled();
     expect(emit).not.toHaveBeenCalled();
   });
+});
+
+it('shares the lookup limit across join and spectate, and refills while other requests work', () => {
+  let now = 0;
+  const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+  try {
+    const rm = new RoomManager();
+    const io = makeIo();
+    const socket = makeSocket('host');
+    const target = rm.createRoom('target', 'Target');
+    wire(rm, io, socket);
+    socket.fire('lobby:create', 'Host', vi.fn());
+    const roomCode = socket.data.roomCode!;
+    const before = structuredClone(rm.getRoom(roomCode));
+    const targetBefore = structuredClone(rm.getRoom(target.roomCode));
+
+    for (let index = 0; index < 3; index++) {
+      socket.fire('lobby:join', 'MISSING', 'Guest', vi.fn());
+      socket.fire('lobby:spectate', 'MISSING', vi.fn());
+    }
+    const join = vi.fn();
+    const spectate = vi.fn();
+    socket.fire('lobby:join', target.roomCode, 'Guest', join);
+    socket.fire('lobby:spectate', target.roomCode, spectate);
+    expect(join).toHaveBeenCalledWith({ success: false, error: expect.stringMatching(/Too many/) });
+    expect(spectate).toHaveBeenCalledWith(false, expect.stringMatching(/Too many/));
+    expect(rm.getRoom(roomCode)).toEqual(before);
+    expect(rm.getRoom(target.roomCode)).toEqual(targetBefore);
+
+    const ready = vi.fn();
+    socket.fire('lobby:ready', true, ready);
+    expect(ready).toHaveBeenCalledWith(true);
+    now = 500;
+    socket.fire('lobby:join', target.roomCode, 'Guest', join);
+    expect(join).toHaveBeenLastCalledWith(expect.objectContaining({ success: true }));
+  } finally {
+    clock.mockRestore();
+  }
 });

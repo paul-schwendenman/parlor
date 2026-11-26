@@ -1,4 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
+import type { Http2SecureServer, Http2Server } from 'node:http2';
+import type { Server as HttpsServer } from 'node:https';
 import { Server, type ServerOptions } from 'socket.io';
 import type {
   ClientToServerEvents,
@@ -13,6 +15,9 @@ import { setupLobbyHandlers, type LobbyCallbacks } from './lobbyHandlers.js';
 export const DEFAULT_PING_INTERVAL = 25_000;
 /** Heartbeat: how long the server waits for a pong before dropping the socket. */
 export const DEFAULT_PING_TIMEOUT = 20_000;
+export const MAX_SOCKET_MESSAGE_BYTES = 16 * 1024;
+export const MAX_CONNECTIONS = 256;
+export const MAX_CONNECTIONS_PER_IP = 32;
 /**
  * Parse a comma-separated CORS allowlist (typically from `process.env.CORS_ORIGIN`).
  * Falls back to `'*'` (permissive) when unset/empty — convenient for dev, but a real
@@ -85,6 +90,7 @@ export interface SocketServerOptionsInput {
   corsOrigin?: string | string[];
   pingInterval?: number;
   pingTimeout?: number;
+  maxHttpBufferSize?: number;
 }
 
 /**
@@ -110,6 +116,7 @@ export function buildSocketServerOptions(input: SocketServerOptionsInput = {}): 
     ...(permissive ? {} : { allowRequest: createOriginCheck(corsOrigin) }),
     pingInterval: input.pingInterval ?? DEFAULT_PING_INTERVAL,
     pingTimeout: input.pingTimeout ?? DEFAULT_PING_TIMEOUT,
+    maxHttpBufferSize: input.maxHttpBufferSize ?? MAX_SOCKET_MESSAGE_BYTES,
   };
 }
 
@@ -210,13 +217,61 @@ export interface GameServerOptions {
 
 export type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
+export interface SocketServerInput extends SocketServerOptionsInput {
+  maxConnections?: number;
+  maxConnectionsPerIp?: number;
+}
+
+/** Count Engine.IO sessions so caps apply before clients open a Socket.IO namespace. */
+export function createSocketServer(
+  httpServer: HttpServer | HttpsServer | Http2Server | Http2SecureServer,
+  input: SocketServerInput = {},
+): AppServer {
+  const maxConnections = input.maxConnections ?? MAX_CONNECTIONS;
+  const maxConnectionsPerIp = input.maxConnectionsPerIp ?? MAX_CONNECTIONS_PER_IP;
+  let active = 0;
+  const byIp = new Map<string | undefined, number>();
+  const options = buildSocketServerOptions(input);
+
+  function atCapacity(ip: string | undefined): boolean {
+    return active >= maxConnections || (byIp.get(ip) ?? 0) >= maxConnectionsPerIp;
+  }
+
+  const io: AppServer = new Server(httpServer, {
+    ...options,
+    allowRequest(req, callback) {
+      // Only the direct transport peer is trusted. Forwarded headers are client-controlled.
+      if (atCapacity(req.socket.remoteAddress)) {
+        callback('Connection limit reached', false);
+      } else if (options.allowRequest) {
+        options.allowRequest(req, callback);
+      } else {
+        callback(null, true);
+      }
+    },
+  });
+  io.engine.on('connection', (connection) => {
+    const ip = connection.remoteAddress;
+    // Recheck after Engine.IO has completed its handshake.
+    if (atCapacity(ip)) {
+      connection.close(true);
+      return;
+    }
+    active++;
+    byIp.set(ip, (byIp.get(ip) ?? 0) + 1);
+    connection.once('close', () => {
+      active--;
+      const remaining = (byIp.get(ip) ?? 1) - 1;
+      if (remaining === 0) byIp.delete(ip);
+      else byIp.set(ip, remaining);
+    });
+  });
+  return io;
+}
+
 export function createGameServer(options: GameServerOptions) {
   const { httpServer, corsOrigin, callbacks } = options;
-
-  const io: AppServer = new Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>(
-    httpServer,
-    buildSocketServerOptions({ corsOrigin }),
-  );
+  const io = createSocketServer(httpServer, { corsOrigin });
 
   const roomManager = new RoomManager();
 

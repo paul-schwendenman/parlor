@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ROOM_CODE_LENGTH } from '@parlor/game-types';
   import { createRoomAction, joinRoomAction } from '../../stores/socketClient.js';
 
   let { ongameready, prefillCode = '' }: { ongameready: (roomCode: string) => void; prefillCode?: string } = $props();
@@ -27,8 +28,8 @@
     try {
       const code = await createRoomAction(createName.trim());
       ongameready(code);
-    } catch {
-      error = 'Failed to create room';
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to create room';
       errorSide = 'create';
     } finally {
       loading = false;
@@ -92,8 +93,8 @@
             id="join-code"
             type="text"
             bind:value={roomCode}
-            placeholder="ABCD"
-            maxlength="4"
+            placeholder="ABCDEF"
+            maxlength={ROOM_CODE_LENGTH}
             class="input input-code"
             onkeydown={handleJoinKeydown}
           />

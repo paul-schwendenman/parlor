@@ -9,6 +9,8 @@ import type {
 import {
 	RoomManager,
 	dispatchGameAction,
+	allowSocketRequest,
+	RATE_LIMIT_MESSAGE,
 	returnRoomToLobby,
 	safeAck,
 	setupLobbyHandlers,
@@ -95,6 +97,10 @@ export function setupParlorSocketHandlers(io: AppServer): void {
 		socket.on('lobby:selectGame', (gameId: string | null, callback) => {
 			const ack = safeAck(callback);
 			try {
+				if (!allowSocketRequest(socket)) {
+					ack(false, RATE_LIMIT_MESSAGE);
+					return;
+				}
 				const roomCode = socket.data.roomCode;
 				if (!roomCode) {
 					ack(false, 'Not in a room');

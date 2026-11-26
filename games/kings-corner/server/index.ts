@@ -1,14 +1,13 @@
 import express from 'express';
 import { createServer } from 'http';
-import { Server } from 'socket.io';
-import { buildSocketServerOptions, registerHealthCheck, setupGracefulShutdown } from '@parlor/multiplayer';
+import { createSocketServer, registerHealthCheck, setupGracefulShutdown } from '@parlor/multiplayer';
 import { handler } from '../build/handler.js';
 import { setupKingsCornerSocketHandlers } from '../src/lib/server/socket/socketServer.js';
 
 const app = express();
 const server = createServer(app);
 
-const io = new Server(server, buildSocketServerOptions());
+const io = createSocketServer(server);
 
 setupKingsCornerSocketHandlers(io);
 

@@ -167,6 +167,26 @@ function setup(handler: ServerGameDefinition['handleGameAction'], extra: Partial
 }
 
 describe('dispatchGameAction', () => {
+  it('rejects actions over the socket budget and accepts an action after refill', async () => {
+    let now = 0;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+    try {
+      const t = setup(() => undefined);
+      for (let index = 0; index < 80; index++) {
+        expect(await t.send(t.player, { type: 'test' })).toEqual({ ok: true });
+      }
+      const before = structuredClone(t.rm.getRoom(t.roomCode));
+      expect(await t.send(t.player, { type: 'test' })).toMatchObject({ ok: false, code: 'RATE_LIMITED' });
+      expect(t.handle).toHaveBeenCalledTimes(80);
+      expect(t.rm.getRoom(t.roomCode)).toEqual(before);
+      now = 50;
+      expect(await t.send(t.player, { type: 'test' })).toEqual({ ok: true });
+      expect(t.handle).toHaveBeenCalledTimes(81);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it('calls the handler and acks ok for a valid action from a seated player', async () => {
     const t = setup(() => {});
     const result = await t.send(t.player, { type: 'lockDice', diceIndices: [0, 2] });

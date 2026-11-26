@@ -216,7 +216,7 @@ The reasoning:
   - **Implemented:** all five games use the per-instance scheduler and guard game-view emissions. Reset and room deletion invalidate pending and running game work, and restart creates a fresh instance after its lobby checks pass. Timer failures return only the current room to the lobby. Late action rejections cannot reset a replacement game.
 
 ### 3.3 Limits at the boundary
-- [ ] **3.3**
+- [x] **3.3**
   - **Names:** server-side rules (length and charset, NFC normalization, trimming, uniqueness with lookalike folding), plus bot-name reservation.
   - **Messages:** lower `maxHttpBufferSize`.
   - **Rate limiting:** per-socket token-bucket rate limits, with stricter buckets for `lobby:join` and `lobby:spectate`.
@@ -226,6 +226,9 @@ The reasoning:
     - spectators and bots per room
     - game log length
   - **Room codes:** longer codes, or join throttling plus a host kick. (F-13, F-14, F-26; the code-space part of F-02)
+  - **Implemented:** room codes are six characters, with at most 16 allocation attempts. The caps are 512 rooms per process, 16 spectators and four bots per room, and 100 retained entries per game log. Socket.IO uses a 16 KiB inbound message limit and caps Engine.IO sessions at 256 total and 32 per direct peer IP.
+  - **Rate budgets:** 80 requests per socket with a refill of 20 per second. Join and spectate also share a six-request bucket with a refill of two per second.
+  - **Names:** 1–24 Unicode code points after trimming and NFC normalization, with a character allowlist and uniqueness checks that fold case, accents, compatibility forms and common Greek and Cyrillic lookalikes. The Bot name prefix is reserved.
 
 ### 3.4 Process safety net and observability
 - [ ] **3.4**
@@ -345,3 +348,4 @@ The reasoning:
 | 2026-11-25 | 0.5 type-aware lint everywhere + 3.10 infra half | built in a worktree (`paul-schwendenman/core-hardening-0.5-infra`), merged onto the committed 3.1a branch in `e0371d8` |
 | 2026-11-26 | 3.7 seat lifecycle + 3.8 lobby guards | 549 Vitest tests and 7 Playwright tests passed |
 | 2026-11-26 | 3.2 game-instance lifetime and scheduling | Covered by regressions for in-flight bot work, bot deadlines, restart, room destruction, scheduler failures, and reconnect grace |
+| 2026-11-26 | 3.3 boundary limits | Added socket, room, name and log limits with regression tests |

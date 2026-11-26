@@ -1,4 +1,4 @@
-import { GameRuleError } from '@parlor/multiplayer';
+import { appendGameLog, GameRuleError } from '@parlor/multiplayer';
 import type {
   GameState,
   BootyDicePlayer,
@@ -45,7 +45,11 @@ export class GameEngine {
   }
 
   getState(): GameState {
-    return { ...this.state, players: this.state.players.map((p) => ({ ...p })) };
+    return {
+      ...this.state,
+      players: this.state.players.map((p) => ({ ...p })),
+      gameLog: [...this.state.gameLog],
+    };
   }
 
   getNewLogEntries(): LogEntry[] {
@@ -299,7 +303,7 @@ export class GameEngine {
   }
 
   private addLog(playerId: string, message: string, type: LogEntry['type']): void {
-    this.state.gameLog.push({
+    this.lastBroadcastLogIndex = appendGameLog(this.state.gameLog, this.lastBroadcastLogIndex, {
       timestamp: Date.now(),
       playerId,
       message,

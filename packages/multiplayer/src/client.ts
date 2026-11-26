@@ -60,9 +60,10 @@ export function clearSession(): void {
 }
 
 export function createRoom(socket: GameSocket, playerName: string): Promise<string> {
-  return new Promise((resolve) => {
-    socket.emit('lobby:create', playerName, (result) => {
-      resolve(result.roomCode);
+  return new Promise((resolve, reject) => {
+    socket.emit('lobby:create', playerName, (result, error) => {
+      if (result) resolve(result.roomCode);
+      else reject(new Error(error ?? 'Failed to create room'));
     });
   });
 }

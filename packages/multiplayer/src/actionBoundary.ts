@@ -2,6 +2,7 @@ import type { ActionErrorCode, ActionResult } from '@parlor/game-types';
 import type { RoomManager } from './RoomManager.js';
 import type { AppServer, AppSocket, ServerGameDefinition } from './gameDefinition.js';
 import { safeAck } from './ack.js';
+import { allowSocketRequest, RATE_LIMIT_MESSAGE } from './rateLimit.js';
 import { INTERNAL_ERROR_MESSAGE, toPublicError } from './errors.js';
 
 /** Limits for the `game:action` envelope (CORE-AUDIT F-04 / B-03). */
@@ -129,6 +130,7 @@ export function dispatchGameAction(opts: DispatchGameActionOptions): Promise<Act
   const reject = (code: ActionErrorCode, message: string): ActionResult => reply({ ok: false, code, message });
 
   try {
+    if (!allowSocketRequest(socket)) return Promise.resolve(reject('RATE_LIMITED', RATE_LIMIT_MESSAGE));
     const envelope = validateActionEnvelope(action);
     if (!envelope.ok) return Promise.resolve(reject('INVALID_ACTION', envelope.message));
     const payload = action as Record<string, unknown>;

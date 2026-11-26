@@ -502,6 +502,27 @@ describe('createParlorRuntime', () => {
     expect(localStorage.getItem(SESSION_KEY)).toContain('WXYZ');
   });
 
+  it('rejects a failed create acknowledgement and preserves the current session', async () => {
+    storeSession();
+    const stored = localStorage.getItem(SESSION_KEY);
+    const adapter = makeAdapter({ enableGameSelection: true });
+    const runtime = createParlorRuntime(adapter);
+    runtime.getSocket();
+    const socket = latestSocket();
+    socket.emit.mockImplementation((event: string, ...rest: unknown[]) => {
+      if (event === 'lobby:create') {
+        const ack = rest[1] as (result: null, error: string) => void;
+        ack(null, 'Names starting with Bot are reserved');
+      }
+    });
+
+    await expect(runtime.createRoomAction('Bot Alice', 'crazy-eights')).rejects.toThrow('Names starting with Bot are reserved');
+    expect(localStorage.getItem(SESSION_KEY)).toBe(stored);
+    expect(adapter.playerState.set).not.toHaveBeenCalled();
+    expect(adapter.lobbyState.reset).not.toHaveBeenCalled();
+    expect(socket.emit).not.toHaveBeenCalledWith('lobby:selectGame', 'crazy-eights');
+  });
+
   it('joinRoomAction normalizes the room code and stores session on success', async () => {
     const adapter = makeAdapter();
     const runtime = createParlorRuntime(adapter);

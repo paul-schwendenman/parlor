@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { GameRuleError } from '@parlor/multiplayer';
+import { GameRuleError, MAX_GAME_LOG_ENTRIES } from '@parlor/multiplayer';
 import { LiarsDiceEngine } from '../LiarsDiceEngine.js';
 import type { LiarsDicePlayer } from '../../../types/game.js';
 
@@ -20,6 +20,27 @@ describe('LiarsDiceEngine', () => {
 
   beforeEach(() => {
     engine = new LiarsDiceEngine(makePlayers(3), 'TEST');
+  });
+
+  it('caps bid log views and reads each retained entry once', () => {
+    const placeNextBid = (index: number) => {
+      const state = engine.getState();
+      engine.placeBid(state.players[state.activePlayerIndex].id, Math.floor(index / 5) + 1, 2 + index % 5);
+    };
+
+    for (let index = 0; index < MAX_GAME_LOG_ENTRIES; index++) placeNextBid(index);
+
+    const retainedLog = engine.getSpectatorView().gameLog;
+    expect(retainedLog).toHaveLength(MAX_GAME_LOG_ENTRIES);
+    expect(retainedLog.every(({ type }) => type === 'bid')).toBe(true);
+    expect(engine.getNewLogEntries()).toEqual(retainedLog);
+    expect(engine.getNewLogEntries()).toEqual([]);
+
+    placeNextBid(MAX_GAME_LOG_ENTRIES);
+    const playerLog = engine.getPlayerView('p1').gameLog;
+    expect(playerLog).toHaveLength(MAX_GAME_LOG_ENTRIES);
+    expect(playerLog.slice(0, -1)).toEqual(retainedLog.slice(1));
+    expect(engine.getNewLogEntries()).toEqual(playerLog.slice(-1));
   });
 
   describe('initialization', () => {

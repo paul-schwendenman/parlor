@@ -42,17 +42,23 @@ async function makeClient(): Promise<Client> {
     ackTimeout: 1_000,
   });
   clients.push(client);
-  await once(client, 'connect');
+  await new Promise<void>((resolve) => client.once('connect', resolve));
   return client;
+}
+
+async function createRoom(client: Client, name: string) {
+  const result = await client.emitWithAck('lobby:create', name);
+  if (!result) throw new Error('Expected room creation to succeed');
+  return result;
 }
 
 it('keeps the original seat and its broadcasts when a join is rejected', async () => {
   const [originalHost, guest, targetHost, targetGuest] = await Promise.all([
     makeClient(), makeClient(), makeClient(), makeClient(),
   ]);
-  const original = await originalHost.emitWithAck('lobby:create', 'Original host');
+  const original = await createRoom(originalHost, 'Original host');
   const seat = await guest.emitWithAck('lobby:join', original.roomCode, 'Guest');
-  const target = await targetHost.emitWithAck('lobby:create', 'Target host');
+  const target = await createRoom(targetHost, 'Target host');
   await targetGuest.emitWithAck('lobby:join', target.roomCode, 'Target guest');
   const targetBefore = structuredClone(roomManager.getRoom(target.roomCode));
   const unusedRoomCode = roomManager.getRoom('VOID') ? 'NONE' : 'VOID';
@@ -72,9 +78,9 @@ it('keeps the original seat and its broadcasts when a join is rejected', async (
 
 it('removes old public and private room memberships during successful seat changes', async () => {
   const [host, guest, targetHost] = await Promise.all([makeClient(), makeClient(), makeClient()]);
-  const original = await host.emitWithAck('lobby:create', 'Host');
+  const original = await createRoom(host, 'Host');
   const guestSeat = await guest.emitWithAck('lobby:join', original.roomCode, 'Guest');
-  const target = await targetHost.emitWithAck('lobby:create', 'Target host');
+  const target = await createRoom(targetHost, 'Target host');
   const socket = io.sockets.sockets.get(guest.id ?? '');
   expect(await guest.emitWithAck('lobby:spectate', target.roomCode)).toBe(true);
   expect(roomManager.getRoom(original.roomCode)?.players.has(guestSeat.playerId ?? '')).toBe(false);
@@ -83,7 +89,7 @@ it('removes old public and private room memberships during successful seat chang
   expect(socket?.rooms.has(target.roomCode)).toBe(true);
   expect(socket?.data.playerId).toBe('');
 
-  const created = await guest.emitWithAck('lobby:create', 'New host');
+  const created = await createRoom(guest, 'New host');
   expect(roomManager.getSpectatorsInRoom(target.roomCode)).toEqual([]);
   expect(socket?.rooms.has(target.roomCode)).toBe(false);
   expect(await guest.emitWithAck('lobby:join', target.roomCode, 'New guest')).toMatchObject({ success: true });
@@ -93,10 +99,10 @@ it('removes old public and private room memberships during successful seat chang
 
 it('rotates the token, disconnects the old socket, and keeps the new seat through grace', async () => {
   const [old, replacement, other] = await Promise.all([makeClient(), makeClient(), makeClient()]);
-  const seat = await old.emitWithAck('lobby:create', 'Host');
-  const previous = await replacement.emitWithAck('lobby:create', 'Previous room');
+  const seat = await createRoom(old, 'Host');
+  const previous = await createRoom(replacement, 'Previous room');
 
-  const oldDisconnected = once(old, 'disconnect');
+  const oldDisconnected = new Promise<void>((resolve) => old.once('disconnect', () => resolve()));
   const [success, token] = await new Promise<[boolean, string?]>((resolve, reject) => {
     replacement.timeout(1_000).emit(
       'player:reconnect', seat.roomCode, seat.playerId, seat.reconnectToken,
@@ -112,7 +118,7 @@ it('rotates the token, disconnects the old socket, and keeps the new seat throug
   await oldDisconnected;
   expect(roomManager.getRoom(previous.roomCode)).toBeUndefined();
 
-  const otherSeat = await other.emitWithAck('lobby:create', 'Other');
+  const otherSeat = await createRoom(other, 'Other');
   expect(await other.emitWithAck('player:reconnect', seat.roomCode, seat.playerId, seat.reconnectToken)).toBe(false);
   expect(roomManager.getRoom(otherSeat.roomCode)?.players.has(otherSeat.playerId)).toBe(true);
   expect(await other.emitWithAck('lobby:ready', true)).toBe(true);

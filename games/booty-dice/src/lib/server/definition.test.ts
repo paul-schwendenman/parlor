@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { RoomManager, type AppServer } from '@parlor/multiplayer';
+import { dispatchGameAction, RoomManager, type AppServer, type AppSocket } from '@parlor/multiplayer';
 import { bootyDiceDefinition } from './definition.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 import type { GameEngine } from './game/GameEngine.js';
@@ -59,4 +59,47 @@ it('aborts an overdue bot before allowing the timeout fallback to end its turn',
   await vi.runAllTimersAsync();
   expect(engine.getState()).toEqual(afterFallback);
   expect(emit).not.toHaveBeenCalled();
+});
+
+it('sends one updated view per recipient when a turn adds multiple log entries', async () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0.99);
+  const emit = vi.fn();
+  const io = {
+    to: (recipient: string) => ({ emit: (event: string, view: unknown) => emit(recipient, event, view) }),
+  } as never as AppServer;
+  const rooms = new RoomManager();
+  const host = rooms.createRoom('host-socket', 'Host');
+  const { roomCode, playerId } = host;
+  rooms.selectGame(roomCode, bootyDiceDefinition.meta);
+  const guest = rooms.joinRoom(roomCode, 'guest-socket', 'Guest');
+  if (!guest.playerId) throw new Error('Expected a guest seat');
+  rooms.addSpectator(roomCode, 'spectator-socket');
+  rooms.setPlayerReady(playerId, true);
+  rooms.setPlayerReady(guest.playerId, true);
+  const players = rooms.startGame(roomCode);
+  if (!players) throw new Error('Expected the room to start');
+  bootyDiceDefinition.createLobbyCallbacks(rooms, io).onGameStart?.(roomCode, players, io);
+  const socket = { id: 'host-socket', data: { roomCode, playerId }, emit: vi.fn() } as never as AppSocket;
+  const send = (type: string) => dispatchGameAction({
+    io,
+    socket,
+    roomManager: rooms,
+    definition: bootyDiceDefinition,
+    action: { type },
+    ack: undefined,
+    onRoomFailure: vi.fn(),
+  });
+
+  expect(await send('roll')).toEqual({ ok: true });
+  const engine = rooms.getGameData<GameEngine>(roomCode);
+  const before = engine?.getState().gameLog.length ?? 0;
+  emit.mockClear();
+
+  expect(await send('endTurn')).toEqual({ ok: true });
+  expect(engine?.getState().gameLog.length).toBeGreaterThan(before + 1);
+  expect(emit.mock.calls.map(([recipient, event]) => [recipient, event])).toEqual([
+    [playerId, 'game:state'],
+    [guest.playerId, 'game:state'],
+    ['spectator-socket', 'game:state'],
+  ]);
 });

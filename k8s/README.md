@@ -35,6 +35,13 @@ comma-separated allowlist of origins (scheme + host + optional port, no path).
 - **Unset:** any origin is accepted (the dev default), and the server logs a warning
   at startup when `NODE_ENV=production`.
 
+## Socket connection limits
+
+Each Parlor process accepts up to 256 concurrent Engine.IO sessions and 32 per
+direct peer IP. The socket server counts the transport peer, so connections
+forwarded by the same ingress proxy share its 32-session allowance. Forwarding
+headers do not affect the quota. The inbound message limit is 16 KiB.
+
 ## Container security
 
 - The image runs as the unprivileged `node` user (uid/gid 1000). The pod's

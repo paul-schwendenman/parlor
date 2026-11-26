@@ -30,13 +30,10 @@ function broadcastViews(
   instance.emitIfCurrent(() => {
     if (engine.getState().phase === 'ended') roomManager.finishGame(roomCode, engine);
 
-    const viewCount = advanceLog ? Math.max(1, engine.getNewLogEntries().length) : 1;
-    const players = roomManager.getGamePlayers(roomCode);
-    for (let index = 0; index < viewCount; index++) {
-      for (const player of players) {
-        if (RoomManager.isBotPlayer(player.id)) continue;
-        io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
-      }
+    if (advanceLog) engine.getNewLogEntries();
+    for (const player of roomManager.getGamePlayers(roomCode)) {
+      if (RoomManager.isBotPlayer(player.id)) continue;
+      io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
     }
 
     const spectators = roomManager.getGameSpectators(roomCode);

@@ -1,3 +1,5 @@
+export const ROOM_CODE_LENGTH = 6;
+
 export interface Player {
   id: string;
   name: string;
@@ -126,7 +128,7 @@ export type ClientToServerEvents = {
 
   'lobby:create': (
     playerName: string,
-    callback: (result: CreateRoomResult) => void,
+    callback: (result: CreateRoomResult | null, error?: string) => void,
     gameId?: string,
   ) => void;
   'lobby:selectGame': (gameId: string | null, callback?: (success: boolean, error?: string) => void) => void;

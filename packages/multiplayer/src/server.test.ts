@@ -1,12 +1,15 @@
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Server } from 'socket.io';
 import { io as ioc, type Socket as ClientSocket } from 'socket.io-client';
 import {
   parseCorsOrigin,
   buildSocketServerOptions,
   createOriginCheck,
+  createSocketServer,
+  type AppServer,
+  type SocketServerInput,
+  MAX_SOCKET_MESSAGE_BYTES,
   isOriginAllowed,
   DEFAULT_PING_INTERVAL,
   DEFAULT_PING_TIMEOUT,
@@ -55,6 +58,7 @@ describe('buildSocketServerOptions', () => {
     expect(opts.pingInterval).toBe(DEFAULT_PING_INTERVAL);
     expect(opts.pingTimeout).toBe(DEFAULT_PING_TIMEOUT);
     expect(opts.connectionStateRecovery).toBeUndefined();
+    expect(opts.maxHttpBufferSize).toBe(MAX_SOCKET_MESSAGE_BYTES);
   });
 
   it('reads CORS_ORIGIN from the environment', () => {
@@ -125,7 +129,7 @@ describe('createOriginCheck', () => {
 describe('origin check over a real socket.io server (D-06)', () => {
   const ALLOWED = 'https://parlor.example';
   let http: HttpServer;
-  let io: Server | undefined;
+  let io: AppServer | undefined;
   const clients: ClientSocket[] = [];
 
   afterEach(async () => {
@@ -136,7 +140,7 @@ describe('origin check over a real socket.io server (D-06)', () => {
 
   async function startServer(): Promise<string> {
     http = createServer();
-    io = new Server(http, buildSocketServerOptions({ corsOrigin: ALLOWED }));
+    io = createSocketServer(http, { corsOrigin: ALLOWED });
     await new Promise<void>((r) => http.listen(0, r));
     return `http://localhost:${(http.address() as AddressInfo).port}`;
   }
@@ -163,6 +167,99 @@ describe('origin check over a real socket.io server (D-06)', () => {
       expect(await attempt(url, transport, ALLOWED)).toBe('connected');
       // No Origin header at all (a non-browser client) is allowed by design.
       expect(await attempt(url, transport)).toBe('connected');
+    },
+  );
+});
+
+describe('Socket.IO transport limits', () => {
+  let io: AppServer | undefined;
+  const clients: ClientSocket[] = [];
+
+  afterEach(async () => {
+    for (const client of clients.splice(0)) client.close();
+    await io?.close();
+    io = undefined;
+  });
+
+  async function start(input: SocketServerInput = {}) {
+    const http = createServer();
+    const socketServer = createSocketServer(http, { corsOrigin: '*', ...input });
+    io = socketServer;
+    await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
+    return { socketServer, url: `http://127.0.0.1:${(http.address() as AddressInfo).port}` };
+  }
+
+  function connect(url: string, transport: 'websocket' | 'polling', headers: Record<string, string> = {}) {
+    const client = ioc(url, {
+      transports: [transport],
+      reconnection: false,
+      forceNew: true,
+      extraHeaders: headers,
+    });
+    clients.push(client);
+    const connected = new Promise<boolean>((resolve) => {
+      client.once('connect', () => resolve(true));
+      client.once('connect_error', () => resolve(false));
+    });
+    return { client, connected };
+  }
+
+  it('counts raw polling sessions toward the total cap before namespace connect', async () => {
+    const { socketServer, url } = await start({ maxConnections: 1, maxConnectionsPerIp: 5 });
+    const attempt = () => fetch(`${url}/socket.io/?EIO=4&transport=polling`);
+    const first = await attempt();
+    expect(first.status).toBe(200);
+    await first.text();
+    expect(socketServer.sockets.sockets.size).toBe(0);
+    expect(socketServer.engine.clientsCount).toBe(1);
+
+    const rejected = await attempt();
+    expect(rejected.status).toBe(403);
+    await rejected.text();
+    expect(socketServer.engine.clientsCount).toBe(1);
+  });
+
+  it.each(['websocket', 'polling'] as const)(
+    'caps sessions per peer, ignores forwarding headers and admits a new session after close (%s)',
+    async (transport) => {
+      const { socketServer, url } = await start({ maxConnections: 5, maxConnectionsPerIp: 1 });
+      const first = connect(url, transport);
+      expect(await first.connected).toBe(true);
+      const extra = connect(url, transport, { 'X-Forwarded-For': '192.0.2.12' });
+      expect(await extra.connected).toBe(false);
+      expect(socketServer.sockets.sockets.size).toBe(1);
+      first.client.disconnect();
+      await vi.waitFor(() => expect(socketServer.engine.clientsCount).toBe(0));
+
+      const next = connect(url, transport);
+      expect(await next.connected).toBe(true);
+    },
+  );
+
+  it.each(['websocket', 'polling'] as const)(
+    'drops an oversized message before dispatch and continues handling small messages (%s)',
+    async (transport) => {
+      const { socketServer, url } = await start();
+      const createRoom = vi.fn();
+      socketServer.on('connection', (socket) => {
+        socket.on('lobby:create', (name, ack) => {
+          createRoom(name);
+          ack({ roomCode: 'ABCDEF', playerId: 'host', reconnectToken: 'token' });
+        });
+      });
+      const first = connect(url, transport);
+      expect(await first.connected).toBe(true);
+
+      const disconnected = new Promise<void>((resolve) => first.client.once('disconnect', () => resolve()));
+      first.client.emit('lobby:create', 'x'.repeat(MAX_SOCKET_MESSAGE_BYTES), () => undefined);
+      await disconnected;
+      expect(createRoom).not.toHaveBeenCalled();
+
+      const next = connect(url, transport);
+      expect(await next.connected).toBe(true);
+      expect(await next.client.timeout(1_000).emitWithAck('lobby:create', 'Host'))
+        .toMatchObject({ roomCode: 'ABCDEF' });
+      expect(createRoom).toHaveBeenCalledExactlyOnceWith('Host');
     },
   );
 });

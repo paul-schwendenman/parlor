@@ -13,13 +13,13 @@ async function createQuixxRoom(page: Page): Promise<string> {
   await quixxCard.getByRole('button', { name: 'Start Game' }).click();
   await page.getByPlaceholder('Enter your name').fill('Host');
   await page.getByRole('button', { name: 'Create Room' }).click();
-  await expect(page).toHaveURL(/\/lobby\/[A-Z0-9]{4}$/);
+  await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
   return page.url().split('/').pop()!;
 }
 
 async function joinRoom(page: Page, roomCode: string, name: string): Promise<void> {
   await page.goto('/');
-  await page.getByPlaceholder('ABCD').fill(roomCode);
+  await page.getByPlaceholder('ABCDEF').fill(roomCode);
   await page.getByPlaceholder('Your name').fill(name);
   await page.getByRole('button', { name: 'Join' }).click();
   await expect(page).toHaveURL(`/lobby/${roomCode}`);

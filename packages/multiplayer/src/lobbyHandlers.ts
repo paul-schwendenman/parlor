@@ -9,7 +9,9 @@ import type {
 } from '@parlor/game-types';
 import type { RoomManager, DisconnectResult, ExpiryOutcome } from './RoomManager.js';
 import { safeAck } from './ack.js';
+import { foldPlayerName, validatePlayerName } from './playerNames.js';
 import { toPublicError } from './errors.js';
+import { allowSocketRequest, RATE_LIMIT_MESSAGE } from './rateLimit.js';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -137,47 +139,65 @@ export function setupLobbyHandlers(
   }
 
   socket.on('lobby:create', (playerName, callback) => {
+    let acknowledged = false;
     try {
       if (typeof callback !== 'function') return;
-      if (!isNonEmptyString(playerName)) {
-        socket.emit('error', 'Invalid player name');
+      if (!allowSocketRequest(socket)) {
+        callback(null, RATE_LIMIT_MESSAGE);
+        return;
+      }
+      const validated = validatePlayerName(playerName);
+      if (!validated.name) {
+        callback(null, validated.error);
         return;
       }
 
       const { roomCode, playerId, reconnectToken, previousSeat } = roomManager.createRoom(
         socket.id,
-        playerName.trim(),
+        validated.name,
         options?.defaultMaxPlayers,
         (code) => callbacks?.onRoomDestroyed?.(code, io),
       );
       if (options?.defaultGame) roomManager.selectGame(roomCode, options.defaultGame);
-      syncSeat(previousSeat, roomCode, playerId, playerName.trim());
+      syncSeat(previousSeat, roomCode, playerId, validated.name);
+      acknowledged = true;
       callback({ roomCode, playerId, reconnectToken });
       notifySeatReleased(previousSeat);
 
       const players = roomManager.getPlayersInRoom(roomCode);
       io.to(roomCode).emit('lobby:state', players, false);
     } catch (err) {
-      socket.emit('error', toPublicError(err, 'Failed to create room', { roomCode: socket.data.roomCode }).message);
+      const { message } = toPublicError(err, 'Failed to create room', { roomCode: socket.data.roomCode });
+      if (!acknowledged && typeof callback === 'function') callback(null, message);
     }
   });
 
   socket.on('lobby:join', (roomCode, playerName, callback) => {
     try {
       if (typeof callback !== 'function') return;
-      if (!isNonEmptyString(roomCode) || !isNonEmptyString(playerName)) {
+      if (!allowSocketRequest(socket, true)) {
+        callback({ success: false, error: RATE_LIMIT_MESSAGE });
+        return;
+      }
+      if (!isNonEmptyString(roomCode)) {
         callback({ success: false, error: 'Invalid room code or player name' });
         return;
       }
 
-      const result = roomManager.joinRoom(roomCode, socket.id, playerName.trim());
+      const validated = validatePlayerName(playerName);
+      if (!validated.name) {
+        callback({ success: false, error: validated.error });
+        return;
+      }
+
+      const result = roomManager.joinRoom(roomCode, socket.id, validated.name);
       if (!result.success || !result.playerId) {
         callback({ success: false, error: result.error });
         return;
       }
 
       const normalizedCode = roomCode.toUpperCase();
-      syncSeat(result.previousSeat, normalizedCode, result.playerId, playerName.trim());
+      syncSeat(result.previousSeat, normalizedCode, result.playerId, validated.name);
       callback({
         success: true,
         roomCode: normalizedCode,
@@ -214,6 +234,10 @@ export function setupLobbyHandlers(
   socket.on('lobby:spectate', (roomCode, callback) => {
     try {
       if (typeof callback !== 'function') return;
+      if (!allowSocketRequest(socket, true)) {
+        callback(false, RATE_LIMIT_MESSAGE);
+        return;
+      }
       if (!isNonEmptyString(roomCode)) {
         callback(false, 'Invalid room code');
         return;
@@ -239,6 +263,10 @@ export function setupLobbyHandlers(
   socket.on('lobby:ready', (isReady, callback) => {
     const ack = safeAck(callback);
     try {
+      if (!allowSocketRequest(socket)) {
+        ack(false, RATE_LIMIT_MESSAGE);
+        return;
+      }
       const roomCode = socket.data.roomCode;
       const playerId = socket.data.playerId;
       if (!roomCode || !playerId) {
@@ -268,6 +296,10 @@ export function setupLobbyHandlers(
   socket.on('lobby:addBot', (callback) => {
     try {
       if (typeof callback !== 'function') return;
+      if (!allowSocketRequest(socket)) {
+        callback(false, RATE_LIMIT_MESSAGE);
+        return;
+      }
       const roomCode = socket.data.roomCode;
       if (!roomCode) {
         callback(false, 'Not in a room');
@@ -280,8 +312,12 @@ export function setupLobbyHandlers(
       }
 
       const players = roomManager.getPlayersInRoom(roomCode);
-      const existingBotCount = players.filter((p) => p.isBot).length;
-      const botName = BOT_NAMES[existingBotCount % BOT_NAMES.length];
+      const occupiedNames = new Set(players.map((player) => foldPlayerName(player.name)));
+      const botName = BOT_NAMES.find((name) => !occupiedNames.has(foldPlayerName(name)));
+      if (!botName) {
+        callback(false, 'Room has reached the bot limit');
+        return;
+      }
 
       const result = roomManager.addBot(roomCode, botName);
       if (!result.success) {
@@ -302,6 +338,10 @@ export function setupLobbyHandlers(
   socket.on('lobby:removeBot', (botId, callback) => {
     try {
       if (typeof callback !== 'function') return;
+      if (!allowSocketRequest(socket)) {
+        callback(false, RATE_LIMIT_MESSAGE);
+        return;
+      }
       const roomCode = socket.data.roomCode;
       if (!roomCode) {
         callback(false, 'Not in a room');
@@ -336,6 +376,10 @@ export function setupLobbyHandlers(
   socket.on('lobby:startGame', (callback) => {
     const ack = safeAck(callback);
     try {
+      if (!allowSocketRequest(socket)) {
+        ack(false, RATE_LIMIT_MESSAGE);
+        return;
+      }
       const roomCode = socket.data.roomCode;
       if (!roomCode) {
         ack(false, 'Not in a room');
@@ -372,6 +416,10 @@ export function setupLobbyHandlers(
 
   socket.on('lobby:resetGame', () => {
     try {
+      if (!allowSocketRequest(socket)) {
+        socket.emit('error', RATE_LIMIT_MESSAGE);
+        return;
+      }
       const roomCode = socket.data.roomCode;
       if (!roomCode) return;
       if (!roomManager.isHost(roomCode, socket.data.playerId)
@@ -385,6 +433,10 @@ export function setupLobbyHandlers(
 
   socket.on('lobby:restartGame', () => {
     try {
+      if (!allowSocketRequest(socket)) {
+        socket.emit('error', RATE_LIMIT_MESSAGE);
+        return;
+      }
       const roomCode = socket.data.roomCode;
       if (!roomCode || !roomManager.isHost(roomCode, socket.data.playerId)
           || !roomManager.isSeatedPlayer(roomCode, socket.data.playerId, socket.id)) {
@@ -416,6 +468,10 @@ export function setupLobbyHandlers(
 
   socket.on('room:leave', () => {
     try {
+      if (!allowSocketRequest(socket)) {
+        socket.emit('error', RATE_LIMIT_MESSAGE);
+        return;
+      }
       const result = roomManager.leaveRoom(socket.id);
       if (!result) return;
 
@@ -431,6 +487,10 @@ export function setupLobbyHandlers(
     let acknowledged = false;
     try {
       if (typeof callback !== 'function') return;
+      if (!allowSocketRequest(socket)) {
+        socket.emit('error', RATE_LIMIT_MESSAGE);
+        return;
+      }
       if (!isNonEmptyString(roomCode) || !isNonEmptyString(playerId) || !isNonEmptyString(token)) {
         ack(false);
         return;

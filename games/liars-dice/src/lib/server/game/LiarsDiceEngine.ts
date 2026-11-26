@@ -1,4 +1,4 @@
-import { GameRuleError } from '@parlor/multiplayer';
+import { appendGameLog, GameRuleError } from '@parlor/multiplayer';
 import type {
   LiarsDiceGameState,
   LiarsDicePlayer,
@@ -45,6 +45,7 @@ export class LiarsDiceEngine {
     return {
       ...this.state,
       players: this.state.players.map((p) => ({ ...p, dice: [...p.dice] })),
+      gameLog: [...this.state.gameLog],
     };
   }
 
@@ -435,7 +436,7 @@ export class LiarsDiceEngine {
   }
 
   private addLog(playerId: string, message: string, type: LogEntry['type']): void {
-    this.state.gameLog.push({
+    this.lastBroadcastLogIndex = appendGameLog(this.state.gameLog, this.lastBroadcastLogIndex, {
       timestamp: Date.now(),
       playerId,
       message,

@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { GameMeta, LobbyPlayer } from '@parlor/game-types';
 import { GameInstance } from './gameInstance.js';
+import { foldPlayerName } from './playerNames.js';
+import { GameRuleError } from './errors.js';
 import { generateRoomCode } from './utils.js';
+
+const MAX_ROOMS = 512;
+const MAX_SPECTATORS = 16;
+const MAX_BOTS = 4;
+const ROOM_CODE_ATTEMPTS = 16;
 
 type GameRules = Pick<GameMeta, 'id' | 'minPlayers' | 'maxPlayers' | 'supportsBots'>;
 
@@ -94,10 +101,12 @@ export class RoomManager {
     maxPlayers = 8,
     onDestroyed?: (roomCode: string) => void,
   ): CreateRoomResult {
+    if (this.rooms.size >= MAX_ROOMS) throw new GameRuleError('The server has reached its room limit');
     let code = generateRoomCode();
-    while (this.rooms.has(code)) {
+    for (let attempt = 1; attempt < ROOM_CODE_ATTEMPTS && this.rooms.has(code); attempt++) {
       code = generateRoomCode();
     }
+    if (this.rooms.has(code)) throw new GameRuleError('Could not allocate a new room code. Try again.');
 
     const playerId = randomUUID();
     const reconnectToken = randomUUID();
@@ -139,9 +148,8 @@ export class RoomManager {
     if (room.players.size >= room.maxPlayers) return { success: false, error: 'Room is full' };
     if (room.status !== 'waiting') return { success: false, error: 'Game already in progress' };
 
-    const nameTaken = [...room.players.values()].some(
-      (p) => p.name.toLowerCase() === name.trim().toLowerCase()
-    );
+    const nameKey = foldPlayerName(name);
+    const nameTaken = [...room.players.values()].some((player) => foldPlayerName(player.name) === nameKey);
     if (nameTaken) return { success: false, error: 'Name already taken in this room' };
 
     const playerId = randomUUID();
@@ -168,6 +176,9 @@ export class RoomManager {
     if (room.players.size >= room.maxPlayers) return { success: false, error: 'Room is full' };
     if (room.status !== 'waiting') return { success: false, error: 'Game already in progress' };
     if (!room.gameRules?.supportsBots) return { success: false, error: 'The selected game does not support bots' };
+
+    const botCount = [...room.players.values()].filter((player) => player.isBot).length;
+    if (botCount >= MAX_BOTS) return { success: false, error: 'Room has reached its bot limit' };
 
     const botId = `bot-${++this.botCounter}`;
     const bot: LobbyPlayer = {
@@ -334,6 +345,10 @@ export class RoomManager {
 
     const oldRoomCode = this.spectatorToRoom.get(socketId);
     if (oldRoomCode === room.code) return { success: true };
+
+    if (room.spectators.size >= MAX_SPECTATORS) {
+      return { success: false, error: 'Room has reached its spectator limit' };
+    }
 
     const previousPlayer = this.socketToPlayer.get(socketId);
     if (previousPlayer && room.players.has(previousPlayer) &&
