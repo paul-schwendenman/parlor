@@ -196,7 +196,7 @@ export type LobbyClientEvents = {
    * Whether a room with this code exists, for a pasted `/lobby/CODE` link with
    * no session. Reveals nothing a join attempt by code wouldn't.
    */
-  'lobby:roomExists': (roomCode: string, callback: (exists: boolean, error?: string) => void) => void;
+  'lobby:roomExists': (roomCode: string, callback: (exists: boolean, error?: string, gameId?: string | null) => void) => void;
   'lobby:join': (
     roomCode: string,
     playerName: string,

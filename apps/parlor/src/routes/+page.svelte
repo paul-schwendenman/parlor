@@ -4,7 +4,7 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { getSocket, createRoomAction, joinRoomAction, spectateRoomAction } from '$lib/stores/socketClient.js';
+  import { getSocket, createRoomAction, joinRoomAction, lookupRoomAction, spectateRoomAction } from '$lib/stores/socketClient.js';
   import { PLAYER_NAME_MAX_LENGTH, ROOM_CODE_LENGTH } from '@parlor/game-types';
   import { catalog as games, findGame, minutesRange, playerRange } from '$lib/games/catalog.js';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
@@ -12,6 +12,10 @@
   let prefillCode = $derived($page.url.searchParams.get('join') ?? '');
   let joinName = $state('');
   let joinCode = $state('');
+  let normalizedCode = $derived(joinCode.trim().toUpperCase());
+  let roomPreview = $state<{ code: string; exists: boolean; gameId?: string | null } | null>(null);
+  let visiblePreview = $derived(roomPreview?.code === normalizedCode ? roomPreview : null);
+  let previewGame = $derived(findGame(visiblePreview?.gameId));
   let error = $state('');
   let loading = $state(false);
   let interactive = $state(false);
@@ -26,6 +30,22 @@
 
   $effect(() => {
     if (prefillCode) joinCode = prefillCode;
+  });
+
+  $effect(() => {
+    const code = normalizedCode;
+    roomPreview = null;
+    if (code.length !== ROOM_CODE_LENGTH || !/^[A-Z0-9]+$/.test(code)) return;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const result = await lookupRoomAction(code);
+      if (!cancelled && result) roomPreview = { code, ...result };
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   });
 
   // Native <dialog>: focus moves inside, Escape closes, background is inert.
@@ -160,21 +180,35 @@
       <p class="join-invite">Add your name to join room {prefillCode.toUpperCase()}.</p>
     {/if}
     <form class="join-form" onsubmit={handleJoinSubmit} novalidate>
-      <label class="field">
-        <span class="field-label">Room code</span>
-        <input
-          type="text"
-          bind:value={joinCode}
-          placeholder="ABCDEF"
-          maxlength={ROOM_CODE_LENGTH}
-          autocomplete="off"
-          autocapitalize="characters"
-          spellcheck="false"
-          class="input input-code"
-          aria-invalid={!!error && !creatingRoom && !joinCode.trim()}
-          aria-describedby={error && !creatingRoom ? 'join-error' : undefined}
-        />
-      </label>
+      <div>
+        <label class="field">
+          <span class="field-label">Room code</span>
+          <input
+            type="text"
+            bind:value={joinCode}
+            placeholder="ABCDEF"
+            maxlength={ROOM_CODE_LENGTH}
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            class="input input-code"
+            aria-invalid={!!error && !creatingRoom && !joinCode.trim()}
+            aria-describedby={error && !creatingRoom ? 'join-error' : undefined}
+          />
+        </label>
+        <div role="status">
+          {#if previewGame}
+            <div class="room-preview spine-{previewGame.shelf}">
+              <strong>{previewGame.name}</strong>
+              <span>{previewGame.tagline}</span>
+            </div>
+          {:else if visiblePreview}
+            <p class="room-preview-message">
+              {visiblePreview.exists ? 'Game selection happens in the lobby.' : 'Room not found. Check the code and try again.'}
+            </p>
+          {/if}
+        </div>
+      </div>
       <label class="field">
         <span class="field-label">Your name</span>
         <input
@@ -192,9 +226,9 @@
       {#if error && !creatingRoom}
         <p id="join-error" class="error" role="alert">{error}</p>
       {/if}
-      <button type="submit" class="btn btn-primary" disabled={loading}>Join</button>
+      <button type="submit" class="btn btn-primary" disabled={!interactive || loading}>Join</button>
     </form>
-    <button type="button" class="btn-watch" onclick={handleWatch} disabled={loading}>Watch as spectator</button>
+    <button type="button" class="btn-watch" onclick={handleWatch} disabled={!interactive || loading}>Watch as spectator</button>
   </section>
 
   <!-- Game shelf -->
@@ -405,6 +439,28 @@
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--color-danger);
+  }
+
+  .room-preview {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: var(--spine-bg);
+    color: var(--spine-fg);
+    display: flex;
+    flex-direction: column;
+    font-size: 0.875rem;
+  }
+
+  .room-preview strong {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+  }
+
+  .room-preview-message {
+    margin: 8px 0 0;
+    font-size: 0.875rem;
+    color: var(--color-ink-muted);
   }
 
   /* Buttons */

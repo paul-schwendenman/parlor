@@ -148,11 +148,16 @@ export async function transferHostAction(playerId: string): Promise<void> {
  * timed out or rate limited), so a caller never mistakes that for "gone".
  */
 export async function roomExistsAction(roomCode: string): Promise<boolean | null> {
+	if (!getSocket().connected) return null;
+	const result = await lookupRoomAction(roomCode);
+	return result?.exists ?? null;
+}
+
+export function lookupRoomAction(roomCode: string): Promise<{ exists: boolean; gameId?: string | null } | null> {
 	const socket = getSocket();
-	if (!socket.connected) return null;
 	return new Promise((resolve) => {
-		socket.timeout(5000).emit('lobby:roomExists', roomCode.trim().toUpperCase(), (timeout, exists, error) => {
-			resolve(timeout || error ? null : exists);
+		socket.timeout(5000).emit('lobby:roomExists', roomCode.trim().toUpperCase(), (timeout, exists, error, gameId) => {
+			resolve(timeout || error ? null : { exists, gameId });
 		});
 	});
 }

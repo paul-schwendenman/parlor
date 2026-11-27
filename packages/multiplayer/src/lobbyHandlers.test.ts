@@ -677,19 +677,20 @@ it('shares the lookup limit across join and spectate, and refills while other re
 });
 
 describe('lobby:roomExists', () => {
-  it('answers yes or no for a code and reveals nothing else', () => {
+  it('returns the selected game without joining the room', () => {
     const rm = new RoomManager();
     const io = createFakeIo();
     const host = connectFakeSocket(io, rm, undefined, 'host');
     host.fire('lobby:create', 'Margaret', vi.fn());
     const roomCode = host.data.roomCode;
+    rm.selectGame(roomCode, gameRules);
     const before = structuredClone(rm.getRoom(roomCode));
 
     const visitor = connectFakeSocket(io, rm, undefined, 'visitor');
     const emittedBefore = io.emitted.length;
     const live = vi.fn();
     visitor.fire('lobby:roomExists', roomCode.toLowerCase(), live);
-    expect(live).toHaveBeenCalledExactlyOnceWith(true);
+    expect(live).toHaveBeenCalledExactlyOnceWith(true, undefined, gameRules.id);
     const missing = vi.fn();
     visitor.fire('lobby:roomExists', 'NOPE99', missing);
     expect(missing).toHaveBeenCalledExactlyOnceWith(false);
@@ -728,7 +729,7 @@ describe('lobby:roomExists', () => {
       now = 500;
       const ack = vi.fn();
       visitor.fire('lobby:roomExists', host.data.roomCode, ack);
-      expect(ack).toHaveBeenCalledExactlyOnceWith(true);
+      expect(ack).toHaveBeenCalledExactlyOnceWith(true, undefined, null);
     } finally {
       clock.mockRestore();
     }
