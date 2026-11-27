@@ -15,7 +15,7 @@
 
   const games: GameMeta[] = [
     { id: 'quixx', name: 'Quixx', description: 'Fast-paced dice game', minPlayers: 2, maxPlayers: 5, estimatedMinutes: '15-20', tags: ['dice', 'strategy'], displayModes: ['peer'], supportsBots: true },
-    { id: 'crazy-eights', name: 'Crazy Eights', description: 'Classic card game', minPlayers: 2, maxPlayers: 5, estimatedMinutes: '10-15', tags: ['cards', 'classic'], displayModes: ['peer'] },
+    { id: 'crazy-eights', name: 'Crazy Eights', description: 'Classic card game', minPlayers: 2, maxPlayers: 5, estimatedMinutes: '10-15', tags: ['cards', 'classic'], displayModes: ['peer'], supportsBots: true },
     { id: 'booty-dice', name: 'Booty Dice', description: 'Pirate dice game', minPlayers: 2, maxPlayers: 6, estimatedMinutes: '15-30', tags: ['dice', 'pirates'], displayModes: ['peer'], supportsBots: true },
     { id: 'liars-dice', name: "Liar's Dice", description: 'Bluff and bid dice game', minPlayers: 2, maxPlayers: 6, estimatedMinutes: '15-25', tags: ['dice', 'bluffing'], displayModes: ['peer'], supportsBots: true },
     { id: 'kings-corner', name: 'Kings Corner', description: 'Solitaire-style card game', minPlayers: 2, maxPlayers: 4, estimatedMinutes: '15-25', tags: ['cards', 'classic'], displayModes: ['peer'], supportsBots: true },

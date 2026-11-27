@@ -240,3 +240,53 @@ describe('Crazy Eights absent and removed seats', () => {
     expect(received(h.emitted, stays.data.playerId).at(-1)?.view.gameOver).toBe(true);
   });
 });
+
+describe('Crazy Eights bots', () => {
+  beforeEach(() => vi.useFakeTimers());
+
+  it('lets a solo host finish a game against consecutive bots', async () => {
+    seedRandom(7);
+    const h = createLobbyHarness(crazyEightsDefinition, { humans: 1, bots: 2 });
+    const engine = h.getState()!;
+    const host = h.humans[0];
+    expect(h.botIds).toHaveLength(2);
+
+    const playCard = vi.spyOn(engine, 'playCard');
+    const drawCard = vi.spyOn(engine, 'drawCard');
+    const chooseSuit = vi.spyOn(engine, 'chooseSuit');
+    for (let turns = 0; !engine.isGameOver(); turns++) {
+      expect(turns).toBeLessThan(300);
+      if (engine.getActivePlayerId() === host.data.playerId) {
+        await playTurn(h);
+      } else {
+        await vi.advanceTimersToNextTimerAsync();
+      }
+    }
+
+    for (const botId of h.botIds) {
+      expect(playCard.mock.calls.some(([id]) => id === botId)).toBe(true);
+    }
+    expect(drawCard.mock.calls.some(([id]) => h.botIds.includes(id))).toBe(true);
+    expect(chooseSuit.mock.calls.some(([id]) => h.botIds.includes(id))).toBe(true);
+    expect(h.roomManager.getRoom(h.roomCode)?.status).toBe('finished');
+    expect(received(h.emitted, host.data.playerId).at(-1)?.view.gameOver).toBe(true);
+  });
+
+  it('cancels a pending bot move when the host closes the room', async () => {
+    seedRandom(7);
+    const h = createLobbyHarness(crazyEightsDefinition, { humans: 1, bots: 1 });
+    const engine = h.getState()!;
+    const botId = h.botIds[0];
+    if (engine.getActivePlayerId() !== botId) await playTurn(h);
+    expect(engine.getActivePlayerId()).toBe(botId);
+
+    h.humans[0].fire('room:leave');
+    const view = engine.getPlayerView(botId);
+    h.emitted.length = 0;
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(h.roomManager.getRoom(h.roomCode)).toBeUndefined();
+    expect(engine.getPlayerView(botId)).toEqual(view);
+    expect(h.emitted.filter((e) => e.event === 'game:state')).toEqual([]);
+  });
+});
