@@ -98,6 +98,22 @@
         <p>The first player to empty their hand wins. If no one can play and the draw pile is empty, the player with the <strong>fewest cards</strong> wins.</p>
       </section>
 
+    {:else if gameId === 'hearts'}
+      <section>
+        <h3>Passing</h3>
+        <p>Each player gets 13 cards. Pass three cards left in the first round, right in the second, and across in the third. Keep your hand in the fourth round, then repeat.</p>
+      </section>
+      <section>
+        <h3>Taking Tricks</h3>
+        <p>The 2 of clubs opens the round. Play the same suit if you can. The highest card of that suit wins, and its player leads the next trick. Aces are high.</p>
+        <p>Avoid playing penalty cards on the first trick. If you have only penalty cards and cannot follow suit, play a heart. You may lead hearts once a heart has been played, or if your hand contains only hearts.</p>
+      </section>
+      <section>
+        <h3>Scoring</h3>
+        <p>Each heart you take costs one point. The queen of spades costs 13. Take all 26 points to shoot the moon and give 26 to everyone else.</p>
+        <p>When anyone reaches 100 points, the lowest total wins. Tied players share the win.</p>
+      </section>
+
     {:else if gameId === 'booty-dice'}
       <section>
         <h3>Objective</h3>

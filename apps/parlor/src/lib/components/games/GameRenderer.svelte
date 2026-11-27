@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { lobbyState } from '$lib/stores/lobbyStore.svelte.js';
   import type { GameStateEnvelope } from '@parlor/game-types';
   import type { GameSocket } from '@parlor/multiplayer/client';
   import QuixxGame from '@parlor/quixx/game-view';
   import CrazyEightsGame from '@parlor/crazy-eights/game-view';
   import BootyDiceGame from '@parlor/booty-dice/game-view';
   import LiarsDiceGame from '@parlor/liars-dice/game-view';
+  import HeartsGame from '@parlor/hearts/game-view';
   import KingsCornerGame from '@parlor/kings-corner/game-view';
 
   interface Props {
@@ -27,6 +29,8 @@
   <BootyDiceGame view={state.view} {socket} {playerId} {onBackToLobby} />
 {:else if state.gameId === 'liars-dice'}
   <LiarsDiceGame view={state.view} {socket} {playerId} {onBackToLobby} />
+{:else if state.gameId === 'hearts'}
+  <HeartsGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'kings-corner'}
   <KingsCornerGame view={state.view} {socket} {playerId} {onBackToLobby} />
 {:else}

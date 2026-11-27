@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { heartsMeta } from '@parlor/hearts/meta';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/stores';
@@ -60,6 +61,7 @@
       tags: ['cards', 'classic', 'strategy'],
       displayModes: ['peer'],
     },
+    heartsMeta,
   ];
 
   // Shelf blocks rotate through the palette like box spines (DESIGN.md: Game shelf).
