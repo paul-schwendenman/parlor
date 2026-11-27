@@ -1,6 +1,17 @@
 export const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'] as const;
 export type Suit = (typeof SUITS)[number];
 
+export const SUIT_SYMBOLS: Readonly<Record<Suit, string>> = {
+  hearts: '♥',
+  diamonds: '♦',
+  clubs: '♣',
+  spades: '♠',
+};
+
+export function isRedSuit(suit: Suit): boolean {
+  return suit === 'hearts' || suit === 'diamonds';
+}
+
 export const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const;
 export type Rank = (typeof RANKS)[number];
 
@@ -38,7 +49,12 @@ export function parseCard(value: unknown): Card | null {
   return { suit: validSuit, rank: validRank };
 }
 
+/** Returns 1 through 13, with ace lower than two. */
+export function aceLowRankValue(rank: Rank): number {
+  return RANKS.indexOf(rank) + 1;
+}
+
 /** Returns 2 through 14, with ace higher than king. */
 export function aceHighRankValue(rank: Rank): number {
-  return rank === 'A' ? 14 : RANKS.indexOf(rank) + 1;
+  return rank === 'A' ? 14 : aceLowRankValue(rank);
 }

@@ -1,5 +1,5 @@
 import type { KingsCornerPlayerView, Card, PilePosition } from '../types/game.js';
-import { cardEquals } from '../game/validation.js';
+import { cardEquals } from '@parlor/cards';
 
 class GameState {
   view = $state<KingsCornerPlayerView | null>(null);

@@ -172,6 +172,9 @@ importers:
 
   games/crazy-eights:
     dependencies:
+      '@parlor/cards':
+        specifier: workspace:*
+        version: link:../../packages/cards
       '@parlor/game-types':
         specifier: workspace:*
         version: link:../../packages/game-types
@@ -252,6 +255,9 @@ importers:
 
   games/kings-corner:
     dependencies:
+      '@parlor/cards':
+        specifier: workspace:*
+        version: link:../../packages/cards
       '@parlor/game-types':
         specifier: workspace:*
         version: link:../../packages/game-types

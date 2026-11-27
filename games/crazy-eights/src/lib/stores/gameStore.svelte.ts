@@ -1,5 +1,5 @@
 import type { CrazyEightsPlayerView, Card } from '../types/game.js';
-import { cardEquals } from '../game/validation.js';
+import { cardEquals } from '@parlor/cards';
 
 class GameState {
   view = $state<CrazyEightsPlayerView | null>(null);

@@ -1,13 +1,6 @@
-export const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'] as const;
-export type Suit = (typeof SUITS)[number];
+import type { Card, Suit } from '@parlor/cards';
 
-export const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const;
-export type Rank = (typeof RANKS)[number];
-
-export interface Card {
-  suit: Suit;
-  rank: Rank;
-}
+export { RANKS, SUITS, type Card, type Rank, type Suit } from '@parlor/cards';
 
 export type CrazyEightsPhase = 'playing' | 'choosing-suit' | 'game-over';
 

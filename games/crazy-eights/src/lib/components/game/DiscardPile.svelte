@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { SUIT_SYMBOLS } from '@parlor/cards';
   import type { Card as CardType, Suit } from '../../types/game.js';
   import Card from './Card.svelte';
 
@@ -10,12 +11,6 @@
     declaredSuit: Suit | null;
   } = $props();
 
-  const SUIT_SYMBOLS: Record<string, string> = {
-    hearts: '\u2665',
-    diamonds: '\u2666',
-    clubs: '\u2663',
-    spades: '\u2660',
-  };
 
   const SUIT_COLORS: Record<string, string> = {
     hearts: '#dc2626',

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Card } from '../../types/game.js';
+  import { isRedSuit, SUIT_SYMBOLS, type Card } from '@parlor/cards';
 
   let {
     card,
@@ -19,15 +19,8 @@
     onclick?: () => void;
   } = $props();
 
-  const SUIT_SYMBOLS: Record<string, string> = {
-    hearts: '\u2665',
-    diamonds: '\u2666',
-    clubs: '\u2663',
-    spades: '\u2660',
-  };
-
   let suitSymbol = $derived(SUIT_SYMBOLS[card.suit] ?? '');
-  let isRed = $derived(card.suit === 'hearts' || card.suit === 'diamonds');
+  let isRed = $derived(isRedSuit(card.suit));
 </script>
 
 {#if faceDown}

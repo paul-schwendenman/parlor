@@ -1,21 +1,14 @@
+import { parseCard } from '@parlor/cards';
 import {
   hasExactKeys,
   invalid,
   isOneOf,
-  isRecord,
   typeOnly,
   valid,
   validateByType,
   type ActionValidation,
 } from '@parlor/multiplayer';
-import { ALL_POSITIONS, RANKS, SUITS, type Card, type KingsCornerAction } from '../types/game.js';
-
-/** A fresh `{suit, rank}` built from validated fields, or null. */
-export function parseCard(value: unknown): Card | null {
-  if (!isRecord(value) || !hasExactKeys(value, ['suit', 'rank'])) return null;
-  if (!isOneOf(value.suit, SUITS) || !isOneOf(value.rank, RANKS)) return null;
-  return { suit: value.suit, rank: value.rank };
-}
+import { ALL_POSITIONS, type KingsCornerAction } from '../types/game.js';
 
 const validators: Record<string, (a: Record<string, unknown>) => ActionValidation<KingsCornerAction>> = {
   'play-card': (a) => {

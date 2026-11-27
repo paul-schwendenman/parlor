@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { cardEquals } from '@parlor/cards';
   import type { GameSocket } from '@parlor/multiplayer/client';
   import type { Card, Suit, CrazyEightsPlayerView } from '../../types/game.js';
   import Hand from './Hand.svelte';
@@ -20,10 +21,6 @@
   } = $props();
 
   let selectedCard = $state<Card | null>(null);
-
-  function cardEquals(a: Card, b: Card): boolean {
-    return a.suit === b.suit && a.rank === b.rank;
-  }
 
   function isCardSelected(card: Card): boolean {
     return selectedCard !== null && cardEquals(selectedCard, card);

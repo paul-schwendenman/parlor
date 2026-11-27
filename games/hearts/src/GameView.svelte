@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { cardEquals, type Card, type Suit } from '@parlor/cards';
+  import { cardEquals, isRedSuit, SUIT_SYMBOLS, type Card } from '@parlor/cards';
   import type { GameSocket } from '@parlor/multiplayer/client';
   import type { HeartsAction, HeartsView } from './types.js';
 
@@ -10,7 +10,6 @@
     isHost: boolean;
   } = $props();
 
-  const symbols: Record<Suit, string> = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
   const ranks: Partial<Record<Card['rank'], string>> = { A: 'Ace', J: 'Jack', Q: 'Queen', K: 'King' };
   let selected = $state<Card[]>([]);
   let pending = $state(false);
@@ -55,7 +54,7 @@
 
 {#snippet face(card: Card)}
   <span aria-hidden="true">{card.rank}</span>
-  <span class="suit" aria-hidden="true">{symbols[card.suit]}</span>
+  <span class="suit" aria-hidden="true">{SUIT_SYMBOLS[card.suit]}</span>
 {/snippet}
 
 <div class="hearts">
@@ -113,7 +112,7 @@
           {@const play = view.trick.find((entry) => entry.playerId === player.id)}
           <li>
             {#if play}
-              <span class="card" class:red={play.card.suit === 'hearts' || play.card.suit === 'diamonds'}
+              <span class="card" class:red={isRedSuit(play.card.suit)}
                 class:winning={player.id === view.trickWinnerId}>
                 <span class="sr-only">{label(play.card)}</span>
                 {@render face(play.card)}
@@ -141,7 +140,7 @@
       </div>
       <div class="hand">
         {#each view.myHand as card (`${card.suit}-${card.rank}`)}
-          <button type="button" class="card" class:red={card.suit === 'hearts' || card.suit === 'diamonds'}
+          <button type="button" class="card" class:red={isRedSuit(card.suit)}
             class:received={view.trickNumber === 1 && includes(view.receivedCards, card)}
             aria-label={label(card)} aria-pressed={view.canPass ? includes(selected, card) : undefined}
             disabled={pending || (!view.canPass && !includes(view.playableCards, card))}

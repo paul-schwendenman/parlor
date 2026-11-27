@@ -1,6 +1,5 @@
 <script lang="ts">
-  import type { Suit } from '../../types/game.js';
-  import { SUITS } from '../../types/game.js';
+  import { SUITS, SUIT_SYMBOLS, type Suit } from '@parlor/cards';
 
   let {
     onchoose,
@@ -8,11 +7,11 @@
     onchoose: (suit: Suit) => void;
   } = $props();
 
-  const SUIT_DISPLAY: Record<string, { symbol: string; color: string; name: string }> = {
-    hearts: { symbol: '\u2665', color: '#dc2626', name: 'Hearts' },
-    diamonds: { symbol: '\u2666', color: '#dc2626', name: 'Diamonds' },
-    clubs: { symbol: '\u2663', color: '#1f2937', name: 'Clubs' },
-    spades: { symbol: '\u2660', color: '#1f2937', name: 'Spades' },
+  const SUIT_DISPLAY: Record<Suit, { color: string; name: string }> = {
+    hearts: { color: '#dc2626', name: 'Hearts' },
+    diamonds: { color: '#dc2626', name: 'Diamonds' },
+    clubs: { color: '#1f2937', name: 'Clubs' },
+    spades: { color: '#1f2937', name: 'Spades' },
   };
 </script>
 
@@ -20,13 +19,13 @@
   <div class="suit-picker">
     <h3 class="title">Choose a suit</h3>
     <div class="suits">
-      {#each SUITS as suit}
+      {#each SUITS as suit (suit)}
         <button
           class="suit-btn"
           style="color: {SUIT_DISPLAY[suit].color}"
           onclick={() => onchoose(suit)}
         >
-          <span class="symbol">{SUIT_DISPLAY[suit].symbol}</span>
+          <span class="symbol">{SUIT_SYMBOLS[suit]}</span>
           <span class="name">{SUIT_DISPLAY[suit].name}</span>
         </button>
       {/each}
