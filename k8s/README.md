@@ -7,9 +7,35 @@ Deployment to the cluster is manual — port 6443 is firewalled to the innernet 
 
 ## Deploy a new version
 
+Wait for **Build & Publish Docker Image** on `main` to succeed before starting a
+rollout. The Deployment uses `:main` with `imagePullPolicy: Always`, so a new pod
+pulls the published image when it starts.
+
+If local `kubectl` reports that the server requires credentials, SSH to
+`donnie` and use the `kubectl` already configured for your server account.
+This worked without `sudo` during the November 2026 deploy.
+
 ```bash
+ssh donnie.mesh-network.wg
 kubectl rollout restart deployment/parlor -n parlor
 kubectl rollout status deployment/parlor -n parlor
+```
+
+If `k8s/deployment.yaml` changed, apply the manifest from the published commit
+from your local checkout. A change to the pod template starts the rollout.
+
+```bash
+ssh donnie.mesh-network.wg 'kubectl diff -f -' < k8s/deployment.yaml
+ssh donnie.mesh-network.wg 'kubectl apply -f - && kubectl rollout status deployment/parlor -n parlor' < k8s/deployment.yaml
+```
+
+`kubectl diff` exits with status 1 when it finds changes. After the rollout,
+compare the ready pod's `IMAGE_ID` with the digest in the workflow's **Build and
+push** log and check the public health endpoint.
+
+```bash
+ssh donnie.mesh-network.wg 'kubectl get pods -n parlor -l app=parlor -o custom-columns=NAME:.metadata.name,READY:.status.containerStatuses[0].ready,IMAGE_ID:.status.containerStatuses[0].imageID'
+curl -fsS https://parlor.whatsdoom.com/healthz
 ```
 
 ## Crashes and restarts
