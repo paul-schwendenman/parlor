@@ -44,16 +44,15 @@ function driveTurn(game: Game): void {
   });
 }
 
+/** Resolve an existing roll and advance if the game is still running. */
+function settleTurn(engine: GameEngine): void {
+  if (engine.hasRolledThisTurn()) engine.resolveTurn();
+  engine.endTurn();
+}
+
 /** Score the turn and pass it on. The caller broadcasts. */
 function endTurn(game: Game): void {
-  const engine = game.state;
-  // A turn with no roll (only reachable from server-driven paths such as the AI
-  // timeout fallback; players are rejected earlier) scores nothing.
-  if (engine.hasRolledThisTurn()) {
-    const resolution = engine.resolveTurn();
-    if (resolution.winner) return;
-  }
-  engine.endTurn();
+  settleTurn(game.state);
   driveTurn(game);
 }
 
@@ -107,17 +106,15 @@ async function handleAITurn(game: Game): Promise<void> {
 }
 
 /**
- * The stand-in for an absent player whose turn it is (disconnected in grace).
- * It must not penalise them, so the turn simply ends: nothing they may have
- * rolled is resolved, which means no score but also no self-inflicted loss
- * (X Marks the Spot, Walk the Plank) and no attacks. Returns false when it was
- * not their turn.
+ * End the absent player's turn without making any more choices. A turn that
+ * has already rolled resolves normally. Targeted dice only apply when the
+ * player already chose a target. A turn that never rolled is simply passed.
  */
 function standInTurn(engine: GameEngine, playerId: string): boolean {
   const state = engine.getState();
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (currentPlayer.id !== playerId || state.phase !== 'playing') return false;
-  engine.endTurn();
+  settleTurn(engine);
   return true;
 }
 

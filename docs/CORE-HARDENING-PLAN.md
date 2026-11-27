@@ -332,7 +332,7 @@ The reasoning:
       - **Crazy Eights:** passes without drawing. If the player had played an eight, the stand-in still picks a suit.
       - **Liar's Dice:** never challenges or calls spot-on. It opens with 1×2, or makes the lowest-quantity legal raise. At equal quantity it prefers a non-1 face.
       - **Kings Corner:** plays any mandatory kings (which only shrinks the hand), then passes, with no draw.
-      - **Booty Dice:** ends the turn without resolving any dice they rolled: no score, no self-damage, no attacks.
+      - **Booty Dice:** passes unrolled turns. If the player had rolled, the stand-in resolves the roll and any attacks or steals whose target was already chosen.
       - **Quixx:** an absent active seat takes no phase-2 penalty. In player-roll mode the roll is still made for them.
       - **Bot-timeout fallbacks are unchanged.**
     - **Fixes:**
@@ -415,7 +415,7 @@ Rules questions and smaller bugs found during the work. Come back to these once 
 - [ ] **Kings Corner empty draw pile:** with the draw pile empty, turns can loop forever with everyone present. The user is checking the official rules; Crazy Eights reshuffles, but Kings Corner may differ. (Found in 3.9.)
 - [x] **Kings Corner bot-timeout fallback.** When the bot wins by playing its last king, the fallback preserves `game-over`, marks the room finished through the normal broadcast, and sends the winning view. (Found in 3.9.)
 - [x] **`room:leave` and `lobby:spectate` UI.** Parlor has a Watch as spectator option using the room code and a Leave room button in the lobby and game. Spectators joining a live game receive the current public view immediately. Playwright covers late joins, leaving, host transfer, room closure and Quixx spectator rendering.
-- [ ] **Booty Dice dodge:** because grace-window stand-ins don't resolve rolled dice, a player can disconnect right after a bad roll to skip its resolution, then return within grace. They lose that turn's good dice too. Decide whether that matters. (Found in 3.9.)
+- [x] **Booty Dice disconnect after rolling.** The stand-in resolves existing dice exactly once, including gains, losses and effects whose targets were already chosen. It passes unrolled turns and makes no targeting decisions. (Found in 3.9.)
 
 ---
 

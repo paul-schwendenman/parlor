@@ -228,20 +228,40 @@ describe('Booty Dice absent and removed seats (plan 3.9)', () => {
     expect(currentId(engine)).toBe(other.data.playerId);
   });
 
-  it('a player who disconnects after rolling has the turn ended unresolved: no score, no loss', async () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0.4);
+  it.each([false, true])('resolves an interrupted roll with a selected target: %s', async (selectTarget) => {
     const h = createLobbyHarness(bootyDiceDefinition, { humans: 3, graceMs: 60_000 });
     const engine = h.getState()!;
-    const active = h.humans.find((s) => s.data.playerId === currentId(engine))!;
+    const playerId = currentId(engine);
+    const active = h.humans.find((socket) => socket.data.playerId === playerId)!;
+    const opponents = h.humans.filter((socket) => socket !== active);
+    const [target, other] = opponents.map((socket) => socket.data.playerId);
+    const random = vi.spyOn(Math, 'random');
+    // Two plank faces, treasure, shield and two cutlasses.
+    for (const index of [4, 4, 1, 5, 3, 3]) random.mockReturnValueOnce((index + 0.5) / 6);
     expect(await h.send(active, { type: 'roll' })).toEqual({ ok: true });
-    const seat = () => engine.getState().players.find((p) => p.id === active.data.playerId)!;
-    const before = (({ doubloons, lives, shields }) => ({ doubloons, lives, shields }))(seat());
-    const others = engine.getState().players.filter((p) => p.id !== active.data.playerId);
+    if (selectTarget) {
+      expect(await h.send(active, { type: 'finishRolling' })).toEqual({ ok: true });
+      expect(await h.send(active, { type: 'selectTarget', dieIndex: 4, targetPlayerId: target })).toEqual({ ok: true });
+    }
 
+    const seat = (id: string) => engine.getState().players.find((player) => player.id === id);
+    const turn = engine.getState().turnNumber;
     active.fire('disconnect');
-    expect(currentId(engine)).not.toBe(active.data.playerId);
-    expect(seat()).toMatchObject(before);
-    // Nothing was resolved against anyone else either.
-    expect(engine.getState().players.filter((p) => p.id !== active.data.playerId)).toEqual(others);
+    expect(currentId(engine)).not.toBe(playerId);
+    expect(engine.getState().turnNumber).toBe(turn + 1);
+    const expected = { lives: 8, doubloons: 3, shields: 1 };
+    expect(seat(playerId)).toMatchObject(expected);
+    expect(seat(target)?.lives).toBe(selectTarget ? 9 : 10);
+    expect(seat(other)?.lives).toBe(10);
+    const view = received(h.emitted, target).at(-1)?.view;
+    expect(view?.players.find((player) => player.id === playerId)).toMatchObject(expected);
+    expect(view?.turnNumber).toBe(turn + 1);
+
+    const returned = h.connect('returning-pirate');
+    const ack = vi.fn();
+    returned.fire('player:reconnect', h.roomCode, playerId, h.tokens.get(playerId), ack);
+    expect(ack).toHaveBeenCalledWith(true, expect.any(String));
+    expect(seat(playerId)).toMatchObject({ ...expected, isConnected: true });
+    expect(engine.getState().turnNumber).toBe(turn + 1);
   });
 });
