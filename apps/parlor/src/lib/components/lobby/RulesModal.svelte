@@ -54,15 +54,19 @@
 
       <section>
         <h3>Scoring</h3>
-        <p>More marks in a row = exponentially more points:</p>
-        <div class="scoring-table">
-          <span>1 mark = 1pt</span>
-          <span>2 = 3pt</span>
-          <span>3 = 6pt</span>
-          <span>4 = 10pt</span>
-          <span>5 = 15pt</span>
-          <span>...</span>
-        </div>
+        <p>Each row scores by how many boxes you crossed in it. The lock counts as one more cross.</p>
+        {#each [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]] as range, half (half)}
+          <div class="score-scale" role="table" aria-label="Points for {range[0]} to {range[5]} crosses in one row">
+            <div class="scale-row" role="row">
+              <span class="scale-head" role="rowheader">Crosses</span>
+              {#each range as n (n)}<span class="scale-n" role="cell">{n}</span>{/each}
+            </div>
+            <div class="scale-row" role="row">
+              <span class="scale-head" role="rowheader">Points</span>
+              {#each range as n (n)}<span class="scale-pts" role="cell">{(n * (n + 1)) / 2}</span>{/each}
+            </div>
+          </div>
+        {/each}
         <p>Each penalty costs <strong>-5 points</strong>. The game ends when a player has 4 penalties or 2 rows are locked.</p>
       </section>
 
@@ -273,24 +277,60 @@
     vertical-align: middle;
   }
 
-  .color-dot.red { background: #ef4444; }
-  .color-dot.yellow { background: #eab308; }
-  .color-dot.green { background: #22c55e; }
-  .color-dot.blue { background: #3b82f6; }
+  .color-dot.red { background: #B8372B; }
+  .color-dot.yellow { background: #D4A843; }
+  .color-dot.green { background: #3F7350; }
+  .color-dot.blue { background: #2F5C8A; }
 
-  .scoring-table {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    font-size: 0.8rem;
-    color: var(--color-ink-muted);
-    margin: 0.25rem 0 0.5rem;
+  /* Crosses over points, in two blocks of six so every number stays
+     readable at phone width. */
+  .score-scale {
+    margin: 0.5rem 0;
+    border: 2px solid var(--color-espresso);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--color-paper);
   }
 
-  .scoring-table span {
+  .score-scale + .score-scale {
+    margin-bottom: 0.75rem;
+  }
+
+  .scale-row {
+    display: grid;
+    grid-template-columns: 4.75rem repeat(6, minmax(0, 1fr));
+  }
+
+  .scale-row + .scale-row {
+    border-top: 2px solid var(--color-espresso);
+  }
+
+  .scale-head,
+  .scale-n,
+  .scale-pts {
+    padding: 0.4rem 0.25rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scale-head {
+    padding-left: 0.6rem;
+    text-align: left;
     background: var(--color-linen);
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
+    border-right: 2px solid var(--color-espresso);
+    font-size: 0.8125rem;
+    font-weight: 700;
+  }
+
+  .scale-n {
+    font-weight: 600;
+    color: var(--color-ink-muted);
+  }
+
+  .scale-pts {
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.0625rem;
   }
 
   .dice-list {
