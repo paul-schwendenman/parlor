@@ -112,7 +112,7 @@
 </script>
 
 {#if view.gameOver && view.scores}
-  <GameOverScreen scores={view.scores} players={view.players} myPlayerId={playerId} />
+  <GameOverScreen {socket} scores={view.scores} players={view.players} myPlayerId={playerId} />
 {:else}
   <div class="game-page">
     <TurnBanner

@@ -416,6 +416,7 @@ Rules questions and smaller bugs found during the work. Come back to these once 
 - [x] **Kings Corner bot-timeout fallback.** When the bot wins by playing its last king, the fallback preserves `game-over`, marks the room finished through the normal broadcast, and sends the winning view. (Found in 3.9.)
 - [x] **`room:leave` and `lobby:spectate` UI.** Parlor has a Watch as spectator option using the room code and a Leave room button in the lobby and game. Spectators joining a live game receive the current public view immediately. Playwright covers late joins, leaving, host transfer, room closure and Quixx spectator rendering.
 - [x] **Booty Dice disconnect after rolling.** The stand-in resolves existing dice exactly once, including gains, losses and effects whose targets were already chosen. It passes unrolled turns and makes no targeting decisions. (Found in 3.9.)
+- [x] **Game-over socket in parlor.** The Crazy Eights and Quixx `GameOverScreen` called their standalone `getSocket()`, which opened a second socket inside parlor. That socket took over the seat, so "Play Again" and "Back to Lobby" did nothing. Both now emit on the `socket` prop passed down from `GameView`, as Kings Corner already did. Covered by `apps/parlor/e2e/gameOverSocket.test.ts`. (Found after 3.5.)
 
 ---
 

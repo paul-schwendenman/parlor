@@ -1,12 +1,14 @@
 <script lang="ts">
   import type { CrazyEightsPlayerInfo } from '../../types/game.js';
-  import { getSocket } from '../../stores/socketClient.js';
+  import type { GameSocket } from '@parlor/multiplayer/client';
 
   let {
+    socket,
     winner,
     players,
     myPlayerId,
   }: {
+    socket: GameSocket<'crazy-eights'>;
     winner: { id: string; name: string } | null;
     players: CrazyEightsPlayerInfo[];
     myPlayerId: string;
@@ -17,11 +19,11 @@
   );
 
   function playAgain() {
-    getSocket().emit('lobby:restartGame');
+    socket.emit('lobby:restartGame');
   }
 
   function backToLobby() {
-    getSocket().emit('lobby:resetGame');
+    socket.emit('lobby:resetGame');
   }
 </script>
 

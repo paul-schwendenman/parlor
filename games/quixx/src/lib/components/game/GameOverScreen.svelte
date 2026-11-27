@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { PlayerScore, RowColor, Scoresheet } from '../../types/game.js';
-  import { getSocket } from '../../stores/socketClient.js';
+  import type { GameSocket } from '@parlor/multiplayer/client';
   import ScoresheetViewer from './ScoresheetViewer.svelte';
 
   interface PlayerData {
@@ -12,10 +12,12 @@
   }
 
   let {
+    socket,
     scores,
     players,
     myPlayerId,
   }: {
+    socket: GameSocket<'quixx'>;
     scores: PlayerScore[];
     players: PlayerData[];
     myPlayerId: string;
@@ -25,11 +27,11 @@
   let viewerInitialPlayer = $state(myPlayerId);
 
   function playAgain() {
-    getSocket().emit('lobby:restartGame');
+    socket.emit('lobby:restartGame');
   }
 
   function backToLobby() {
-    getSocket().emit('lobby:resetGame');
+    socket.emit('lobby:resetGame');
   }
 
   function openViewer(playerId: string) {

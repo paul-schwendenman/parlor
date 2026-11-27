@@ -56,7 +56,7 @@
 </script>
 
 {#if view.gameOver}
-  <GameOverScreen winner={view.winner} players={view.players} myPlayerId={playerId} />
+  <GameOverScreen {socket} winner={view.winner} players={view.players} myPlayerId={playerId} />
 {:else}
   <div class="game-page">
     <TurnBanner
