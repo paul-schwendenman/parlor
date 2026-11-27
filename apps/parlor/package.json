@@ -16,6 +16,7 @@
   "dependencies": {
     "@parlor/booty-dice": "workspace:*",
     "@parlor/crazy-eights": "workspace:*",
+    "@parlor/euchre": "workspace:*",
     "@parlor/game-types": "workspace:*",
     "@parlor/hearts": "workspace:*",
     "@parlor/kings-corner": "workspace:*",

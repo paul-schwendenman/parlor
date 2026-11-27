@@ -140,6 +140,23 @@
         <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
       </section>
 
+    {:else if gameId === 'euchre'}
+      <section>
+        <h3>Calling Trump</h3>
+        <p>Partners sit across from each other and each player gets five cards. Order up the face-up card to make its suit trump, then the dealer takes the card and discards one.</p>
+        <p>If everyone passes, choose from the other three suits. If the decision gets back to the dealer again, the dealer must name trump.</p>
+      </section>
+      <section>
+        <h3>The Bowers</h3>
+        <p>The jack of trump is the right bower, the strongest card. The other jack of the same color is the left bower. It ranks second and counts as trump when following suit.</p>
+        <p>Follow suit when you can. The highest trump takes the trick, or the highest card of the led suit if no one played trump. The winner leads the next trick.</p>
+      </section>
+      <section>
+        <h3>Scoring</h3>
+        <p>Take three or four tricks as makers for one point, or all five for two. If the makers take fewer than three, the defenders score two.</p>
+        <p>Call trump alone to sit out your partner. A lone sweep scores four points. The first team to 10 wins.</p>
+      </section>
+
     {:else if gameId === 'spades'}
       <section>
         <h3>Bidding</h3>

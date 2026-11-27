@@ -7,6 +7,7 @@ import { crazyEightsDefinition } from '@parlor/crazy-eights/server-definition';
 import { bootyDiceDefinition } from '@parlor/booty-dice/server-definition';
 import { liarsDiceDefinition } from '@parlor/liars-dice/server-definition';
 import { spadesDefinition } from '@parlor/spades/server-definition';
+import { euchreDefinition } from '@parlor/euchre/server-definition';
 import { heartsDefinition } from '@parlor/hearts/server-definition';
 import { kingsCornerDefinition } from '@parlor/kings-corner/server-definition';
 
@@ -18,4 +19,5 @@ export function registerAllGames(): void {
 	registerGame(kingsCornerDefinition);
 	registerGame(heartsDefinition);
 	registerGame(spadesDefinition);
+	registerGame(euchreDefinition);
 }
