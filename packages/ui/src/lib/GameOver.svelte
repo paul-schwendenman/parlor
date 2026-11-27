@@ -3,6 +3,7 @@
    * The end-of-game screen every board shares: who won on felt, the final
    * standings as outlined rows, then Play again / Back to lobby.
    */
+  import type { Snippet } from 'svelte';
   import Button from './Button.svelte';
   import { seatTone, initial, type Standing } from './seat.js';
 
@@ -15,9 +16,11 @@
     standings: Standing[];
     onplayagain?: () => void;
     onlobby?: () => void;
+    /** Game-specific extras between the standings and the actions. */
+    more?: Snippet;
   }
 
-  let { headline, detail, standings, onplayagain, onlobby }: Props = $props();
+  let { headline, detail, standings, onplayagain, onlobby, more }: Props = $props();
 
   function ordinal(n: number): string {
     return n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`;
@@ -53,6 +56,8 @@
       </li>
     {/each}
   </ol>
+
+  {@render more?.()}
 
   {#if onplayagain || onlobby}
     <div class="actions">

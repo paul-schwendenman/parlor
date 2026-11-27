@@ -159,7 +159,7 @@ Parlor should feel like the lid of a well-made board game: printed in flat color
 
 Density is low and the targets are large. Parlor is played on phones held at arm's length and on laptops propped on a kitchen table, usually while people are also talking to each other. So everything is generous and every action is a big, obvious pill. Hierarchy comes from weight and color blocks, not from fine grey type or subtle depth. Expression sits in a few signature moves: the lid, the letter-tile room code, the ink outline and the color-blocked game shelf. Everything else stays plain so those moves read clearly.
 
-**Implementation status.** The Parlor app shell (home, lobby, game frame) and the shared `@parlor/ui` components follow this system. Game boards under `games/*` are migrated to the shared board kit one game at a time (Crazy Eights and Kings Corner done 2026-11-27); where a board and this file disagree, this file wins. See Game boards.
+**Implementation status.** The Parlor app shell (home, lobby, game frame) and the shared `@parlor/ui` components follow this system. Game boards under `games/*` are migrated to the shared board kit one game at a time (Crazy Eights, Kings Corner and Quixx done 2026-11-27); where a board and this file disagree, this file wins. See Game boards.
 
 **Key Characteristics:**
 - Terracotta "lid" header on every main screen, outlined at the bottom in ink.
@@ -309,7 +309,7 @@ Every game is a box in the same collection. The boards don't share a colour sche
 **Owned by each game:**
 - **Its colour** is its shelf spine on the home page: Quixx felt, Crazy Eights mustard, Booty Dice clay, Liar's Dice espresso, Kings Corner linen. It shows up on the game's printed pieces (card backs, dice, sheet headers), not as a second lid.
 - **Its playing surface**: card games play on `Felt` (felt-well inset, ink outline, 18px corners), with the stock as `DrawPile` and the hand as `CardHand` (one overlapping row, selected card lifts on butter); Quixx on a printed paper scoresheet; the pirate games on espresso "night table" blocks with cream text. A surface is always an outlined block on cream, never a full-page theme.
-- **Its pieces**: cards are `PlayingCard` (paper stock, ink outline, Nunito index top-left, drawn SVG suits, backs printed in the game's colour via `--card-back`). A mustard ring always means "you can act here" (a drawable stock, a pile a picked card can go to); butter means "picked up". Dice and sheets follow the same printed-ink rules.
+- **Its pieces**: cards are `PlayingCard` (paper stock, ink outline, Nunito index top-left, drawn SVG suits, backs printed in the game's colour via `--card-back`). A mustard ring always means "you can act here" (a drawable stock, a pile a picked card can go to); butter means "picked up". Dice are printed too: ink outline, drawn SVG pips, white dice on paper and coloured dice in their row ink. Quixx's scoresheet is four ink bands of tinted boxes (row inks in `games/quixx/.../inks.css`, each tuned to 4.5:1); boxes you can cross are paper with an ink outline, the picked box is ink-filled (butter would vanish on the yellow row), crosses are pen strokes, and boxes left of your last cross fade out.
 
 **The Collection Rule.** If two games show the same kind of thing (whose turn it is, who's at the table, how it ended), they show it with the same component. A game's own identity goes into its pieces and its surface, never into the chrome around them.
 

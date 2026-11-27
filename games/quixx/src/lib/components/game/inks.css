@@ -1,0 +1,17 @@
+/*
+ * Quixx's four printed row inks, with the tints the boxes are printed on and
+ * the ink their numbers use (each pair passes 4.5:1). Used by the board and by
+ * the scoresheet viewer, which renders in a dialog outside the board.
+ */
+.quixx-inks {
+  --row-red: #B8372B;
+  --row-red-tint: #F5D9D2;
+  --row-red-ink: #8E2A20;
+  --row-yellow: var(--color-mustard);
+  --row-yellow-tint: var(--color-mustard-tint);
+  --row-green: #3F7350;
+  --row-green-tint: #DCE7D9;
+  --row-blue: #2F5C8A;
+  --row-blue-tint: #D8E2EC;
+  --row-blue-ink: #24496F;
+}

@@ -219,8 +219,8 @@ are per process and reset when it restarts.
 ## Suggested Phased Approach
 
 ### Phase 1: Development (Now)
-- Run everything locally with `turbo dev`
-- Each game is a standalone SvelteKit app with embedded Socket.io server
+- Run Parlor and its shared package watchers locally with `pnpm dev`.
+- To run a standalone game server, use `pnpm --filter @parlor/quixx dev`, substituting the package name for the game you're working on.
 - No deployment needed yet
 
 ### Phase 2: First Deploy (Quixx ready)
