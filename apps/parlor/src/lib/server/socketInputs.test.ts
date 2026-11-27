@@ -111,6 +111,7 @@ const cases = {
 	'lobby:keepGame': { reply: [false, 'This vote has closed. Use the current lobby to vote again.'] },
 	'lobby:roomExists': { reply: [false] },
 	'lobby:removeBot': { reply: [false, 'Invalid bot id'] },
+	'lobby:transferHost': { reply: [false, 'Invalid player id'] },
 	'player:reconnect': { reply: [false] },
 	'lobby:addBot': {},
 	'lobby:startGame': { error: unexpectedArguments },

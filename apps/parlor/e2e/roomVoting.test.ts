@@ -39,7 +39,7 @@ test('friends vote together and the host plays a tied game', async ({ page, brow
 			.toHaveAccessibleDescription('Crazy Eights: 1 vote, Friend.');
 
 		// A tie the host hasn't voted in goes to the first tied game on the shelf.
-		await expect(page.getByText('Tied · Quixx, Crazy Eights', { exact: true })).toBeVisible();
+		await expect(page.getByText('Tied · Quixx, Crazy Eights, 1 vote each', { exact: true })).toBeVisible();
 		await expect(page.getByText('Tied with Crazy Eights. Vote to break the tie.', { exact: true })).toBeVisible();
 		// Guests only ever vote: no Play button, and no Play in the rules sheet,
 		// where their vote shows as a pressed toggle.
@@ -54,11 +54,11 @@ test('friends vote together and the host plays a tied game', async ({ page, brow
 		// When the host's own vote is one of the tied games, Play follows it.
 		const heartsVote = page.getByRole('button', { name: 'Vote for Hearts', exact: true });
 		await heartsVote.click();
-		await expect(page.getByText('Tied · Quixx, Crazy Eights, Hearts', { exact: true })).toBeVisible();
+		await expect(page.getByText('Tied · Quixx, Crazy Eights, Hearts, 1 vote each', { exact: true })).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Play Hearts', exact: true })).toBeEnabled();
 		await heartsVote.click();
 		await expect(heartsVote).toHaveAttribute('aria-pressed', 'false');
-		await expect(page.getByText('Tied · Quixx, Crazy Eights', { exact: true })).toBeVisible();
+		await expect(page.getByText('Tied · Quixx, Crazy Eights, 1 vote each', { exact: true })).toBeVisible();
 		await page.getByRole('button', { name: 'Play Quixx', exact: true }).click();
 		await expect(page.getByRole('heading', { name: 'Quixx', exact: true })).toBeFocused();
 		await expect(guest.getByRole('heading', { name: 'Quixx', exact: true })).toBeVisible();
@@ -79,6 +79,8 @@ test('friends vote together and the host plays a tied game', async ({ page, brow
 		await expect(guest.getByRole('button', { name: 'Vote for Hearts', exact: true })).toBeVisible();
 		await expect(guest.getByText(/^[1-9]\d* votes?$/)).toHaveCount(0);
 		await expect(guest.getByRole('button', { name: /^Keep / })).toHaveCount(0);
+		// Readiness shows while choosing again: the strip says who is ready.
+		await expect(page.locator('.strip-avatars').getByText('Friend, ready', { exact: true })).toBeAttached();
 		await page.getByRole('button', { name: 'Keep Quixx', exact: true }).click();
 		await expect(page.getByRole('heading', { name: 'Quixx', exact: true })).toBeFocused();
 		await expect(friend.getByRole('button', { name: 'Not ready', exact: true })).toBeVisible();
@@ -92,5 +94,70 @@ test('friends vote together and the host plays a tied game', async ({ page, brow
 		await expect(friend.getByRole('button', { name: 'Ready', exact: true })).toBeVisible();
 	} finally {
 		await Promise.all(guestContexts.map(context => context.close()));
+	}
+});
+
+test('rules open from the confirmed game, and a room that outgrows it cannot keep it', async ({ page, browser }) => {
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Create a room', exact: true }).click();
+	const dialog = page.getByRole('dialog');
+	await dialog.getByLabel('Your name').fill('Host');
+	await dialog.getByRole('button', { name: 'Create Room' }).click();
+	await expect(page.getByRole('heading', { name: 'Vote on a game' })).toBeVisible();
+	// Alone, the standing line asks for an invite first.
+	await expect(page.getByText('Share the code so others can join. You can vote while you wait.', { exact: true })).toBeVisible();
+	await expect(page.getByText('Needs 1 more player', { exact: true })).toHaveCount(0);
+	const roomCode = new URL(page.url()).pathname.split('/').pop();
+
+	const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+	try {
+		const guest = await context.newPage();
+		await guest.goto('/?join=' + roomCode);
+		await guest.getByLabel('Your name').fill('Guest');
+		await guest.getByRole('button', { name: 'Join', exact: true }).click();
+		await expect(guest.getByRole('heading', { name: 'Vote on a game' })).toBeVisible();
+
+		await guest.getByRole('button', { name: 'Vote for Hearts', exact: true }).click();
+		await expect(page.getByText('Leading · Hearts, 1 vote (needs 2 more players)', { exact: true })).toBeVisible();
+		await page.getByRole('button', { name: 'Play Hearts', exact: true }).click();
+		await page.getByRole('button', { name: 'Add bot to seat 3', exact: true }).click();
+		await page.getByRole('button', { name: 'Add bot to seat 4', exact: true }).click();
+		await guest.getByRole('button', { name: 'Ready', exact: true }).click();
+		await expect(page.getByText("Everyone's ready", { exact: true })).toBeVisible();
+
+		// Rules from the panel: guests only close; the host can change the game.
+		await guest.getByRole('button', { name: 'How to play Hearts', exact: true }).click();
+		const guestRules = guest.getByRole('dialog');
+		await expect(guestRules.getByRole('heading', { name: 'How to play Hearts' })).toBeVisible();
+		await expect(guestRules.getByRole('button')).toHaveText(['Close']);
+		await guestRules.getByRole('button', { name: 'Close', exact: true }).click();
+		await page.getByRole('button', { name: 'How to play Hearts', exact: true }).click();
+		const hostRules = page.getByRole('dialog');
+		await expect(hostRules.getByRole('button', { name: /^Vote|^Play / })).toHaveCount(0);
+		await hostRules.getByRole('button', { name: 'Change game', exact: true }).click();
+		await expect(page.getByRole('heading', { name: 'Vote on a game' })).toBeFocused();
+		await expect(page.getByRole('button', { name: 'Keep Hearts', exact: true })).toBeVisible();
+
+		// Six at a four-seat game: Hearts loses its lead and Keep says why.
+		const addBot = page.locator('.table-strip').getByRole('button', { name: 'Add bot', exact: true });
+		await addBot.click();
+		await expect(page.getByText('5 players', { exact: true })).toBeVisible();
+		await addBot.click();
+		await expect(page.getByText('6 players', { exact: true })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Keep Hearts', exact: true })).toHaveCount(0);
+		await expect(page.getByText('Hearts seats 4. Remove 2 bots to keep it.', { exact: true })).toBeVisible();
+		await expect(page.getByText('No votes yet', { exact: true })).toBeVisible();
+		await expect(guest.getByText("Host is choosing again. Hearts seats 4, so it can't stay as things are.", { exact: true })).toBeVisible();
+
+		// Removing the extra bots makes it keepable again.
+		await page.getByRole('button', { name: /^Remove Bot / }).first().click();
+		await expect(page.getByText('Hearts seats 4. Remove 1 bot to keep it.', { exact: true })).toBeVisible();
+		await page.getByRole('button', { name: /^Remove Bot / }).first().click();
+		await expect(page.getByText('Leading · Hearts (current game)', { exact: true })).toBeVisible();
+		await page.getByRole('button', { name: 'Keep Hearts', exact: true }).click();
+		await expect(page.getByRole('heading', { name: 'Hearts', exact: true })).toBeFocused();
+		await expect(guest.getByRole('button', { name: 'Not ready', exact: true })).toBeVisible();
+	} finally {
+		await context.close();
 	}
 });

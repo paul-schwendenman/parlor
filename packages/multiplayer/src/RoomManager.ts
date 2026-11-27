@@ -10,6 +10,8 @@ import { generateRoomCode } from './utils.js';
 const MAX_ROOMS = 512;
 const MAX_SPECTATORS = 16;
 const ROOM_CODE_ATTEMPTS = 16;
+/** How long a disconnected host keeps the role before it passes on. */
+const HOST_GRACE_MS = 10_000;
 
 type GameRules = Pick<GameMeta, 'id' | 'minPlayers' | 'maxPlayers' | 'supportsBots'>;
 
@@ -52,6 +54,19 @@ export interface ExpiryOutcome {
   roomDestroyed: boolean;
 }
 
+/**
+ * Reported when a disconnected host's grace ends and the role passes to a
+ * connected human (plan 8.7). Not reported when nobody connected is left to
+ * take it: the first human back then becomes host.
+ */
+export interface HostHandoffOutcome {
+  roomCode: string;
+  previousHostId: string;
+  newHostId: string;
+}
+
+export type TransferHostResult = { success: true } | { success: false; error: string };
+
 export interface CreateRoomResult {
   roomCode: string;
   playerId: string;
@@ -87,12 +102,20 @@ export class RoomManager {
   private spectatorToRoom = new Map<string, string>();
   /** playerId -> pending disconnect grace timer */
   private disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** roomCode -> pending hand-off of a disconnected host's role */
+  private hostHandoffTimers = new Map<string, { playerId: string; timer: ReturnType<typeof setTimeout> }>();
   private botCounter = 0;
 
-  /** @param graceMs disconnect grace window before a player is really removed. */
+  /**
+   * @param graceMs disconnect grace window before a player is really removed.
+   * @param hostGraceMs how long a disconnected host keeps the role before it
+   *   passes to a connected human. Never longer than `graceMs` by default:
+   *   seat expiry reassigns the host anyway.
+   */
   constructor(
     private readonly graceMs = 60_000,
     private readonly randomInt: RandomInt = secureRandomInt,
+    private readonly hostGraceMs = Math.min(HOST_GRACE_MS, graceMs),
   ) {}
 
   static isBotPlayer(id: string): boolean {
@@ -449,6 +472,38 @@ export class RoomManager {
     return room?.hostId === playerId;
   }
 
+  /**
+   * The host hands the role to another player (plan 8.6). Only in the lobby:
+   * the in-game host actions (play again, back to lobby) are covered by the
+   * automatic hand-off, and the lobby is where the player list lives.
+   */
+  transferHost(roomCode: string, fromPlayerId: string, toPlayerId: string): TransferHostResult {
+    const room = this.getRoom(roomCode);
+    if (!room) return { success: false, error: 'Room not found' };
+    if (room.hostId !== fromPlayerId || !room.players.get(fromPlayerId)?.connected) {
+      return { success: false, error: 'Only the host can pass the host role on' };
+    }
+    if (room.status !== 'waiting') {
+      return { success: false, error: 'You can pass the host role on in the lobby, between games' };
+    }
+    if (toPlayerId === fromPlayerId) return { success: false, error: 'You are already the host' };
+    const target = room.players.get(toPlayerId);
+    if (!target) return { success: false, error: 'That player is not in this room' };
+    if (target.isBot || RoomManager.isBotPlayer(toPlayerId)) {
+      return { success: false, error: 'A bot cannot be the host' };
+    }
+    if (this.playerToRoom.get(toPlayerId) !== room.code) {
+      return { success: false, error: 'That player is not in this room' };
+    }
+    if (!target.connected) {
+      return { success: false, error: `${target.name} is offline. Try again when they are back.` };
+    }
+
+    room.hostId = toPlayerId;
+    this.clearHostHandoff(room.code);
+    return { success: true };
+  }
+
   selectGame(roomCode: string, rules: GameRules | null): boolean {
     const room = this.getRoom(roomCode);
     if (!room || room.status !== 'waiting' || (rules && room.players.size > rules.maxPlayers)) return false;
@@ -489,6 +544,8 @@ export class RoomManager {
     room.reconnectTokens.delete(playerId);
     this.playerToRoom.delete(playerId);
     this.clearDisconnectTimer(playerId);
+    // Removal reassigns the host below; a pending delayed hand-off must not run too.
+    if (wasHost) this.clearHostHandoff(room.code);
 
     const humans = [...room.players.values()].filter((p) => !p.isBot);
     if (humans.length === 0) {
@@ -519,6 +576,7 @@ export class RoomManager {
       recordMetric('caughtRoomFailures');
       logServerError('room_destroy_callback_failed', context, error);
     }
+    this.clearHostHandoff(room.code);
     for (const pid of room.players.keys()) {
       this.clearDisconnectTimer(pid);
       this.playerToRoom.delete(pid);
@@ -539,6 +597,49 @@ export class RoomManager {
       clearTimeout(timer);
       this.disconnectTimers.delete(playerId);
     }
+  }
+
+  private clearHostHandoff(roomCode: string): void {
+    const pending = this.hostHandoffTimers.get(roomCode);
+    if (pending) {
+      clearTimeout(pending.timer);
+      this.hostHandoffTimers.delete(roomCode);
+    }
+  }
+
+  /**
+   * A disconnected host keeps the role for `hostGraceMs`, so a quick reconnect
+   * (a page reload, a network switch) doesn't hand it away (plan 8.7). When the
+   * window ends the role goes to a connected human chosen at that moment.
+   */
+  private scheduleHostHandoff(
+    roomCode: string,
+    playerId: string,
+    onHostChange?: (outcome: HostHandoffOutcome) => void,
+  ): void {
+    this.clearHostHandoff(roomCode);
+    const timer = setTimeout(() => {
+      this.hostHandoffTimers.delete(roomCode);
+      const outcome = this.handOffHost(roomCode, playerId);
+      if (outcome) onHostChange?.(outcome);
+    }, this.hostGraceMs);
+    (timer as { unref?: () => void }).unref?.();
+    this.hostHandoffTimers.set(roomCode, { playerId, timer });
+  }
+
+  private handOffHost(roomCode: string, playerId: string): HostHandoffOutcome | null {
+    const room = this.rooms.get(roomCode);
+    // The host came back, left, or the role already moved: nothing to do.
+    if (!room || room.hostId !== playerId || room.players.get(playerId)?.connected) return null;
+    const next = [...room.players.values()].find((p) => !p.isBot && p.connected);
+    if (!next) return null;
+    room.hostId = next.id;
+    return { roomCode, previousHostId: playerId, newHostId: next.id };
+  }
+
+  /** True while a disconnected host still holds the role (the 8.7 window). */
+  hasPendingHostHandoff(roomCode: string): boolean {
+    return this.hostHandoffTimers.has(roomCode.toUpperCase());
   }
 
   private scheduleDisconnectTimer(
@@ -569,9 +670,15 @@ export class RoomManager {
     return { roomCode, playerId, wasInGame, wasHost, newHostId, roomDestroyed };
   }
 
+  /**
+   * @param onExpire the seat's grace ended and the player was removed.
+   * @param onHostChange the disconnected host's short grace ended and the role
+   *   moved to a connected human.
+   */
   handleDisconnect(
     socketId: string,
     onExpire?: (outcome: ExpiryOutcome) => void,
+    onHostChange?: (outcome: HostHandoffOutcome) => void,
   ): DisconnectResult | null {
     // Spectator disconnect — immediate, no grace window.
     if (this.spectatorToRoom.has(socketId)) {
@@ -605,12 +712,13 @@ export class RoomManager {
 
     // Keep the seat; mark disconnected and start the grace timer. Whether the room
     // is in a game or still in the lobby, removal now only happens on expiry.
+    // The host keeps the role for a short window first (scheduled before the
+    // seat timer so that, with equal delays, the hand-off runs first).
     player.connected = false;
-    const nextHost = wasHost && [...room.players.values()].find((p) => !p.isBot && p.connected);
-    if (nextHost) room.hostId = nextHost.id;
+    if (wasHost) this.scheduleHostHandoff(room.code, playerId, onHostChange);
     this.scheduleDisconnectTimer(room.code, playerId, onExpire);
 
-    return { roomCode: room.code, playerId, wasHost, wasInGame, retained: true, newHostId: nextHost ? nextHost.id : undefined };
+    return { roomCode: room.code, playerId, wasHost, wasInGame, retained: true };
   }
 
   /** Explicit leave: always removes the player immediately regardless of game status. */
@@ -671,6 +779,7 @@ export class RoomManager {
     const reconnectToken = randomUUID();
     room.reconnectTokens.set(playerId, reconnectToken);
     this.clearDisconnectTimer(playerId);
+    if (this.hostHandoffTimers.get(room.code)?.playerId === playerId) this.clearHostHandoff(room.code);
     player.connected = true;
     const previousSeat = this.replaceSeat(newSocketId, playerId);
 
@@ -680,6 +789,8 @@ export class RoomManager {
 
   private assignHostIfAbsent(room: GameRoom, playerId: string): string | undefined {
     if (room.players.get(room.hostId)?.connected) return undefined;
+    // The disconnected host is still inside its window: the hand-off decides.
+    if (this.hostHandoffTimers.has(room.code)) return undefined;
     room.hostId = playerId;
     return playerId;
   }

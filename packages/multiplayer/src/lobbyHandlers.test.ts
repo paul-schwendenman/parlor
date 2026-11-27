@@ -713,3 +713,194 @@ describe('lobby:roomExists', () => {
     }
   });
 });
+
+describe('lobbyHandlers lobby:transferHost (plan 8.6)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function room(rm = new RoomManager()) {
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, undefined, 'host');
+    host.fire('lobby:create', 'Ann', vi.fn());
+    const roomCode = host.data.roomCode;
+    const join = (id: string, name: string) => {
+      const socket = connectFakeSocket(io, rm, undefined, id);
+      socket.fire('lobby:join', roomCode, name, vi.fn());
+      return socket;
+    };
+    const guest = join('guest', 'Bob');
+    const away = join('away', 'Cat');
+    away.fire('disconnect');
+    rm.selectGame(roomCode, gameRules);
+    const botId = rm.addBot(roomCode, 'Bot Dee').botId!;
+    const spectator = connectFakeSocket(io, rm, undefined, 'spectator');
+    spectator.fire('lobby:spectate', roomCode, vi.fn());
+    const stranger = connectFakeSocket(io, rm, undefined, 'stranger');
+    stranger.fire('lobby:create', 'Oz', vi.fn());
+    return { rm, io, host, guest, away, botId, spectator, stranger, roomCode };
+  }
+
+  function hostChanges(io: ReturnType<typeof createFakeIo>) {
+    return io.emitted.filter((e) => e.event === 'lobby:hostChanged');
+  }
+
+  it('rejects each invalid request with the room unchanged and nothing broadcast, then a valid transfer works', () => {
+    const { rm, io, host, guest, away, botId, spectator, stranger, roomCode } = room();
+    const before = structuredClone(rm.getRoom(roomCode));
+    const emitted = io.emitted.length;
+    const guestId = guest.data.playerId;
+
+    const cases: [typeof host, unknown, string][] = [
+      [guest, away.data.playerId, 'Only the host can pass the host role on'],
+      [spectator, guestId, 'Not in a room'],
+      [host, botId, 'A bot cannot be the host'],
+      [host, away.data.playerId, 'Cat is offline. Try again when they are back.'],
+      [host, 'no-such-player', 'That player is not in this room'],
+      [host, 'spectator', 'That player is not in this room'],
+      [host, host.data.playerId, 'You are already the host'],
+      [host, stranger.data.playerId, 'That player is not in this room'],
+      [host, 42, 'Invalid player id'],
+      [host, { id: guestId }, 'Invalid player id'],
+      [host, '', 'Invalid player id'],
+      [host, null, 'Invalid player id'],
+    ];
+    for (const [sender, target, error] of cases) {
+      const ack = vi.fn();
+      sender.fire('lobby:transferHost', target, ack);
+      expect(ack).toHaveBeenCalledExactlyOnceWith(false, error);
+      expect(rm.getRoom(roomCode)).toEqual(before);
+      expect(io.emitted.length).toBe(emitted);
+    }
+
+    const ack = vi.fn();
+    host.fire('lobby:transferHost', guestId, ack);
+    expect(ack).toHaveBeenCalledExactlyOnceWith(true);
+    expect(rm.getRoom(roomCode)?.hostId).toBe(guestId);
+    // The whole room (players and spectators share the room channel) learns the new host,
+    // followed by a fresh lobby state (the host's seat needs no Ready, so canStart may change).
+    expect(io.emitted.slice(emitted).map((e) => [e.to, e.event, e.payload])).toEqual([
+      [roomCode, 'lobby:hostChanged', guestId],
+      [roomCode, 'lobby:state', rm.getPlayersInRoom(roomCode)],
+    ]);
+    // Nothing went to sockets privately.
+    expect(host.received.filter((e) => e.event === 'error')).toEqual([]);
+
+    // Roles swapped: the old host is refused, the new host may pass it back.
+    const refused = vi.fn();
+    host.fire('lobby:addBot', refused);
+    expect(refused).toHaveBeenCalledWith(false, 'Only the host can add bots');
+    const back = vi.fn();
+    guest.fire('lobby:transferHost', host.data.playerId, back);
+    expect(back).toHaveBeenCalledWith(true);
+    expect(rm.getRoom(roomCode)?.hostId).toBe(host.data.playerId);
+  });
+
+  it('refuses a seat the socket no longer owns', () => {
+    const { rm, host, guest, roomCode } = room();
+    // The host's seat moves to another socket (e.g. a second tab reconnected with its token).
+    const token = rm.getRoom(roomCode)!.reconnectTokens.get(host.data.playerId)!;
+    rm.handleReconnect(roomCode, host.data.playerId, token, 'host-tab-2');
+    const ack = vi.fn();
+    host.fire('lobby:transferHost', guest.data.playerId, ack);
+    expect(ack).toHaveBeenCalledWith(false, 'Only the host can pass the host role on');
+    expect(rm.getRoom(roomCode)?.hostId).toBe(host.data.playerId);
+  });
+
+  it('only works in the lobby', () => {
+    const rm = new RoomManager();
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, undefined, 'host');
+    host.fire('lobby:create', 'Ann', vi.fn());
+    const guest = connectFakeSocket(io, rm, undefined, 'guest');
+    guest.fire('lobby:join', host.data.roomCode, 'Bob', vi.fn());
+    rm.selectGame(host.data.roomCode, gameRules);
+    guest.fire('lobby:ready', true, vi.fn());
+    host.fire('lobby:startGame', vi.fn());
+    expect(rm.getRoom(host.data.roomCode)?.status).toBe('playing');
+
+    const ack = vi.fn();
+    host.fire('lobby:transferHost', guest.data.playerId, ack);
+    expect(ack).toHaveBeenCalledWith(false, 'You can pass the host role on in the lobby, between games');
+    expect(rm.getRoom(host.data.roomCode)?.hostId).toBe(host.data.playerId);
+  });
+
+  it('is rate limited like other lobby requests', () => {
+    let now = 0;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+    try {
+      const { rm, host, guest, roomCode } = room();
+      for (let index = 0; index < 80; index++) host.fire('lobby:transferHost', 42, vi.fn());
+      const limited = vi.fn();
+      host.fire('lobby:transferHost', guest.data.playerId, limited);
+      expect(limited).toHaveBeenCalledWith(false, expect.stringMatching(/Too many/));
+      expect(rm.getRoom(roomCode)?.hostId).toBe(host.data.playerId);
+
+      now = 1_000;
+      const ack = vi.fn();
+      host.fire('lobby:transferHost', guest.data.playerId, ack);
+      expect(ack).toHaveBeenCalledWith(true);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('broadcasts the delayed hand-off, and none when the host is back in time (plan 8.7)', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(60_000);
+    const { io, host, guest, roomCode } = room(rm);
+    const hostId = host.data.playerId;
+    const token = rm.getRoom(roomCode)!.reconnectTokens.get(hostId)!;
+
+    host.fire('disconnect');
+    expect(hostChanges(io)).toEqual([]);
+    vi.advanceTimersByTime(9_000);
+    // A quick return: the host keeps the role, and only the returning socket is told who hosts.
+    const back = connectFakeSocket(io, rm, undefined, 'host-2');
+    const ok = vi.fn();
+    back.fire('player:reconnect', roomCode, hostId, token, ok);
+    expect(ok).toHaveBeenCalledWith(true, expect.any(String));
+    vi.advanceTimersByTime(60_000);
+    expect(hostChanges(io)).toEqual([]);
+    expect(back.received).toContainEqual({ event: 'lobby:hostChanged', args: [hostId] });
+
+    // A real drop: after the window the room hears about the new host once.
+    back.fire('disconnect');
+    vi.advanceTimersByTime(9_999);
+    expect(hostChanges(io)).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(hostChanges(io).map((e) => [e.to, e.payload])).toEqual([[roomCode, guest.data.playerId]]);
+    expect(io.emitted.at(-1)).toMatchObject({ to: roomCode, event: 'lobby:state' });
+    vi.advanceTimersByTime(60_000);
+    expect(hostChanges(io)).toHaveLength(1);
+  });
+
+  it('refuses host-only requests from guests while the host is in its window', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(60_000);
+    const { io, host, guest, roomCode } = room(rm);
+    rm.removeBot(roomCode, rm.getPlayersInRoom(roomCode).find((p) => p.isBot)!.id);
+    guest.fire('lobby:ready', true, vi.fn());
+    host.fire('disconnect');
+    const before = structuredClone(rm.getRoom(roomCode));
+    const emitted = io.emitted.length;
+
+    const addBot = vi.fn();
+    guest.fire('lobby:addBot', addBot);
+    expect(addBot).toHaveBeenCalledWith(false, 'Only the host can add bots');
+    const start = vi.fn();
+    guest.fire('lobby:startGame', start);
+    expect(start).toHaveBeenCalledWith(false, 'Only the host can start the game');
+    const transfer = vi.fn();
+    guest.fire('lobby:transferHost', guest.data.playerId, transfer);
+    expect(transfer).toHaveBeenCalledWith(false, 'Only the host can pass the host role on');
+    expect(rm.getRoom(roomCode)).toEqual(before);
+    expect(io.emitted.length).toBe(emitted);
+
+    vi.advanceTimersByTime(10_000);
+    // Now the guest is host, but the old host's seat (in grace) still blocks the start.
+    const later = vi.fn();
+    guest.fire('lobby:startGame', later);
+    expect(later).toHaveBeenCalledWith(false, 'Cannot start the game yet');
+  });
+});

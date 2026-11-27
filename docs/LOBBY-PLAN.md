@@ -163,28 +163,43 @@ Redesign the voting state. It should feel like pulling a box off the shelf, not 
 
 From the 7.1 re-critique (28/40). The user chose to fix all five issues and to keep today's host hand-off, adding a way to pass the host role on by hand.
 
-- [ ] **8.1 [P1] Change game respects seat count.**
+- [x] **8.1 [P1] Change game respects seat count.**
   - If the room no longer fits the current game, it loses its default lead and its tie-break.
   - The standing line shows the real leader instead.
   - Keep becomes a disabled line explaining why, e.g. "Hearts seats 4. Remove 2 bots to keep it."
   - Code: `leadSummary`, `playHint` and the Keep button in the lobby page. If the server's `lobby:keepGame` doesn't already refuse a game the room can't seat, add that check with a test.
-- [ ] **8.2 [P1] Rules from the confirmed game panel.** Add a cream "?" icon button on the green panel that opens `RulesModal`: Close only for guests, Close plus "Change game" for the host.
-- [ ] **8.3 [P2] Invite first when the host is alone.**
+  - **Done:** a new `keepableGame` (the current game only while `canPlay` holds: not over its seat count, no bots it can't use; too few players still counts as keepable) drives the default lead, the tie-break, `playTarget` and `playKeeps`. With no votes the standing line reads "No votes yet" (Play's hint already says "Vote to pick a game."). The host's Keep pill is replaced by the panel line "Hearts seats 4. Remove 2 bots to keep it." ("…, and 5 people are here. Vote for another game." when bots alone can't fix it; "Hearts doesn't use bots. Remove them to keep it."); guests read "Margaret is choosing again. Hearts seats 4, so it can't stay as things are." The server already refused an over-seated keep; a Vitest test now covers it (rejected keep leaves the room and ballot unchanged, then removing two bots lets Keep restore Hearts with readiness intact). e2e covers six players and the reason.
+- [x] **8.2 [P1] Rules from the confirmed game panel.** Add a cream "?" icon button on the green panel that opens `RulesModal`: Close only for guests, Close plus "Change game" for the host.
+  - **Done:** a 44px cream "?" (`How to play Hearts`) sits beside Change game on the felt panel (alone at the right for guests). `RulesModal` gained an `onchange` prop rendering an outline "Change game" after Close, which closes the sheet and reopens the ballot. No vote or play button in this context. e2e covers both views.
+- [x] **8.3 [P2] Invite first when the host is alone.**
   - While the host is the only player, show an invite prompt in place of the standing line: "Share the code so others can join. You can vote while you wait."
   - Hide the fit note on each row when every row's note is the same.
-- [ ] **8.4 [P2] Shorter ballot on phones.**
+  - **Done:** with one seated player the standing line is "Share the code so others can join. You can vote while you wait." Row fit notes are hidden when every shelf game just needs more players (always true alone, where the notes differ only by count: the metadata chips already show it) or when every shelf row's note is identical; screen-reader row descriptions keep the note. The lid's share pills were not given extra emphasis: they're already the first thing on screen, a filled pill on the lid would break the "both pills are cream" rule, and the prompt points at them.
+- [x] **8.4 [P2] Shorter ballot on phones.**
   - Pin the leading game above the list, or sort voted games to the top.
   - Cut descriptions to one line under 520px.
   - Add counts to the standing line, e.g. "Leading · Hearts, 2 of 3 votes".
-- [ ] **8.5 [P3] The finish line.**
+  - **Done:** pinned, not sorted. Sorting would move rows whenever anyone else votes, so a row could slide under a finger mid-tap, and shelf order is how people find a game by colour. Under 520px a single leader's standing line becomes a compact status strip (paper, ink outline, like the player strip): a small spine swatch in the game's colour, the text and its voters' avatars. It is not a button. Descriptions clamp to one line under 520px. Counts: "Leading · Hearts, 2 of 3 votes (needs 1 more player)", "Leading · Booty Dice, 1 vote" (when it has every vote), "Tied · Quixx, Hearts, 1 vote each". Ties stay a plain line.
+- [x] **8.5 [P3] The finish line.**
   - When everyone is ready, show an "Everyone's ready" line above START.
   - While the ballot is reopened and there's a current game, keep the Ready chips on player rows and a small check on the strip avatars.
-- [ ] **8.6 Pass the host role by hand.**
+  - **Done:** above START, when it is enabled, a quiet "Everyone's ready" in espresso Nunito 800 with a drawn check in a felt circle (no second shout; text stays ink per the Ink-Only rule). A ready guest whose wait is only on the host reads "Everyone's ready. Waiting for Margaret to start." On a reopened ballot the Ready / Not ready chips stay on player rows and ready non-host seats (bots included) get a 15px felt check badge on their strip avatar (", ready" in its screen-reader text).
+- [x] **8.6 Pass the host role by hand.**
+  - **Done:**
+    - `lobby:transferHost` is host-only and rate-limited. It only works in the lobby; the game page has no player list, and the room comes back to the lobby when a game ends.
+    - On success the room gets `lobby:hostChanged` and then `lobby:state`, because `canStart` can change once the host no longer needs Ready. The old host keeps their ready flag.
+    - `MakeHostButton.svelte` shows on other connected humans' rows for the host, with a "Make Joe the host?" confirmation.
+    - Tests: unit tests for every rejected case, real-socket tests, and the `hostTransfer` e2e.
   - The host keeps today's automatic hand-off on disconnect (core hardening 3.7). Add a host-only "Make host" action on each human player row.
   - New event `lobby:transferHost(playerId)`: host-only, target must be a connected, seated human, rate-limited. Emits `lobby:hostChanged`.
   - Server tests: a rejected transfer leaves the room unchanged, and a valid one still works afterwards.
   - The UI asks for confirmation before passing the role on.
-- [ ] **8.7 (Optional) The host gets the role back on a quick reconnect.** Choose one:
+- [x] **8.7 (Optional) The host gets the role back on a quick reconnect.** Choose one:
+  - **Done, option (b):**
+    - The automatic hand-off now waits `hostGraceMs`: 10s by default, and never longer than the seat's own grace.
+    - Reconnecting, leaving, seat expiry, room teardown and a manual transfer all cancel the timer. Seat expiry does its own single reassignment.
+    - While the window is open, a guest who reconnects or joins does not take the role.
+    - There are 13 fake-timer tests, and `roomVoting.test.ts` now uses `hostGraceMs` 100.
   - (a) If the original host reconnects within the grace window, they become host again, unless the new host has already done something as host. Or:
   - (b) Wait about 10 seconds after the host disconnects before handing the role on.
   - Either needs server tests that include a host action racing the reconnect.
@@ -203,6 +218,8 @@ From the 7.1 re-critique (28/40). The user chose to fix all five issues and to k
 | 2026-11-27 | 5 | Address-bar links: `lobby:roomExists` (yes/no, lookup rate budget, tests); a pasted `/lobby/CODE` for a live room redirects to `/?join=CODE` (name field focused, "Add your name to join room CODE."), not-found only when the room is gone, a separate "couldn't open" state when the check fails; `lobbyLink` e2e | uncommitted |
 | 2026-11-27 | 6 | Rules sheet and sharing: pinned rules footer, fit line ("4 players · bots can fill seats"), vote toggle ("Your vote", `aria-pressed`) instead of a filled Clear vote, "Play Hearts", sentence-case rule headings, plain-language trick jargon in Hearts/Spades/Euchre/Oh Hell; lid "Share invite" (native share, copy fallback) and "Show QR code" sheet with a locally drawn QR (`qrcode-generator`); `inviteQr` e2e | uncommitted |
 | 2026-11-27 | 7 | Re-critique: 28/40, up from 21/40; remaining issues listed under 7.1 | uncommitted |
+| 2026-11-27 | 8 (8.1–8.5) | Seat-aware Keep (current game loses lead/tie-break when the room outgrows it, Keep replaced by the reason, server keep test), "?" rules on the confirmed panel with host "Change game" in the sheet, invite-first standing line for a lone host and suppressed identical fit notes, pinned leader strip + one-line descriptions on phones and vote counts in the standing line, "Everyone's ready" above START and Ready chips/strip checks on a reopened ballot; e2e for 8.1/8.2 | uncommitted |
+| 2026-11-27 | 8 (8.6–8.7) | `lobby:transferHost` with a "Make host" button and confirmation on player rows; the host hand-off on disconnect now waits 10s (`hostGraceMs`), so a quick reload keeps the role; unit, real-socket and e2e tests | uncommitted |
 
 ## Notes
 
@@ -214,3 +231,4 @@ From the 7.1 re-critique (28/40). The user chose to fix all five issues and to k
 - Phase 4 deferrals: the host's bottom PLAY is disabled while the current game leads (Keep lives on the panel), so the "leading by default" game is played by Keep, not PLAY; if that reads oddly, the alternative is a PLAY bar that says KEEP HEARTS and no panel pill. If more people join during a reopened ballot than the current game seats, Keep fails with "Hearts seats 4. Remove a bot or play another game." (shown in the action-error line at the bottom, not next to Keep). Readiness chips are hidden while the ballot is open, so ready guests learn they're still ready only from the panel line. Clearing readiness on a different game also applies to a direct `lobby:selectGame('<id>')` (no UI path uses it today).
 - Phase 5 deferrals: the redirect happens client-side after the socket connects, so for a moment a pasted link shows the lobby shell (lid, code tiles, "Loading game choices…") before landing on the join form. A pasted link to a room that is mid-game goes to the join form too, where Join answers "Game already in progress" and Watch works; the form could say so up front, but that would need the room status, which the check deliberately doesn't reveal. The home `?join=` card doesn't re-check the code itself.
 - Phase 6 deferrals: the QR sheet and share use `window.location.origin`, so on a LAN dev address the QR points at that address (correct for local play, but a reverse proxy with a different public origin would need a configured base URL). `navigator.share` is only checked for existence, not `canShare({ url })`. The share label was checked with a stubbed `navigator.share` (headless Chromium has none); a real phone share sheet was not tried. The QR sheet's lone Close sits at the right on a phone (could go full width). The rules sheet still closes after a vote (the toggle state is seen on reopening and on the ballot row). The rules content for non-trick games is untouched apart from sentence-case headings (e.g. Quixx still says "Phase 1 — White sum" and uses colour dots `#B8372B` / `#2F5C8A`, see the first note). On the home page the sheet's "Play Quixx" opens Start a room, while the shelf pill says "Start game"; the Phase 1 naming question still stands.
+- Phase 8 (8.1–8.5) deferrals: the server's `lobby:keepGame` refuses an over-seated room but not bots in a game without bot support (every catalogue game supports bots today, so it couldn't be tested; start is still blocked by `canStartGame`). The pinned leader strip shows only for a single leader; ties stay a plain line. The strip's ready checks overlap the next avatar slightly at the strip's -8px stacking. "No votes yet" is the standing line for a reopened ballot whose current game no longer fits. The lid share pills got no extra emphasis for a lone host (see 8.3). While the e2e suite ran, a stale `pnpm dev` from this checkout on port 3010 (started 12:20) was stopped.

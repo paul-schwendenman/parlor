@@ -200,6 +200,11 @@ export type LobbyClientEvents = {
   'lobby:restartGame': () => void;
   'lobby:addBot': (callback: (success: boolean, error?: string) => void) => void;
   'lobby:removeBot': (botId: string, callback: (success: boolean, error?: string) => void) => void;
+  /**
+   * Host only, in the lobby: pass the host role to another connected, seated
+   * human. On success the room receives `lobby:hostChanged`.
+   */
+  'lobby:transferHost': (playerId: string, callback: (success: boolean, error?: string) => void) => void;
   'player:reconnect': (
     roomCode: string,
     playerId: string,

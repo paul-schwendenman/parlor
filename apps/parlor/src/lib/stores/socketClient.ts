@@ -117,6 +117,24 @@ export async function ballotAction(
 }
 
 /**
+ * Host only: pass the host role to another player in the room. The new host
+ * arrives for everyone (this client too) as `lobby:hostChanged`.
+ */
+export async function transferHostAction(playerId: string): Promise<void> {
+	const socket = getSocket();
+	if (!socket.connected) throw new Error('Reconnect to pass the host role on.');
+	await new Promise<void>((resolve, reject) => {
+		const failure = 'Could not pass the host role on. Try again.';
+		const timer = setTimeout(() => reject(new Error(failure)), 5000);
+		socket.emit('lobby:transferHost', playerId, (ok, message) => {
+			clearTimeout(timer);
+			if (ok) resolve();
+			else reject(new Error(message ?? failure));
+		});
+	});
+}
+
+/**
  * Does a room with this code exist? `null` when we couldn't tell (offline,
  * timed out or rate limited), so a caller never mistakes that for "gone".
  */

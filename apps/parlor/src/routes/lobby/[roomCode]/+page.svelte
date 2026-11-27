@@ -15,6 +15,7 @@
   import LeaveRoomButton from '$lib/components/LeaveRoomButton.svelte';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
   import QrModal from '$lib/components/lobby/QrModal.svelte';
+  import MakeHostButton from '$lib/components/lobby/MakeHostButton.svelte';
 
   // While voting there is no game to size the room by, so Add bot stops at the
   // largest table any game in the catalogue can seat.
@@ -91,19 +92,60 @@
    * the host's own vote). Keeping it restores the room exactly.
    */
   let currentGame = $derived(findGame(ballot?.currentGameId));
+  /**
+   * The current game, only while the room can still seat it. A room that has
+   * outgrown it (more people, or bots it can't use) can't keep it, so it
+   * loses its default lead and its tie-break. Too few players doesn't count:
+   * that is fixed after keeping, with an invite or a bot.
+   */
+  let keepableGame = $derived(currentGame && canPlay(currentGame) ? currentGame : undefined);
   let anyVotes = $derived(games.some(game => (ballot?.totals[game.id] ?? 0) > 0));
+  let votesCast = $derived(games.reduce((sum, game) => sum + (ballot?.totals[game.id] ?? 0), 0));
+  let topVotes = $derived(Math.max(0, ...games.map(game => ballot?.totals[game.id] ?? 0)));
   let leaders = $derived.by(() => {
-    const high = Math.max(0, ...games.map(game => ballot?.totals[game.id] ?? 0));
-    if (!high) return currentGame ? [currentGame] : [];
-    return games.filter(game => (ballot?.totals[game.id] ?? 0) === high);
+    if (!topVotes) return keepableGame ? [keepableGame] : [];
+    return games.filter(game => (ballot?.totals[game.id] ?? 0) === topVotes);
   });
   /** Games the room fits (or could, with more players or a bot), in shelf order. */
   let shelfGames = $derived(games.filter(game => seatCount <= game.maxPlayers));
   /** Games with too many people in the room: muted, at the bottom. */
   let crowdedGames = $derived(games.filter(game => seatCount > game.maxPlayers));
+  /** The host is the only one here: invite first, and vote while waiting. */
+  let alone = $derived(seatCount === 1);
+  /**
+   * A fit note only helps when it tells games apart. When every game on the
+   * shelf just needs more people (always so for a host alone), the invite
+   * prompt says it once and the metadata chips carry the counts.
+   */
+  let hideFitNotes = $derived.by(() => {
+    if (!shelfGames.length) return false;
+    if (shelfGames.every(game => seatCount < game.minPlayers)) return true;
+    const notes = shelfGames.map(fitNote);
+    return notes.every(note => note && note === notes[0]);
+  });
 
   function canPlay(game: CatalogGame): boolean {
     return seatCount <= game.maxPlayers && (!hasBots || !!game.supportsBots);
+  }
+
+  /**
+   * Why the room can't keep (or start) this game as it stands, naming who has
+   * to go: "Hearts seats 4. Remove 2 bots to keep it." '' when it fits.
+   */
+  function keepBlockReason(game: CatalogGame): string {
+    const over = seatCount - game.maxPlayers;
+    if (over > 0) {
+      const seats = `${game.name} seats ${seatsPhrase(game.minPlayers, game.maxPlayers)}`;
+      if (botCount >= over) return `${seats}. Remove ${over} ${over === 1 ? 'bot' : 'bots'} to keep it.`;
+      return `${seats}, and ${seatCount - botCount} people are here. Vote for another game.`;
+    }
+    if (hasBots && !game.supportsBots) return `${game.name} doesn't use bots. Remove them to keep it.`;
+    return '';
+  }
+
+  /** "2 of 3 votes", "1 vote", "2 votes". */
+  function voteCount(count: number): string {
+    return count === votesCast ? `${count} ${count === 1 ? 'vote' : 'votes'}` : `${count} of ${votesCast} votes`;
   }
 
   /** What stands between the room and this game, as a short note ('' if nothing). */
@@ -115,12 +157,15 @@
   }
 
   let leadSummary = $derived.by(() => {
-    if (leaders.length > 1) return `Tied · ${leaders.map(game => game.name).join(', ')}`;
+    if (leaders.length > 1) {
+      return `Tied · ${leaders.map(game => game.name).join(', ')}, ${topVotes} ${topVotes === 1 ? 'vote' : 'votes'} each`;
+    }
     const lead = leaders[0];
-    if (!lead) return '';
+    // A reopened ballot whose current game no longer fits has no default.
+    if (!lead) return currentGame ? 'No votes yet' : '';
     if (!anyVotes) return `Leading · ${lead.name} (current game)`;
     const note = seatCount > lead.maxPlayers ? 'too many players' : fitNote(lead).toLowerCase();
-    return `Leading · ${lead.name}${note ? ` (${note})` : ''}`;
+    return `Leading · ${lead.name}, ${voteCount(topVotes)}${note ? ` (${note})` : ''}`;
   });
 
   /** "Margaret", "Margaret and Joe", "Margaret, Joe and Ann". */
@@ -148,13 +193,13 @@
   // own vote if it is one of the tied games, then the current game, else the
   // first one the room can play.
   let playTarget = $derived(leaders.find(game => game.id === ballot?.myVote)
-    ?? leaders.find(game => game === currentGame)
+    ?? leaders.find(game => game === keepableGame)
     ?? leaders.find(canPlay) ?? leaders[0]);
   /**
    * The leader is the game the room already has. Play stays off (Keep, on the
    * current-game panel, is how the host backs out) so there's one Keep, not two.
    */
-  let playKeeps = $derived(!!playTarget && playTarget === currentGame);
+  let playKeeps = $derived(!!playTarget && playTarget === keepableGame);
   let playHint = $derived.by(() => {
     const game = playTarget;
     if (!game) return 'Vote to pick a game.';
@@ -246,7 +291,7 @@
     if (awayPlayers.length) return `Waiting for ${who(awayPlayers)} to reconnect.`;
     const others = notReady.filter(p => p.id !== me?.id);
     if (others.length) return `Waiting for ${who(others)} to get ready.`;
-    return `Waiting for ${hostName} to start.`;
+    return `Everyone's ready. Waiting for ${hostName} to start.`;
   });
 
   // A bot error belongs to the game or ballot it happened in.
@@ -294,6 +339,11 @@
     void updateBallot(gameId === currentGame?.id ? 'keep' : 'confirm', gameId);
   }
 
+  function changeGame() {
+    rulesGameId = null;
+    void updateBallot('open');
+  }
+
   function keepCurrentGame() {
     void updateBallot('keep');
   }
@@ -301,6 +351,14 @@
   /** The reopened ballot's panel line: who is choosing, and what happens to readiness. */
   let currentNote = $derived.by(() => {
     if (!currentGame) return '';
+    // The room has outgrown it: Keep is off, and the line says what would fix it.
+    if (!keepableGame) {
+      if (isHost) return keepBlockReason(currentGame);
+      const why = seatCount > currentGame.maxPlayers
+        ? `seats ${seatsPhrase(currentGame.minPlayers, currentGame.maxPlayers)}`
+        : `doesn't use bots`;
+      return `${hostName} is choosing again. ${currentGame.name} ${why}, so it can't stay as things are.`;
+    }
     if (isHost) return 'Choosing again. Anyone ready stays ready if you keep it.';
     if (me?.isReady) return `${hostName} is choosing again. You stay ready if ${currentGame.name} stays.`;
     return `${hostName} is choosing again. ${currentGame.name} stays unless another game is played.`;
@@ -450,8 +508,8 @@
     {/if}
   {/snippet}
 
-  {#snippet rowFace(game: CatalogGame, voters: LobbyPlayer[], voted: boolean)}
-    {@const note = fitNote(game)}
+  {#snippet rowFace(game: CatalogGame, voters: LobbyPlayer[], voted: boolean, crowded: boolean)}
+    {@const note = hideFitNotes && !crowded ? '' : fitNote(game)}
     {@const current = game === currentGame}
     <span class="row-head">
       <span class="row-name">{game.name}</span>
@@ -488,10 +546,10 @@
       {#if me && !spectator && (!crowded || voted)}
         <button type="button" class="spine-face" aria-pressed={voted} aria-label="Vote for {game.name}"
           aria-describedby="votes-{game.id}" aria-disabled={ballotPending || undefined} onclick={() => voteFor(game.id)}>
-          {@render rowFace(game, voters, voted)}
+          {@render rowFace(game, voters, voted, crowded)}
         </button>
       {:else}
-        <div class="spine-face">{@render rowFace(game, voters, voted)}</div>
+        <div class="spine-face">{@render rowFace(game, voters, voted, crowded)}</div>
       {/if}
       <span class="sr-only" id="votes-{game.id}">{rowLabel(game, voters)}</span>
       <button type="button" class="icon-btn row-help" onclick={() => (rulesGameId = game.id)} aria-label="How to play {game.name}" title="How to play {game.name}">
@@ -507,9 +565,15 @@
           <h2 class="game-panel-name" tabindex="-1" bind:this={gameHeading}>{selectedGame.name}</h2>
           <span class="game-panel-meta">{playerCount(selectedGame)} · {minutesRange(selectedGame)} min</span>
         </div>
-        {#if isHost}
-          <button type="button" class="pill pill-on-dark" onclick={() => updateBallot('open')} disabled={ballotPending}>Change game</button>
-        {/if}
+        <div class="game-panel-actions">
+          <button type="button" class="icon-btn icon-on-dark" onclick={() => (rulesGameId = selectedGame?.id ?? null)}
+            aria-label="How to play {selectedGame.name}" title="How to play {selectedGame.name}">
+            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><path d="M12 17.5h.01"/></svg>
+          </button>
+          {#if isHost}
+            <button type="button" class="pill pill-on-dark" onclick={changeGame} disabled={ballotPending}>Change game</button>
+          {/if}
+        </div>
       </section>
     {:else if ballot}
       {#if currentGame}
@@ -520,7 +584,7 @@
             <h2 class="game-panel-name">{currentGame.name}</h2>
             <span class="game-panel-meta">{currentNote}</span>
           </div>
-          {#if isHost}
+          {#if isHost && keepableGame}
             <button type="button" class="pill pill-on-dark" onclick={keepCurrentGame} aria-disabled={ballotPending || undefined}>Keep {currentGame.name}</button>
           {/if}
         </section>
@@ -537,7 +601,12 @@
                 {:else}
                   <span aria-hidden="true">{initial(player.name)}</span>
                 {/if}
-                <span class="sr-only">{player.name}{player.id === lobbyState.hostId ? ', host' : ''}{player.id === playerState.id ? ', you' : ''}{player.isBot ? ', bot' : ''}</span>
+                {#if currentGame && player.isReady && player.id !== lobbyState.hostId}
+                  <span class="strip-ready" aria-hidden="true">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+                  </span>
+                {/if}
+                <span class="sr-only">{player.name}{player.id === lobbyState.hostId ? ', host' : ''}{player.id === playerState.id ? ', you' : ''}{player.isBot ? ', bot' : ''}{currentGame && player.isReady && player.id !== lobbyState.hostId ? ', ready' : ''}</span>
               </li>
             {/each}
           </ul>
@@ -552,7 +621,25 @@
       <section class="picker" aria-labelledby="ballot-title">
         <h2 id="ballot-title" class="section-title" tabindex="-1" bind:this={ballotHeading}>Vote on a game</h2>
         <p class="ballot-intro">{ballotIntro}</p>
-        <p class="ballot-summary" aria-live="polite" aria-atomic="true">{leadSummary}</p>
+        {#if alone && !spectator}
+          <p class="ballot-summary invite-prompt" aria-live="polite" aria-atomic="true">Share the code so others can join. You can vote while you wait.</p>
+        {:else if leadSummary}
+          <!-- On a phone a single leader is pinned above the list as a small
+               status strip (its colour, the standing, its voters), so it's in
+               view without reordering rows under anyone's finger. -->
+          {@const pinned = leaders.length === 1 ? leaders[0] : undefined}
+          <p class="ballot-summary" class:lead-pin={!!pinned} aria-live="polite" aria-atomic="true">
+            {#if pinned}<span class="lead-swatch spine-{pinned.shelf}" aria-hidden="true"></span>{/if}
+            <span class="lead-text">{leadSummary}</span>
+            {#if pinned && votersFor(pinned.id).length}
+              <span class="voters lead-voters" aria-hidden="true">
+                {#each votersFor(pinned.id) as voter (voter.id)}
+                  <span class="voter seat-{seatOf(voter)}">{initial(voter.name)}</span>
+                {/each}
+              </span>
+            {/if}
+          </p>
+        {/if}
         <ul class="picker-list">
           {#each shelfGames as game (game.id)}
             {@render ballotRow(game, false)}
@@ -619,10 +706,13 @@
             </span>
             <!-- Readiness only means something once a game is chosen, and the
                  host's START is their ready, so their row carries no chip. -->
-            {#if selectedGame && !isHostRow}
+            {#if (selectedGame || currentGame) && !isHostRow}
               <span class="status" class:is-ready={player.isReady}>
                 {player.isReady ? 'Ready' : 'Not ready'}
               </span>
+            {/if}
+            {#if isHost && !player.isBot && player.connected && player.id !== playerState.id}
+              <MakeHostButton playerId={player.id} playerName={player.name} />
             {/if}
             {#if isHost && player.isBot}
               <button type="button" class="icon-btn" onclick={() => removeBot(player.id)} aria-label="Remove {player.name}" title="Remove {player.name}">
@@ -669,7 +759,16 @@
       {#if spectator}
         <p class="hint">Watching as spectator</p>
       {:else if selectedGame && isHost}
-        {#if !canStart}<p class="hint" aria-live="polite">{startHint}</p>{/if}
+        {#if canStart}
+          <p class="all-ready" aria-live="polite">
+            <span class="all-ready-check" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.25" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+            </span>
+            Everyone's ready
+          </p>
+        {:else}
+          <p class="hint" aria-live="polite">{startHint}</p>
+        {/if}
         <button type="button" class="btn btn-primary" onclick={startGame} disabled={!canStart}>Start Game</button>
       {:else if selectedGame}
         {#if guestHint}<p class="hint" aria-live="polite">{guestHint}</p>{/if}
@@ -703,6 +802,7 @@
     onplay={isHost && ballot && me && rulesGame && canPlay(rulesGame)
       ? () => { if (rulesGameId) playGame(rulesGameId); }
       : undefined}
+    onchange={isHost && selectedGame && rulesGameId === selectedGame.id ? changeGame : undefined}
   />
 {/if}
 
@@ -916,6 +1016,24 @@
     outline-color: var(--color-cream);
   }
 
+  .game-panel-actions {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* The rules "?" on the felt: cream, like the ballot's on a dark spine. */
+  .icon-btn.icon-on-dark {
+    color: var(--color-cream);
+  }
+
+  @media (hover: hover) {
+    .icon-btn.icon-on-dark:hover {
+      background: rgba(253, 246, 236, 0.14);
+    }
+  }
+
   /* Ballot: each game is its shelf spine. Tap the box to vote for it. */
   .ballot-intro,
   .ballot-summary {
@@ -930,6 +1048,60 @@
     margin: 2px 0 12px;
     font-weight: 700;
     color: var(--color-espresso);
+  }
+
+  /* Phone: the one leader, pinned above the list as a small spine in its own
+     colour. It's a status, not a button, so nothing moves under a finger. */
+  .ballot-summary .lead-swatch,
+  .ballot-summary .lead-voters {
+    display: none;
+  }
+
+  @media (max-width: 519px) {
+    .ballot-summary.lead-pin {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 48px;
+      box-sizing: border-box;
+      padding: 6px 10px;
+      border: 2px solid var(--color-espresso);
+      border-radius: 14px;
+      background: var(--color-paper);
+    }
+
+    .ballot-summary.lead-pin .lead-swatch {
+      display: block;
+      flex-shrink: 0;
+      width: 18px;
+      height: 28px;
+      box-sizing: border-box;
+      border: 2px solid var(--color-espresso);
+      border-radius: 5px;
+      background: var(--spine-bg);
+    }
+
+    .lead-pin .lead-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .ballot-summary.lead-pin .lead-voters {
+      display: inline-flex;
+      flex-shrink: 0;
+    }
+
+    /* Paper behind them here, not a spine. */
+    .lead-pin .voter {
+      border-color: var(--color-paper);
+    }
+
+    /* One line of description; the rules sheet has the rest. */
+    .spine-row .row-desc {
+      -webkit-line-clamp: 1;
+      line-clamp: 1;
+    }
   }
 
   .picker-list {
@@ -1255,12 +1427,30 @@
   }
 
   .avatar.strip-avatar {
+    position: relative;
     width: 32px;
     height: 32px;
     margin-left: -8px;
     box-sizing: border-box;
     border: 2px solid var(--color-paper);
     font-size: 0.9375rem;
+  }
+
+  /* Ready while the ballot is reopened: a small felt check on the avatar. */
+  .strip-ready {
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    width: 15px;
+    height: 15px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 1.5px solid var(--color-paper);
+    background: var(--color-forest-deep);
+    color: var(--color-cream);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .strip-count {
@@ -1591,6 +1781,30 @@
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--color-ink-muted);
+  }
+
+  /* The finish line: a quiet felt check above START, not a second shout. */
+  .all-ready {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: 1rem;
+    color: var(--color-espresso);
+  }
+
+  .all-ready-check {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--color-forest-deep);
+    color: var(--color-cream);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .action-error {

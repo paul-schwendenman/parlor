@@ -23,7 +23,7 @@ export {
 } from './client.js';
 export { type GameInstance } from './gameInstance.js';
 export { abortableDelay, type GameScheduling } from './gameTimeout.js';
-export { RoomManager, type GameRoom, type DisconnectResult } from './RoomManager.js';
+export { RoomManager, type GameRoom, type DisconnectResult, type HostHandoffOutcome, type TransferHostResult } from './RoomManager.js';
 export {
   setupLobbyHandlers,
   returnRoomToLobby,

@@ -15,7 +15,8 @@ const clients: Socket[] = [];
 beforeEach(async () => {
 	const http = createServer();
 	io = new Server(http);
-	rm = new RoomManager(500);
+	// The host hands over (100ms) well before its seat expires (500ms).
+	rm = new RoomManager(500, undefined, 100);
 	setupParlorSocketHandlers(io, rm);
 	await new Promise<void>(resolve => http.listen(0, resolve));
 	url = `http://localhost:${(http.address() as AddressInfo).port}`;
@@ -207,4 +208,36 @@ it('keeps readiness when the host plays the current game from a reopened ballot'
 	expect(await host.request.emitWithAck('lobby:confirmGame', guest.ballot()!.roundId, 'quixx')).toBe(true);
 	await expect.poll(guest.ballot).toBeNull();
 	expect(rm.getRoom(roomCode)).toEqual(confirmed);
+});
+
+it('refuses to keep a current game the room has outgrown, and keeps it once it fits again', async () => {
+	const host = await participant();
+	const { roomCode } = await host.request.emitWithAck('lobby:create', 'Host');
+	const guest = await participant();
+	expect(await guest.request.emitWithAck('lobby:join', roomCode, 'Guest')).toMatchObject({ success: true });
+	for (let i = 0; i < 2; i++) expect(await host.request.emitWithAck('lobby:addBot')).toBe(true);
+	await expect.poll(guest.ballot).toMatchObject({ currentGameId: null });
+	expect(await host.request.emitWithAck('lobby:confirmGame', guest.ballot()!.roundId, 'hearts')).toBe(true);
+	expect(await guest.request.emitWithAck('lobby:ready', true)).toBe(true);
+	await expect.poll(guest.ballot).toBeNull();
+
+	// Change game, then two more bots: six at a four-seat game.
+	expect(await host.request.emitWithAck('lobby:selectGame', null)).toBe(true);
+	await expect.poll(guest.ballot).toMatchObject({ currentGameId: 'hearts' });
+	const round = guest.ballot()!.roundId;
+	for (let i = 0; i < 2; i++) expect(await host.request.emitWithAck('lobby:addBot')).toBe(true);
+	expect(rm.getRoom(roomCode)?.players.size).toBe(6);
+
+	const outgrown = structuredClone(rm.getRoom(roomCode));
+	expect(await host.request.emitWithAck('lobby:keepGame', round)).toBe(false);
+	expect(rm.getRoom(roomCode)).toEqual(outgrown);
+	expect(host.ballot()).toMatchObject({ roundId: round, currentGameId: 'hearts' });
+
+	// Two bots leave: Hearts fits again and Keep restores it with readiness intact.
+	const bots = rm.getPlayersInRoom(roomCode).filter(p => p.isBot).slice(-2);
+	for (const bot of bots) expect(await host.request.emitWithAck('lobby:removeBot', bot.id)).toBe(true);
+	expect(await host.request.emitWithAck('lobby:keepGame', round)).toBe(true);
+	await expect.poll(guest.ballot).toBeNull();
+	expect(rm.getRoom(roomCode)?.gameId).toBe('hearts');
+	expect(rm.getPlayersInRoom(roomCode).find(p => p.name === 'Guest')?.isReady).toBe(true);
 });

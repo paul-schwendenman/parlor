@@ -427,6 +427,47 @@ export function setupLobbyHandlers(
     }
   });
 
+  socket.on('lobby:transferHost', (targetId, callback) => {
+    const ack = safeAck(callback);
+    try {
+      if (!allowSocketRequest(socket)) {
+        ack(false, RATE_LIMIT_MESSAGE);
+        return;
+      }
+      if (callback !== undefined && typeof callback !== 'function') {
+        socket.emit('error', UNEXPECTED_ARGUMENTS);
+        return;
+      }
+      const roomCode = socket.data.roomCode;
+      const playerId = socket.data.playerId;
+      if (!roomCode || !playerId) {
+        ack(false, 'Not in a room');
+        return;
+      }
+      if (!isNonEmptyString(targetId)) {
+        ack(false, 'Invalid player id');
+        return;
+      }
+      if (!roomManager.isSeatedPlayer(roomCode, playerId, socket.id)) {
+        ack(false, 'Only the host can pass the host role on');
+        return;
+      }
+
+      const result = roomManager.transferHost(roomCode, playerId, targetId);
+      if (!result.success) {
+        ack(false, result.error);
+        return;
+      }
+
+      ack(true);
+      io.to(roomCode).emit('lobby:hostChanged', targetId);
+      // The host's own seat needs no Ready, so whether the room can start may change.
+      io.to(roomCode).emit('lobby:state', roomManager.getPlayersInRoom(roomCode), roomManager.canStartGame(roomCode));
+    } catch (err) {
+      ack(false, toPublicError(err, 'Could not pass the host role on', context()).message);
+    }
+  });
+
   socket.on('lobby:startGame', (callback) => {
     const ack = safeAck(callback);
     try {
@@ -629,6 +670,18 @@ export function setupLobbyHandlers(
         } catch (error) {
           logServerError('grace_expiry_broadcast_failed', roomManager.getErrorContext(outcome.roomCode, outcome.playerId), error);
         }
+      }, (outcome) => {
+        // Fired later, when a disconnected host's short grace ends without a reconnect.
+        try {
+          io.to(outcome.roomCode).emit('lobby:hostChanged', outcome.newHostId);
+          io.to(outcome.roomCode).emit(
+            'lobby:state',
+            roomManager.getPlayersInRoom(outcome.roomCode),
+            roomManager.canStartGame(outcome.roomCode),
+          );
+        } catch (error) {
+          logServerError('host_handoff_broadcast_failed', roomManager.getErrorContext(outcome.roomCode, outcome.previousHostId), error);
+        }
       });
       if (!result) return;
 
@@ -643,8 +696,6 @@ export function setupLobbyHandlers(
         players,
         roomManager.canStartGame(result.roomCode),
       );
-
-      if (result.newHostId) io.to(result.roomCode).emit('lobby:hostChanged', result.newHostId);
 
       if (result.wasInGame && roomManager.isGameParticipant(result.roomCode, result.playerId)) {
         // Tell the engine the seat went dark (view greys the player); removal waits for expiry.
