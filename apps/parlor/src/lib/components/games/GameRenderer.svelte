@@ -28,7 +28,7 @@
 {:else if state.gameId === 'liars-dice'}
   <LiarsDiceGame view={state.view} {socket} {playerId} {onBackToLobby} />
 {:else if state.gameId === 'kings-corner'}
-  <KingsCornerGame view={state.view} {socket} {playerId} {onBackToLobby} />
+  <KingsCornerGame view={state.view} {socket} {playerId} />
 {:else}
   <div class="unknown">
     <p>Unknown game type</p>

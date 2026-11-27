@@ -13,7 +13,6 @@
     view: KingsCornerPlayerView;
     socket: GameSocket<'kings-corner'>;
     playerId: string;
-    onBackToLobby?: () => void;
   } = $props();
 
   // What the viewer has picked up: a card from the hand or a whole pile.
