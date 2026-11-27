@@ -21,6 +21,8 @@ export interface OhHellView {
   players: {
     id: string;
     name: string;
+    bot: boolean;
+    connected: boolean;
     bid: number | null;
     tricks: number;
     score: number;

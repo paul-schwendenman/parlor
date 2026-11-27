@@ -1,7 +1,10 @@
 import { aceHighRankValue, cardEquals, type Card } from '@parlor/cards';
-import type { TrickPlay } from './types.js';
+import type { PassDirection, TrickPlay } from './types.js';
 
 export const OPENING_CARD: Card = { rank: '2', suit: 'clubs' };
+
+/** Seats clockwise from the passer to the player who receives the cards. */
+export const PASS_OFFSET: Readonly<Record<PassDirection, number>> = { left: 1, right: 3, across: 2, hold: 0 };
 
 export function penalty(card: Card): number {
   if (card.suit === 'hearts') return 1;

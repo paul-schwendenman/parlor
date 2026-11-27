@@ -1,7 +1,7 @@
 <script lang="ts">
   import { cardEquals, type Card } from '@parlor/cards';
   import type { GameSocket } from '@parlor/multiplayer/client';
-  import { Button, CardBoard, CardHand, Felt, GameOver, PlayingCard, SeatChip, TurnBanner, cardName } from '@parlor/ui';
+  import { Button, CardBoard, CardHand, Felt, GameOver, SeatChip, TeamScore, TrickTable, TurnBanner, cardName, SUIT_NAMES } from '@parlor/ui';
   import type { SpadesAction, SpadesView } from './types.js';
 
   let { view, socket, playerId, isHost }: {
@@ -22,6 +22,7 @@
   let playableSelection = $derived(selected && isPlayable(selected) ? selected : null);
   let leadSuit = $derived(view.trick[0]?.card.suit);
   const bids = Array.from({ length: 14 }, (_, i) => i);
+  let seats = $derived(view.players.map((player) => ({ id: player.id, label: player.id === playerId ? 'You' : player.name })));
 
   let standings = $derived(view.teams.map((team) => ({
     id: String(team.team),
@@ -88,7 +89,7 @@
         title={trickWinner ? `${trickWinner.name} took the trick` : myTurn ? 'Your turn' : `${active?.name ?? 'Next player'} to play`}
         detail={playableSelection
           ? `Tap the ${cardName(playableSelection.rank, playableSelection.suit)} again to play it.`
-          : myTurn && leadSuit ? `Follow ${leadSuit} if you can.` : undefined} />
+          : myTurn && leadSuit ? `Follow ${SUIT_NAMES[leadSuit].toLowerCase()} if you can.` : undefined} />
     {/if}
   {/if}
 
@@ -97,7 +98,7 @@
       {#each view.players as player, seat (player.id)}
         {@const bid = player.bid === null ? 'Waiting to bid' : player.bid === 0 ? player.tricks ? 'Nil failed' : 'Nil' : `${player.tricks}/${player.bid} tricks`}
         {@const team = `Team ${player.team + 1}`}
-        <li><SeatChip name={player.name} {seat} you={player.id === playerId}
+        <li><SeatChip name={player.name} {seat} you={player.id === playerId} bot={player.bot} connected={player.connected}
           active={player.id === view.activePlayerId} stat={`${team} · ${player.id === view.dealerId ? 'Dealer · ' : ''}${bid}`} /></li>
       {/each}
     </ul>
@@ -105,12 +106,8 @@
 
   <div class="scoreboard" aria-label="Team scores">
     {#each view.teams as team (team.team)}
-      <section class="score" class:mine={me?.team === team.team} aria-label={`Team ${team.team + 1}`}>
-        <header>
-          <h2>Team {team.team + 1}</h2>
-          <strong>{team.score} <small>pts</small></strong>
-        </header>
-        <p>{team.bags} {team.bags === 1 ? 'bag' : 'bags'}{#if team.bid !== null} · {team.tricks}/{team.bid} tricks{/if}</p>
+      <TeamScore name={`Team ${team.team + 1}`} score={team.score} mine={me?.team === team.team}
+        detail={[`${team.bags} ${team.bags === 1 ? 'bag' : 'bags'}`, team.bid !== null && `${team.tricks}/${team.bid} tricks`].filter(Boolean).join(' · ')}>
         {#if team.roundScore}
           <dl class="round-score" aria-label="Round scoring">
             <div><dt>Contract</dt><dd>{signed(team.roundScore.bidPoints)}</dd></div>
@@ -120,32 +117,15 @@
             <div class="total"><dt>Round total</dt><dd>{signed(team.roundScore.total)}</dd></div>
           </dl>
         {/if}
-      </section>
+      </TeamScore>
     {/each}
   </div>
 
   {#if view.phase === 'playing' || view.phase === 'trick-won'}
     <Felt label="Spades trick table">
-      <div class="trick">
-        <header class="trick-heading">
-          <span>Trick {view.trickNumber} of 13</span>
-          <span>Spades {view.spadesBroken ? 'broken' : 'unbroken'}</span>
-        </header>
-        <ol aria-label="Trick in play order">
-          {#each view.trick as play (play.playerId)}
-            {@const player = view.players.find((seat) => seat.id === play.playerId)}
-            <li>
-              <div class="trick-card" class:winner={play.playerId === view.trickWinnerId}>
-                <PlayingCard rank={play.card.rank} suit={play.card.suit} />
-              </div>
-              <small title={player?.name}>{play.playerId === playerId ? 'You' : player?.name}</small>
-            </li>
-          {/each}
-          {#each Array.from({ length: 4 - view.trick.length }) as _, i (i)}
-            <li aria-hidden="true"><div class="empty-card"></div></li>
-          {/each}
-        </ol>
-      </div>
+      <TrickTable {seats} plays={view.trick} winnerId={view.trickWinnerId} title={`Trick ${view.trickNumber} of 13`}>
+        {#snippet aside()}Spades {view.spadesBroken ? 'broken' : 'unbroken'}{/snippet}
+      </TrickTable>
     </Felt>
   {/if}
 
@@ -171,63 +151,11 @@
   .seats { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; list-style: none; margin: 0; padding: 0; }
   .seats li { max-width: 100%; }
   .game-info { margin: 0; text-align: center; color: var(--color-ink-muted); font-size: .85rem; }
-  .score header, .trick-heading {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.25rem 1rem;
-  }
-  h2, p, ol, ul, dl, dd { margin: 0; }
-  .scoreboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; }
-  .score {
-    background: var(--color-paper);
-    border: 2px solid var(--color-espresso);
-    border-radius: 0.85rem;
-    padding: 0.6rem 0.75rem;
-  }
-  .score.mine { background: var(--color-mustard-tint); }
-  .score h2 { font: 900 1rem/1.1 var(--font-heading); }
-  .score strong { font: 900 1.35rem/1 var(--font-heading); }
-  .score p { font-size: 0.8rem; color: var(--color-ink-muted); }
-  .trick small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
-  }
-  .round-score {
-    display: grid;
-    gap: 0.15rem;
-    margin-top: 0.45rem;
-    font-size: 0.8rem;
-  }
-  .round-score div { display: flex; justify-content: space-between; gap: 0.4rem; }
-  .round-score .total { border-top: 1px solid currentColor; padding-top: 0.2rem; font-weight: 700; }
-  .trick { width: min(100%, 24rem); --card-w: clamp(2.7rem, 12vw, 3.6rem); }
-  .trick-heading { font-size: 0.8rem; }
-  .trick ol {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.35rem;
-    margin-top: 0.65rem;
-    padding: 0;
-    list-style: none;
-  }
-  .trick li { display: grid; justify-items: center; align-content: start; gap: 0.3rem; min-width: 0; }
-  .trick-card.winner { border-radius: 0.35rem; outline: 2px solid var(--color-mustard); outline-offset: 2px; }
-  .empty-card {
-    box-sizing: border-box;
-    width: var(--card-w);
-    aspect-ratio: 5 / 7;
-    border: 1px dashed var(--color-cream);
-    border-radius: 0.35rem;
-    opacity: 0.45;
-  }
-  .bidding {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(4.25rem, 1fr));
-    gap: 0.4rem;
-  }
-  .error { color: var(--color-danger); }
+  .scoreboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .round-score { display: grid; gap: 2px; margin: 8px 0 0; font-size: 0.8125rem; }
+  .round-score div { display: flex; justify-content: space-between; gap: 6px; }
+  .round-score dd { margin: 0; }
+  .round-score .total { border-top: 1px solid currentColor; padding-top: 3px; font-weight: 700; }
+  .bidding { display: grid; grid-template-columns: repeat(auto-fit, minmax(4.25rem, 1fr)); gap: 0.4rem; }
+  .error { margin: 0; text-align: center; color: var(--color-danger); }
 </style>

@@ -22,6 +22,8 @@ export interface HeartsView {
   players: {
     id: string;
     name: string;
+    bot: boolean;
+    connected: boolean;
     cardCount: number;
     passed: boolean;
     roundScore: number;

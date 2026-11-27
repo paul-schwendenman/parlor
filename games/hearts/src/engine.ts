@@ -1,11 +1,10 @@
 import { aceHighRankValue, cardEquals, createDeck, SUITS, type Card } from '@parlor/cards';
 import { GameRuleError } from '@parlor/multiplayer';
 import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
-import { legalCards, OPENING_CARD, penalty, winningPlay } from './rules.js';
+import { legalCards, OPENING_CARD, PASS_OFFSET, penalty, winningPlay } from './rules.js';
 import type { HeartsPhase, HeartsView, PassDirection, TrickPlay } from './types.js';
 
 const PASS_SEQUENCE: readonly PassDirection[] = ['left', 'right', 'across', 'hold'];
-const PASS_OFFSET = { left: 1, right: 3, across: 2, hold: 0 };
 const HAND_SIZE = 13;
 
 interface Seat {
@@ -158,6 +157,8 @@ export class HeartsEngine {
       players: this.seats.map((player) => ({
         id: player.id,
         name: player.name,
+        bot: player.bot,
+        connected: player.connected,
         cardCount: player.hand.length,
         passed: player.pass.length > 0,
         roundScore: player.roundScore,

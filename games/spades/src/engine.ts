@@ -148,7 +148,7 @@ export class SpadesEngine {
       trickWinnerId: this.trickWinnerId,
       winningTeam: this.winningTeam,
       trick: [...this.trick],
-      players: this.seats.map(({ id, name, team, bid, tricks }) => ({ id, name, team, bid, tricks })),
+      players: this.seats.map(({ id, name, bot, connected, team, bid, tricks }) => ({ id, name, bot, connected, team, bid, tricks })),
       teams: this.teams.map((team) => {
         const players = this.seats.filter((player) => player.team === team.team);
         return {

@@ -27,7 +27,7 @@ export interface EuchreView {
   trickNumber: number;
   dealerId: string;
   activePlayerId: string | null;
-  players: { id: string; name: string; team: Team; sittingOut: boolean }[];
+  players: { id: string; name: string; bot: boolean; connected: boolean; team: Team; sittingOut: boolean }[];
   teams: [number, number];
   tricks: [number, number];
   goal: number;

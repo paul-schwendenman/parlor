@@ -186,8 +186,8 @@ export class EuchreEngine {
       phase: this.phase, round: this.round, trickNumber: this.trickNumber, trump: this.trump, goal: this.goal,
       dealerId: this.seats[this.dealer].id,
       activePlayerId: acting ? this.seats[this.active].id : null,
-      players: this.seats.map(({ id: playerId, name, team }, index) => ({
-        id: playerId, name, team, sittingOut: index === this.sittingOut,
+      players: this.seats.map(({ id: playerId, name, bot, connected, team }, index) => ({
+        id: playerId, name, bot, connected, team, sittingOut: index === this.sittingOut,
       })),
       teams: [...this.teams],
       tricks: [...this.tricks],

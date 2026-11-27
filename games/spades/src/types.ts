@@ -32,6 +32,8 @@ export interface SpadesView {
   players: {
     id: string;
     name: string;
+    bot: boolean;
+    connected: boolean;
     team: TeamIndex;
     bid: number | null;
     tricks: number;

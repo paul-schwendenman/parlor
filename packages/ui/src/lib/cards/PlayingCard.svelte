@@ -137,8 +137,14 @@
     border-width: 3px;
   }
 
+  /* Faded print on solid stock: an overlapping hand must not show through. */
   .face.dimmed {
-    opacity: 0.55;
+    background: var(--color-linen, #F5EDE0);
+    border-color: rgba(59, 47, 47, 0.45);
+  }
+
+  .face.dimmed > * {
+    opacity: 0.45;
   }
 
   .face:active.playable {

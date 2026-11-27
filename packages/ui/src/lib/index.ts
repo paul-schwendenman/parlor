@@ -13,3 +13,5 @@ export { default as Felt } from './cards/Felt.svelte';
 export { default as PipDie } from './dice/PipDie.svelte';
 export { SEAT_TONES, seatTone, initial, type SeatTone, type Standing } from './seat.js';
 export { SUIT_NAMES, isRedSuit, cardName, type CardSuit } from './cards/suits.js';
+export { default as TeamScore } from './TeamScore.svelte';
+export { default as TrickTable } from './cards/TrickTable.svelte';

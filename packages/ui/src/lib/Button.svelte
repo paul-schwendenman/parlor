@@ -6,14 +6,16 @@
     disabled?: boolean;
     /** The one uppercase Nunito 900 action on a screen (DESIGN.md: Shout Once). */
     shout?: boolean;
+    /** Makes it a toggle (aria-pressed); pressed is printed on butter. */
+    pressed?: boolean;
     onclick?: () => void;
     children: Snippet;
   }
 
-  let { variant = 'primary', disabled = false, shout = false, onclick, children }: Props = $props();
+  let { variant = 'primary', disabled = false, shout = false, pressed, onclick, children }: Props = $props();
 </script>
 
-<button type="button" class="btn btn-{variant}" class:shout {disabled} {onclick}>
+<button type="button" class="btn btn-{variant}" class:shout aria-pressed={pressed} {disabled} {onclick}>
   {@render children()}
 </button>
 
@@ -68,6 +70,12 @@
 
   .btn-secondary:hover:not(:disabled) {
     background: rgba(59, 47, 47, 0.06);
+  }
+
+  .btn-secondary[aria-pressed='true'],
+  .btn-secondary[aria-pressed='true']:hover:not(:disabled) {
+    background: var(--color-mustard-tint, #F3E2B6);
+    border-width: 3px;
   }
 
   .btn-danger {

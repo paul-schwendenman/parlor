@@ -149,7 +149,7 @@ export class OhHellEngine {
       trumpCard: this.trumpCard,
       trick: [...this.trick],
       trickWinnerId: this.trickWinnerId,
-      players: this.seats.map(({ id, name, bid, tricks, score, roundPoints }) => ({ id, name, bid, tricks, score, roundPoints })),
+      players: this.seats.map(({ id, name, bot, connected, bid, tricks, score, roundPoints }) => ({ id, name, bot, connected, bid, tricks, score, roundPoints })),
       winnerIds: this.phase === 'game-over'
         ? this.seats.filter((player) => player.score === highScore).map((player) => player.id)
         : [],
