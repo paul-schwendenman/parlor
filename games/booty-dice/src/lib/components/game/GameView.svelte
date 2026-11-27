@@ -455,7 +455,9 @@
     color: #888;
   }
 
-  :global(.modal) {
+  /* Scoped to this game's container: unscoped, it darkened every .modal in
+     the Parlor app (Quixx scoresheets, the How-to-play sheet). */
+  .container :global(.modal) {
     background: #2a2a2a !important;
     color: #eee !important;
   }

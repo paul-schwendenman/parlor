@@ -174,7 +174,7 @@ Elevation:
 - Felt well: inset 0 2px 10px rgba(0, 0, 0, 0.25)
 Don't:
 - Don't use Tailwind-default indigo, slate, red or green anywhere.
-- Don't put a bar down one side of a box (currently `RulesModal.svelte` `.combo-item`); use a full outline or a fill.
+- Don't put a bar down one side of a box; use a full outline or a fill.
 - Don't put small uppercase labels above headings or values ("ROOM CODE", "PLAYING").
 - Don't use stone greys for text (#a8a29e, #c7c2be fail contrast on cream); use Faded Ink.
 - Don't put cream or white text under 24px on Kiln Terracotta (#C4663A, 3.69:1).

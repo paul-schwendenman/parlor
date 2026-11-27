@@ -416,6 +416,7 @@
     align-items: center;
     justify-content: center;
     background: #333;
+    color: #eee;
     border-radius: 8px;
     border: 2px solid #444;
   }
@@ -539,6 +540,7 @@
     height: 48px;
     font-size: 1.75rem;
     background: #333;
+    color: #eee;
     border: 2px solid #444;
     border-radius: 8px;
     cursor: pointer;

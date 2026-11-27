@@ -172,11 +172,9 @@
 
   h3 {
     font-family: var(--font-heading);
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: var(--color-terracotta);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 1.0625rem;
+    font-weight: 900;
+    color: var(--color-espresso);
     margin: 0 0 0.5rem;
   }
 
@@ -289,32 +287,34 @@
   }
 
   .btn-close, .btn-play {
-    padding: 0.6rem 1.25rem;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-weight: 600;
+    height: 46px;
+    padding: 0 20px;
+    border-radius: 999px;
+    font-size: 0.9375rem;
+    font-weight: 700;
     font-family: var(--font-body);
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s ease;
   }
 
   .btn-close {
-    background: var(--color-linen);
-    border: none;
-    color: var(--color-ink-muted);
+    background: transparent;
+    border: 2px solid var(--color-espresso);
+    color: var(--color-espresso);
   }
 
   .btn-close:hover {
-    background: var(--color-mustard-tint);
+    background: rgba(59, 47, 47, 0.06);
   }
 
   .btn-play {
     background: var(--color-terracotta-deep);
-    border: none;
+    border: 2px solid var(--color-terracotta-deep);
     color: var(--color-cream);
   }
 
   .btn-play:hover {
     background: var(--color-terracotta-press);
+    border-color: var(--color-terracotta-press);
   }
 </style>

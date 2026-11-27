@@ -19,7 +19,8 @@
 </script>
 
 {#if visible}
-  <div class="toast toast-{type}" role="alert">
+  <!-- Errors interrupt; info and success are announced politely. -->
+  <div class="toast toast-{type}" role={type === 'error' ? 'alert' : 'status'}>
     {message}
   </div>
 {/if}
@@ -30,26 +31,30 @@
     bottom: 1.5rem;
     left: 50%;
     transform: translateX(-50%);
-    padding: 0.75rem 1.5rem;
-    border-radius: 0.5rem;
-    font-weight: 500;
+    max-width: calc(100vw - 32px);
+    box-sizing: border-box;
+    padding: 12px 20px;
+    border: 2px solid var(--color-espresso, #3B2F2F);
+    border-radius: 999px;
+    font-family: var(--font-body, 'DM Sans', system-ui, sans-serif);
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--color-cream, #FDF6EC);
+    box-shadow: 0 10px 24px rgba(59, 47, 47, 0.16);
     z-index: 100;
     animation: slide-up 0.2s ease-out;
   }
 
   .toast-info {
-    background: #1e293b;
-    color: white;
+    background: var(--color-espresso, #3B2F2F);
   }
 
   .toast-success {
-    background: #22c55e;
-    color: white;
+    background: var(--color-forest-deep, #2F5A3E);
   }
 
   .toast-error {
-    background: #ef4444;
-    color: white;
+    background: var(--color-danger, #991B1B);
   }
 
   @keyframes slide-up {
@@ -60,6 +65,12 @@
     to {
       opacity: 1;
       transform: translateX(-50%) translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toast {
+      animation: none;
     }
   }
 </style>

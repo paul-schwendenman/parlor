@@ -159,7 +159,7 @@ Parlor should feel like the lid of a well-made board game: printed in flat color
 
 Density is low and the targets are large. Parlor is played on phones held at arm's length and on laptops propped on a kitchen table, usually while people are also talking to each other. So everything is generous and every action is a big, obvious pill. Hierarchy comes from weight and color blocks, not from fine grey type or subtle depth. Expression sits in a few signature moves: the lid, the letter-tile room code, the ink outline and the color-blocked game shelf. Everything else stays plain so those moves read clearly.
 
-**Implementation status.** This direction was approved from a mockup on 2026-11-27. The shipped code still mostly uses an earlier, softer version of the same palette: borderless linen cards, 8px rectangular buttons, an uppercase "ROOM CODE" label and stone-grey secondary text. Tokens and colors are shared between the two. Shapes, outlines and component treatments still need to move to what's described here. When code and this file disagree, this file wins.
+**Implementation status.** The Parlor app shell (home, lobby, game frame) and the shared `@parlor/ui` components follow this system. Individual game boards under `games/*` predate it and are migrated game by game; where a board and this file disagree, this file wins.
 
 **Key Characteristics:**
 - Terracotta "lid" header on every main screen, outlined at the bottom in ink.
@@ -306,8 +306,8 @@ A terracotta block running edge to edge with a 3px espresso bottom edge. The wor
 - **Do** draw icons as inline stroke SVG (2–2.5px stroke, round caps) and give icon-only buttons an `aria-label`.
 
 ### Don't:
-- **Don't** use Tailwind-default indigo, slate, red or green anywhere. These are known drift to migrate: the shared Button (`../../packages/ui/src/lib/Button.svelte`: #6366f1 / #e2e8f0 / #ef4444), Toast (`../../packages/ui/src/lib/Toast.svelte`: #1e293b / #22c55e / #ef4444), the white Modal on a black scrim (`../../packages/ui/src/lib/Modal.svelte`), and the lobby's indigo Bot badge and Add Bot button (#e0e7ff / #3730a3).
-- **Don't** put a bar down one side of a box (currently `RulesModal.svelte` `.combo-item`); use a full outline or a fill.
+- **Don't** use Tailwind-default indigo, slate, red or green anywhere.
+- **Don't** put a bar down one side of a box; use a full outline or a fill.
 - **Don't** put small uppercase labels above headings or values ("ROOM CODE", "PLAYING").
 - **Don't** use stone greys for text (#a8a29e, #c7c2be fail contrast on cream); use Faded Ink.
 - **Don't** put cream or white text under 24px on Kiln Terracotta (#C4663A, 3.69:1).
