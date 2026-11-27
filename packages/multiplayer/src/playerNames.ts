@@ -1,4 +1,5 @@
-const MAX_NAME_LENGTH = 24;
+import { PLAYER_NAME_MAX_LENGTH as MAX_NAME_LENGTH } from '@parlor/game-types';
+
 const NAME_CHARACTERS = /^[\p{L}\p{M}\p{Nd} .'’_\u2010\u2011-]+$/u;
 
 // Fold common Greek and Cyrillic lookalikes in addition to Unicode compatibility forms.

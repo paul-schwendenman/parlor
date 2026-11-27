@@ -16,9 +16,9 @@ test('a player can pass cards and play a trick in a Hearts room with bots', asyn
 	await page.getByRole('button', { name: 'Create Room' }).click();
 	await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
 
-	const addBot = page.getByRole('button', { name: 'Add Bot' });
+	const addBot = page.getByRole('button', { name: 'Add bot' });
 	for (let count = 0; count < 3; count++) await addBot.click();
-	await page.getByRole('button', { name: 'Ready Up' }).click();
+	await page.getByRole('button', { name: 'Ready', exact: true }).click();
 	await page.getByRole('button', { name: 'Start Game' }).click();
 
 	await page.getByRole('button', { name: 'How to play Hearts' }).click();

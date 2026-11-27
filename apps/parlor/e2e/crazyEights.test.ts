@@ -35,8 +35,8 @@ test('Crazy Eights renders each seat its own hand from the typed envelope', asyn
     await joinRoom(guestPage, roomCode, 'Guest');
     await expect(hostPage.getByText('Guest')).toBeVisible();
 
-    await guestPage.getByRole('button', { name: 'Ready Up' }).click();
-    await hostPage.getByRole('button', { name: 'Ready Up' }).click();
+    await guestPage.getByRole('button', { name: 'Ready', exact: true }).click();
+    await hostPage.getByRole('button', { name: 'Ready', exact: true }).click();
     const startBtn = hostPage.getByRole('button', { name: 'Start Game' });
     await expect(startBtn).toBeEnabled();
     await startBtn.click();
@@ -74,10 +74,10 @@ test('a spectator can watch before play starts, leave, and rejoin a live game', 
     await expect(watcher).toHaveURL(`/lobby/${roomCode}`);
     await expect(watcher.getByText('Watching as spectator')).toBeVisible();
     await expect(watcher.getByText('Guest', { exact: true })).toBeVisible();
-    await expect(watcher.getByRole('button', { name: 'Ready Up' })).toHaveCount(0);
+    await expect(watcher.getByRole('button', { name: 'Ready', exact: true })).toHaveCount(0);
 
-    await guest.getByRole('button', { name: 'Ready Up' }).click();
-    await host.getByRole('button', { name: 'Ready Up' }).click();
+    await guest.getByRole('button', { name: 'Ready', exact: true }).click();
+    await host.getByRole('button', { name: 'Ready', exact: true }).click();
     await host.getByRole('button', { name: 'Start Game' }).click();
 
     await expect(watcher).toHaveURL(`/game/${roomCode}`);
@@ -130,8 +130,8 @@ test('a Quixx spectator sees the table without a player scoresheet', async ({ br
     const host = await hostContext.newPage();
     const watcher = await watcherContext.newPage();
     const roomCode = await createRoom(host, 'Quixx');
-    await host.getByRole('button', { name: 'Add Bot' }).click();
-    await host.getByRole('button', { name: 'Ready Up' }).click();
+    await host.getByRole('button', { name: 'Add bot' }).click();
+    await host.getByRole('button', { name: 'Ready', exact: true }).click();
     await host.getByRole('button', { name: 'Start Game' }).click();
     await expect(host).toHaveURL(`/game/${roomCode}`);
 

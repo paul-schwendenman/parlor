@@ -37,7 +37,7 @@ test('friends vote together and the host confirms a tied game', async ({ page, b
 		await page.getByRole('button', { name: 'Confirm Quixx' }).click();
 		await expect(page.getByRole('heading', { name: 'Quixx', exact: true })).toBeFocused();
 		await expect(guest.getByRole('heading', { name: 'Quixx', exact: true })).toBeVisible();
-		await expect(friend.getByRole('button', { name: 'Ready Up' })).toBeVisible();
+		await expect(friend.getByRole('button', { name: 'Ready', exact: true })).toBeVisible();
 
 		await page.getByRole('button', { name: 'Vote for next game' }).click();
 		await expect(page.getByRole('heading', { name: 'Vote on a game' })).toBeFocused();

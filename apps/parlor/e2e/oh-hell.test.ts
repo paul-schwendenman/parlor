@@ -10,10 +10,10 @@ test('bids and plays through the first Oh Hell hand with bots', async ({ page })
   await dialog.getByRole('button', { name: 'Create Room' }).click();
   await page.getByRole('button', { name: 'Vote for Oh Hell', exact: true }).click();
   await page.getByRole('button', { name: 'Confirm Oh Hell', exact: true }).click();
-  const addBot = page.getByRole('button', { name: 'Add Bot' });
+  const addBot = page.getByRole('button', { name: 'Add bot' });
   await addBot.click();
   await addBot.click();
-  await page.getByRole('button', { name: 'Ready Up' }).click();
+  await page.getByRole('button', { name: 'Ready', exact: true }).click();
   await page.getByRole('button', { name: 'Start Game' }).click();
 
   await expect(page.getByText('Hand 1 of 9', { exact: false })).toBeVisible();

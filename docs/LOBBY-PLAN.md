@@ -30,11 +30,12 @@ Target: `apps/parlor/src/routes/lobby/[roomCode]/+page.svelte` (about 950 lines)
 
 Small, low-risk changes that clear the way before the bigger work.
 
-- [ ] **1.1 Sticky "Voted ✓" on touch.**
+- [x] **1.1 Sticky "Voted ✓" on touch.**
   - **Cause:** `.pill:hover:not(:disabled)` (around `:863`) comes after the pressed-state rule (`:611`) at the same specificity, so the hover fill wins on touch screens, where hover sticks after a tap.
   - **Fix:** wrap pill hover styles in `@media (hover: hover)`, as `.copy` already does (around `:473`), and make the pressed rule win regardless.
   - **Check:** the voted pill and the Add Bot pill both look right after a tap with touch emulation.
-- [ ] **1.2 One game catalogue.**
+  - **Done:** Pill hover is inside `@media (hover: hover)` and wrapped in `:where()` so it can never outrank the pressed/Confirm fill; the same gating was applied to the lobby's other hover fills, the home page pills/shelf buttons and LeaveRoomButton. Checked with touch emulation: the voted pill stays espresso and Add bot stays clear after a tap. (Playwright note: a `fullPage` screenshot drops Chromium's touch emulation and flips `(hover: none)` back to hover; take viewport shots on touch pages.)
+- [x] **1.2 One game catalogue.**
   - **Problem:** the lobby (`:20-30`) and the home page (`routes/+page.svelte`) both hard-code the five older games and import the four newer ones. The home page also picks spine colours by list position (`spines[i % 5]`), so a game's colour isn't fixed.
   - **Fix:** give each older game a `src/meta.ts` and a `"./meta"` export, as Hearts, Spades, Euchre and Oh Hell already have. Then add one `apps/parlor/src/lib/games/catalog.ts` that both pages import. It lists the games in order and gives each its fixed shelf colour, matching the board colours recorded in memory and in DESIGN.md "Game boards":
     - Quixx: felt
@@ -44,11 +45,16 @@ Small, low-risk changes that clear the way before the bigger work.
     - Kings Corner: linen
     - The four trick-taking games: pick colours and record them in DESIGN.md.
   - **Note:** this unblocks Phase 3.
-- [ ] **1.3 Player-count copy.** Show "4 players" when min equals max, and "2–5 players" otherwise (`:224`, `:254`). Make "Need 1 more" say "Needs 1 more player".
-- [ ] **1.4 Sentence-case labels.** "Ready Up" → "Ready", "Not Ready" → "Not ready", "Add Bot" → "Add bot". Keep uppercase only for the one main action (START GAME), per the Shout Once rule.
-- [ ] **1.5 Delete `lib/components/lobby/GamePicker.svelte`.** Nothing imports it. Deleting it clears most of the detector's off-system colour, font-size and radius advisories.
-- [ ] **1.6 Tap targets.** The PARLOR wordmark (96x40) and "Leave room" (115x40) need to reach 44px tall without making the header look heavier.
-- [ ] **1.7 Name length.** Check that the name field's limit matches the server's, and that 20-character names show in full or truncate deliberately with an ellipsis ("Bartholomew Fitzgera" is cut off today).
+  - **Done:** Older games got `src/meta.ts` + `"./meta"` exports, and their server definitions now import the same meta, so client and server can't drift. Where the three copies disagreed, the home page's copy won (Liar's Dice: description, `15-25` min, `classic` tag; the server had `15-30` and `competitive`). Trick-game colours: Hearts clay, Spades espresso (ink), Euchre felt, Oh Hell mustard. None of the four sets `--card-back` (all use the default espresso back on felt), so the choice follows the suit (red hearts, black spades) and keeps neighbouring blocks different in both the one- and two-column shelf. Recorded in DESIGN.md (Collection Rule line) and design-full.md (Game boards → Its colour, Game shelf).
+- [x] **1.3 Player-count copy.** Show "4 players" when min equals max, and "2–5 players" otherwise (`:224`, `:254`). Make "Need 1 more" say "Needs 1 more player".
+  - **Done:** Formatters (`playerCount`, `playerRange`, `playersNeeded`, `minutesRange`) live in `catalog.ts`; the home shelf chip now shows "4 · 25–40m" instead of "4–4".
+- [x] **1.4 Sentence-case labels.** "Ready Up" → "Ready", "Not Ready" → "Not ready", "Add Bot" → "Add bot". Keep uppercase only for the one main action (START GAME), per the Shout Once rule.
+  - **Done:** Also sentence-cased the home shelf "Start Game" → "Start game" and the create dialog ("Create room", "Create a Hearts room"). E2E selectors updated (`'Ready', exact: true`; `'Add bot'`).
+- [x] **1.5 Delete `lib/components/lobby/GamePicker.svelte`.** Nothing imports it. Deleting it clears most of the detector's off-system colour, font-size and radius advisories.
+- [x] **1.6 Tap targets.** The PARLOR wordmark (96x40) and "Leave room" (115x40) need to reach 44px tall without making the header look heavier.
+  - **Done:** The wordmark link is `min-height: 44px` (lid top padding 18→16px to compensate). LeaveRoomButton is now a 44px transparent hit area holding the unchanged 40px pill, so the game-page lid padding went 10→8px and its height is unchanged (63px).
+- [x] **1.7 Name length.** Check that the name field's limit matches the server's, and that 20-character names show in full or truncate deliberately with an ellipsis ("Bartholomew Fitzgera" is cut off today).
+  - **Done:** The server allowed 24 characters and every input 20. Both now use `PLAYER_NAME_MAX_LENGTH = 20` from `@parlor/game-types` (server test added: 21 rejected with room unchanged, then 20 accepted). Lobby names truncate with an ellipsis and keep the full name in `title`; a 20-character "Bartholomew Fitzgera" fits in full at 390px, a 20×W name ellipsises.
 
 ## Phase 2: Seats and the start hint (P0)
 
@@ -133,8 +139,10 @@ Redesign the voting state. It should feel like pulling a box off the shelf, not 
 | Date | Phase | Change | Commit / PR |
 |---|---|---|---|
 | 2026-11-27 | — | Critique run (21/40); plan written | — |
+| 2026-11-27 | 1 | Quick fixes: touch-safe pill states, shared game catalogue with fixed shelf colours, player-count copy, sentence-case labels, GamePicker removed, 44px header targets, 20-char name limit shared with the server | uncommitted |
 
 ## Notes
 
 - Detector advisories in `RulesModal.svelte` (`#B8372B`, `#2F5C8A`) may be deliberate suit or team colours. Check before "fixing" them, and if they stay, record them as tokens in DESIGN.md.
 - Open question from the critique, not decided: should "Ready" exist at all for guests in a private room, replaced by START plus a short "Margaret is starting Hearts…" countdown? Revisit after Phase 2.
+- Phase 1 deferrals: the standalone game apps' own `JoinForm.svelte` inputs still hard-code `maxlength="20"` (matches the server, but could import `PLAYER_NAME_MAX_LENGTH`). The "Voted ✓" label uses a Unicode glyph as an icon (craft floor); replace it during the Phase 3 ballot redesign. The trick-taking boards could set `--card-back` to their new shelf colour (design-full says a game's colour shows on its pieces); not done here. The design-full shelf spec says the solid shelf button reads "Start a room"; the UI says "Start game" — pick one. The `startHint` copy ("Need at least 2 players", "ready up") is left for Phase 2.

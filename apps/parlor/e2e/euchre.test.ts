@@ -10,9 +10,9 @@ test('a Euchre room with bots advances from dealer pickup and discard to the nex
 	await page.getByRole('button', { name: 'Vote for Euchre', exact: true }).click();
 	await page.getByRole('button', { name: 'Confirm Euchre', exact: true }).click();
 
-	const addBot = page.getByRole('button', { name: 'Add Bot' });
+	const addBot = page.getByRole('button', { name: 'Add bot' });
 	for (let count = 0; count < 3; count++) await addBot.click();
-	await page.getByRole('button', { name: 'Ready Up' }).click();
+	await page.getByRole('button', { name: 'Ready', exact: true }).click();
 	await page.getByRole('button', { name: 'Start Game' }).click();
 
 	const order = page.getByRole('button', { name: 'Order it up' });

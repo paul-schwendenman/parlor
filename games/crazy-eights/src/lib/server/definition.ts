@@ -9,6 +9,7 @@ import { CrazyEightsEngine } from './game/CrazyEightsEngine.js';
 import { DEFAULT_CONFIG } from '../types/game.js';
 import { takeBotStep } from './game/takeBotStep.js';
 import { validateCrazyEightsAction } from './validateAction.js';
+import { crazyEightsMeta } from '../../meta.js';
 
 function driveTurn(game: GameContext<CrazyEightsEngine>): void {
   const { state: engine, instance } = game;
@@ -38,17 +39,7 @@ function driveTurn(game: GameContext<CrazyEightsEngine>): void {
 
 /** Crazy Eights on the typed game contract (plan 3.1b). Exported for tests; servers use `crazyEightsDefinition`. */
 export const crazyEightsGame: TypedGameDefinition<'crazy-eights', CrazyEightsEngine> = {
-  meta: {
-    id: 'crazy-eights',
-    name: 'Crazy Eights',
-    description: 'Classic card game - match suits or ranks, play eights to change the suit',
-    minPlayers: 2,
-    maxPlayers: 5,
-    estimatedMinutes: '10-15',
-    tags: ['cards', 'classic', 'quick'],
-    displayModes: ['peer'],
-    supportsBots: true,
-  },
+  meta: crazyEightsMeta,
 
   validateAction: validateCrazyEightsAction,
 

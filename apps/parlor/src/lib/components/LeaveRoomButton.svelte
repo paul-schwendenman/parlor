@@ -21,7 +21,7 @@
 </script>
 
 <div class="leave">
-  <button type="button" onclick={leave} disabled={leaving}>Leave room</button>
+  <button type="button" onclick={leave} disabled={leaving}><span class="face">Leave room</span></button>
   {#if error}
     <p role="alert">{error}</p>
   {/if}
@@ -35,26 +35,43 @@
     gap: 6px;
   }
 
-  /* Cream fill + ink outline: readable on the terracotta lid and on cream. */
+  /* The button is the 44px hit area; the visible pill inside stays 40px so the
+     lid doesn't get heavier. Cream fill + ink outline: readable on the
+     terracotta lid and on cream. */
   button {
-    height: 40px;
-    padding: 0 16px;
-    border: 2px solid var(--color-espresso);
-    border-radius: 999px;
-    background: var(--color-cream);
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
     color: var(--color-espresso);
     font: inherit;
     font-size: 0.875rem;
     font-weight: 700;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .face {
+    height: 40px;
+    box-sizing: border-box;
+    padding: 0 16px;
+    border: 2px solid var(--color-espresso);
+    border-radius: 999px;
+    background: var(--color-cream);
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
     transition: background 0.2s ease, transform 0.1s ease;
   }
 
-  button:hover:not(:disabled) {
-    background: var(--color-paper);
+  @media (hover: hover) {
+    button:hover:not(:disabled) .face {
+      background: var(--color-paper);
+    }
   }
 
-  button:active:not(:disabled) {
+  button:active:not(:disabled) .face {
     transform: scale(0.98);
   }
 

@@ -101,13 +101,13 @@ test.describe('Multiplayer Flow', () => {
 		await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
 
 		// Add a bot
-		await page.getByRole('button', { name: 'Add Bot' }).click();
+		await page.getByRole('button', { name: 'Add bot' }).click();
 
 		// Should see the bot in player list
 		await expect(page.getByText('Bot')).toBeVisible();
 
 		// Ready up
-		await page.getByRole('button', { name: 'Ready Up' }).click();
+		await page.getByRole('button', { name: 'Ready', exact: true }).click();
 		await expect(page.getByText('Ready').first()).toBeVisible();
 
 		// Start the game

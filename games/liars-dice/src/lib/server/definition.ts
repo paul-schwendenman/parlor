@@ -3,6 +3,7 @@ import { LiarsDiceEngine } from './game/LiarsDiceEngine.js';
 import { createPlayer } from '../types/game.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 import { validateLiarsDiceAction } from './validateAction.js';
+import { liarsDiceMeta } from '../../meta.js';
 
 type Game = GameContext<LiarsDiceEngine>;
 
@@ -122,17 +123,7 @@ function standInTurn(game: Game, playerId: string): boolean {
 
 /** Liar's Dice on the typed game contract (plan 3.1b). Servers use `liarsDiceDefinition`. */
 export const liarsDiceGame: TypedGameDefinition<'liars-dice', LiarsDiceEngine> = {
-  meta: {
-    id: 'liars-dice',
-    name: "Liar's Dice",
-    description: 'A bluffing dice game — bid on hidden dice or call the bluff!',
-    minPlayers: 2,
-    maxPlayers: 6,
-    estimatedMinutes: '15-30',
-    tags: ['dice', 'bluffing', 'competitive'],
-    displayModes: ['peer'],
-    supportsBots: true,
-  },
+  meta: liarsDiceMeta,
 
   validateAction: validateLiarsDiceAction,
 

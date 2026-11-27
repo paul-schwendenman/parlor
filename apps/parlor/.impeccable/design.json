@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-27T15:32:48Z",
+  "generatedAt": "2026-11-27T15:49:12Z",
   "title": "Design System: Parlor",
   "extensions": {
     "colorMeta": {
@@ -375,7 +375,7 @@
       "Pill-shaped buttons; Nunito 900 for anything that names a thing or an action.",
       "The room code is always shown as individual mustard letter tiles.",
       "Flat at rest. Shadows only for things that physically sit on top of the page.",
-      "Each game gets a solid color block, rotating through the palette like box spines on a shelf."
+      "Each game gets a solid color block of its own, like box spines on a shelf."
     ],
     "rules": [
       {

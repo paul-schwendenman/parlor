@@ -167,7 +167,7 @@ Density is low and the targets are large. Parlor is played on phones held at arm
 - Pill-shaped buttons; Nunito 900 for anything that names a thing or an action.
 - The room code is always shown as individual mustard letter tiles.
 - Flat at rest. Shadows only for things that physically sit on top of the page.
-- Each game gets a solid color block, rotating through the palette like box spines on a shelf.
+- Each game gets a solid color block of its own, like box spines on a shelf.
 
 ## Colors
 
@@ -283,7 +283,7 @@ Paper fill, 2px espresso outline, 14px corners. A 36px color avatar with the pla
 A felt block with a 2px espresso outline and 18px corners. The game name in cream Nunito 900 24px, and a cream outline "Change" pill for the host.
 
 ### Game shelf
-Each game is a solid color block: 2.5px espresso outline, 18px corners, 18px padding. Blocks rotate through Felt, Dice Mustard, Deep Clay, Espresso and Linen. The text color on each block is cream or espresso, whichever passes. The block holds the game name (Nunito 900 28px), a metadata chip, a description (DM Sans 500 14px) and two pills: outline "How to play" and a solid "Start a room" in the block's contrasting color.
+Each game is a solid color block: 2.5px espresso outline, 18px corners, 18px padding. Each game keeps one block colour from Felt, Dice Mustard, Deep Clay, Espresso and Linen (see Game boards → Its colour), so a game looks the same wherever it appears. The text color on each block is cream or espresso, whichever passes. The block holds the game name (Nunito 900 28px), a metadata chip, a description (DM Sans 500 14px) and two pills: outline "How to play" and a solid "Start a room" in the block's contrasting color.
 
 ### Inputs / Fields
 - **Style:** Paper fill, 2px espresso outline, 12px corners, 50px tall, DM Sans 16px. The label sits above the field in DM Sans 700 13px, as a real `<label>`.
@@ -308,7 +308,7 @@ Every game is a box in the same collection. The boards don't share a colour sche
 - **Seat colours** come from `seatTone(index)`, so a player has the same colour in the lobby, on the board and in the standings.
 
 **Owned by each game:**
-- **Its colour** is its shelf spine on the home page: Quixx felt, Crazy Eights mustard, Booty Dice clay, Liar's Dice espresso, Kings Corner linen. It shows up on the game's printed pieces (card backs, dice, sheet headers), not as a second lid.
+- **Its colour** is its shelf spine on the home page: Quixx felt, Crazy Eights mustard, Booty Dice clay, Liar's Dice espresso, Kings Corner linen, Hearts clay, Spades espresso, Euchre felt, Oh Hell mustard. The trick-taking four share the felt table and default espresso card back, so their colours follow the suit (Hearts red clay, Spades black ink) and keep neighbouring shelf blocks different in one and two columns. The colours are fixed per game in `src/lib/games/catalog.ts`, not assigned by shelf position. It shows up on the game's printed pieces (card backs, dice, sheet headers), not as a second lid.
 - **Its playing surface**: card games play on `Felt` (felt-well inset, ink outline, 18px corners), with the stock as `DrawPile` and the hand as `CardHand` (one overlapping row, selected card lifts on butter; cards you can't play are faded print on solid linen stock, so an overlapping hand never shows through). A card is played on the second tap: the first lifts it and the banner says "Tap the King of Clubs again to play it." Trick-taking games draw the current trick with `TrickTable`: one slot per seat in seat order (dashed until that seat plays), the player's name under it, the trick's winner wearing the mustard ring, and a heading row for the trick count and trump; Quixx on a printed paper scoresheet; the pirate games on `Felt tone="night"`, an espresso table with cream text. A surface is always an outlined block on cream, never a full-page theme.
 - **Its pieces**: cards are `PlayingCard` (paper stock, ink outline, Nunito index top-left, drawn SVG suits, backs printed in the game's colour via `--card-back`). A mustard ring always means "you can act here" (a drawable stock, a pile a picked card can go to); butter means "picked up". Dice are printed too (`PipDie` for numbered dice, with `--die-face` / `--die-pip` per game; Booty Dice draws its own faces as stroke icons on Deep Clay): ink outline, drawn SVG pips, white dice on paper and coloured dice in their row ink. Quixx's scoresheet is four ink bands of tinted boxes (row inks in `games/quixx/.../inks.css`, each tuned to 4.5:1); boxes you can cross are paper with an ink outline, the picked box is ink-filled (butter would vanish on the yellow row), crosses are pen strokes, and boxes left of your last cross fade out.
 

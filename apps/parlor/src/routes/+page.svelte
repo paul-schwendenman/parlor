@@ -1,77 +1,13 @@
 <script lang="ts">
-  import { euchreMeta } from '@parlor/euchre/meta';
-  import { ohHellMeta } from '@parlor/oh-hell/meta';
-  import { spadesMeta } from '@parlor/spades/meta';
-  import { heartsMeta } from '@parlor/hearts/meta';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { getSocket, createRoomAction, joinRoomAction, spectateRoomAction } from '$lib/stores/socketClient.js';
-  import { ROOM_CODE_LENGTH, type GameMeta } from '@parlor/game-types';
+  import { PLAYER_NAME_MAX_LENGTH, ROOM_CODE_LENGTH } from '@parlor/game-types';
+  import { catalog as games, findGame, minutesRange, playerRange } from '$lib/games/catalog.js';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
-
-  // Game metadata - static list matching server registry
-  const games: GameMeta[] = [
-    {
-      id: 'quixx',
-      name: 'Quixx',
-      description: 'A fast-paced dice game of marking numbers and strategic choices.',
-      minPlayers: 2,
-      maxPlayers: 5,
-      estimatedMinutes: '15-20',
-      tags: ['dice', 'strategy', 'quick'],
-      displayModes: ['peer'],
-    },
-    {
-      id: 'crazy-eights',
-      name: 'Crazy Eights',
-      description: 'Classic card game — match suits or ranks, play eights to change the suit.',
-      minPlayers: 2,
-      maxPlayers: 5,
-      estimatedMinutes: '10-15',
-      tags: ['cards', 'classic', 'quick'],
-      displayModes: ['peer'],
-    },
-    {
-      id: 'booty-dice',
-      name: 'Booty Dice',
-      description: 'A pirate dice game of treasure, attacks, and survival.',
-      minPlayers: 2,
-      maxPlayers: 6,
-      estimatedMinutes: '15-30',
-      tags: ['dice', 'pirates', 'competitive'],
-      displayModes: ['peer'],
-    },
-    {
-      id: 'liars-dice',
-      name: "Liar's Dice",
-      description: 'Bluff, bid, and call out liars in this classic dice game.',
-      minPlayers: 2,
-      maxPlayers: 6,
-      estimatedMinutes: '15-25',
-      tags: ['dice', 'bluffing', 'classic'],
-      displayModes: ['peer'],
-    },
-    {
-      id: 'kings-corner',
-      name: 'Kings Corner',
-      description: 'Build descending sequences of alternating colors — be first to empty your hand.',
-      minPlayers: 2,
-      maxPlayers: 4,
-      estimatedMinutes: '15-25',
-      tags: ['cards', 'classic', 'strategy'],
-      displayModes: ['peer'],
-    },
-    heartsMeta,
-    spadesMeta,
-    euchreMeta,
-    ohHellMeta,
-  ];
-
-  // Shelf blocks rotate through the palette like box spines (DESIGN.md: Game shelf).
-  const spines = ['spine-felt', 'spine-mustard', 'spine-clay', 'spine-ink', 'spine-linen'];
 
   let prefillCode = $derived($page.url.searchParams.get('join') ?? '');
   let joinName = $state('');
@@ -85,7 +21,7 @@
   let creatingRoom = $state(false);
   let createName = $state('');
   let createDialog = $state<HTMLDialogElement | null>(null);
-  let createGame = $derived(games.find((g) => g.id === selectedGameForCreate));
+  let createGame = $derived(findGame(selectedGameForCreate));
 
   $effect(() => {
     if (prefillCode) joinCode = prefillCode;
@@ -176,7 +112,7 @@
 
   let rulesGameId = $state<string | null>(null);
   let rulesOpen = $derived(rulesGameId !== null);
-  let rulesGame = $derived(games.find((g) => g.id === rulesGameId));
+  let rulesGame = $derived(findGame(rulesGameId));
 
   function openRules(gameId: string) {
     rulesGameId = gameId;
@@ -201,10 +137,6 @@
   function handleCreateSubmit(e: SubmitEvent) {
     e.preventDefault();
     handleCreateRoom().catch(console.error);
-  }
-
-  function range(value: string): string {
-    return value.replace('-', '–');
   }
 </script>
 
@@ -243,7 +175,7 @@
           type="text"
           bind:value={joinName}
           placeholder="Your name"
-          maxlength="20"
+          maxlength={PLAYER_NAME_MAX_LENGTH}
           autocomplete="nickname"
           class="input"
           aria-invalid={!!error && !creatingRoom && !!joinCode.trim() && !joinName.trim()}
@@ -263,17 +195,17 @@
     <h2 id="shelf-title" class="shelf-title">Or start a new room</h2>
     <button type="button" class="btn btn-accent create-room" onclick={() => openCreateRoom()} disabled={!interactive || loading}>Create a room</button>
     <div class="game-grid">
-      {#each games as game, i (game.id)}
-        <article class="game-card {spines[i % spines.length]}">
+      {#each games as game (game.id)}
+        <article class="game-card spine-{game.shelf}">
           <div class="game-head">
             <h3 class="game-name">{game.name}</h3>
-            <span class="game-meta">{game.minPlayers}–{game.maxPlayers} · {range(game.estimatedMinutes)}m</span>
+            <span class="game-meta">{playerRange(game)} · {minutesRange(game)}m</span>
           </div>
           <p class="game-desc">{game.description}</p>
           <p class="game-tags">{game.tags.join(' · ')}</p>
           <div class="game-actions">
             <button type="button" class="spine-ghost" onclick={() => openRules(game.id)} disabled={!interactive}>How to play</button>
-            <button type="button" class="spine-solid" onclick={() => openCreateRoom(game.id)} disabled={!interactive}>Start Game</button>
+            <button type="button" class="spine-solid" onclick={() => openCreateRoom(game.id)} disabled={!interactive}>Start game</button>
           </div>
         </article>
       {/each}
@@ -300,7 +232,7 @@
 >
   {#if creatingRoom}
     <form class="create-form" onsubmit={handleCreateSubmit} novalidate>
-      <h2 id="create-title" class="create-title">{createGame ? `Create ${createGame.name} Room` : 'Create Room'}</h2>
+      <h2 id="create-title" class="create-title">{createGame ? `Create a ${createGame.name} room` : 'Create a room'}</h2>
       <p id="create-desc" class="create-desc">{createGame?.description ?? 'Invite friends and vote on what to play.'}</p>
       <label class="field">
         <span class="field-label">Your name</span>
@@ -308,7 +240,7 @@
           type="text"
           bind:value={createName}
           placeholder="Enter your name"
-          maxlength="20"
+          maxlength={PLAYER_NAME_MAX_LENGTH}
           autocomplete="nickname"
           class="input"
           aria-invalid={!!error && !createName.trim()}
@@ -321,7 +253,7 @@
       <div class="create-actions">
         <button type="button" class="pill" onclick={cancelCreate}>Cancel</button>
         <button type="submit" class="btn btn-accent" disabled={loading}>
-          {loading ? 'Creating…' : 'Create Room'}
+          {loading ? 'Creating…' : 'Create room'}
         </button>
       </div>
     </form>
@@ -481,8 +413,10 @@
     text-transform: uppercase;
   }
 
-  .btn-primary:hover:not(:disabled) {
-    background: #2E2727;
+  @media (hover: hover) {
+    .btn-primary:hover:not(:disabled) {
+      background: #2E2727;
+    }
   }
 
   .btn-accent {
@@ -495,9 +429,11 @@
     letter-spacing: 0;
   }
 
-  .btn-accent:hover:not(:disabled) {
-    background: var(--color-terracotta-press);
-    border-color: var(--color-terracotta-press);
+  @media (hover: hover) {
+    .btn-accent:hover:not(:disabled) {
+      background: var(--color-terracotta-press);
+      border-color: var(--color-terracotta-press);
+    }
   }
 
   .btn:active:not(:disabled),
@@ -547,11 +483,13 @@
     transition: background 0.2s ease, transform 0.1s ease;
   }
 
-  .pill:hover {
-    background: rgba(59, 47, 47, 0.06);
+  @media (hover: hover) {
+    .pill:hover {
+      background: rgba(59, 47, 47, 0.06);
+    }
   }
 
-  /* Shelf */
+  /* Shelf: each game keeps its own spine colour (catalog.ts, DESIGN.md: Game shelf). */
   .shelf-title {
     margin: 0 0 14px;
     font-family: var(--font-heading);
@@ -661,8 +599,10 @@
     font-weight: 700;
   }
 
-  .spine-ghost:hover {
-    background: color-mix(in srgb, var(--spine-fg) 12%, transparent);
+  @media (hover: hover) {
+    .spine-ghost:hover {
+      background: color-mix(in srgb, var(--spine-fg) 12%, transparent);
+    }
   }
 
   .spine-solid {
@@ -672,8 +612,10 @@
     font-weight: 800;
   }
 
-  .spine-solid:hover {
-    background: color-mix(in srgb, var(--spine-solid-bg) 88%, var(--spine-fg));
+  @media (hover: hover) {
+    .spine-solid:hover {
+      background: color-mix(in srgb, var(--spine-solid-bg) 88%, var(--spine-fg));
+    }
   }
 
   .game-card:not(.spine-mustard):not(.spine-linen) :focus-visible {

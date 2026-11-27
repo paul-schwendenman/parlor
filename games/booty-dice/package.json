@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./meta": "./src/meta.ts",
     "./server-definition": "./src/lib/server/definition.ts",
     "./game-view": "./src/lib/components/game/GameView.svelte",
     "./face-icon": "./src/lib/components/game/FaceIcon.svelte"

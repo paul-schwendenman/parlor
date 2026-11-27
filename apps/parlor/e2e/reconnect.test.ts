@@ -49,8 +49,8 @@ test.describe('Reconnect', () => {
       await expect(hostPage.getByText('Guest')).toBeVisible();
 
       // Both players ready up, host starts the game.
-      await guestPage.getByRole('button', { name: 'Ready Up' }).click();
-      await hostPage.getByRole('button', { name: 'Ready Up' }).click();
+      await guestPage.getByRole('button', { name: 'Ready', exact: true }).click();
+      await hostPage.getByRole('button', { name: 'Ready', exact: true }).click();
       const startBtn = hostPage.getByRole('button', { name: 'Start Game' });
       await expect(startBtn).toBeEnabled();
       await startBtn.click();

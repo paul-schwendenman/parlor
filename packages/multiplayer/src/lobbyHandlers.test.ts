@@ -1,3 +1,4 @@
+import { PLAYER_NAME_MAX_LENGTH } from '@parlor/game-types';
 import { getMetrics } from './observability.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RoomManager } from './RoomManager.js';
@@ -97,6 +98,31 @@ describe('lobby player names', () => {
     guest.fire('lobby:join', roomCode, '  李 明 ', ack);
     expect(ack).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     expect(rm.getPlayersInRoom(roomCode)).toContainEqual(expect.objectContaining({ name: '李 明' }));
+  });
+
+  it('caps names at the shared input limit: rejects one character over without changing the room, then accepts the limit', () => {
+    const rm = new RoomManager();
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, undefined, 'host');
+    const guest = connectFakeSocket(io, rm, undefined, 'guest');
+    host.fire('lobby:create', 'Ann', vi.fn());
+    const roomCode = host.data.roomCode;
+    const before = structuredClone(rm.getRoom(roomCode));
+
+    const tooLong = vi.fn();
+    guest.fire('lobby:join', roomCode, 'x'.repeat(PLAYER_NAME_MAX_LENGTH + 1), tooLong);
+    expect(tooLong).toHaveBeenCalledExactlyOnceWith({
+      success: false,
+      error: `Player names must be 1–${PLAYER_NAME_MAX_LENGTH} characters`,
+    });
+    expect(rm.getRoom(roomCode)).toEqual(before);
+
+    const atLimit = 'Bartholomew Fitzgera';
+    expect(atLimit).toHaveLength(PLAYER_NAME_MAX_LENGTH);
+    const ack = vi.fn();
+    guest.fire('lobby:join', roomCode, atLimit, ack);
+    expect(ack).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    expect(rm.getPlayersInRoom(roomCode)).toContainEqual(expect.objectContaining({ name: atLimit }));
   });
 
   it('uses an available bot name after a bot is removed', () => {

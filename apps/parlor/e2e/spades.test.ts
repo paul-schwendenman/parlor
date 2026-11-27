@@ -21,9 +21,9 @@ test('a player can bid and play a trick in a Spades room with bots', async ({ pa
 	await page.getByRole('button', { name: 'Vote for Spades', exact: true }).click();
 	await page.getByRole('button', { name: 'Confirm Spades', exact: true }).click();
 
-	const addBot = page.getByRole('button', { name: 'Add Bot' });
+	const addBot = page.getByRole('button', { name: 'Add bot' });
 	for (let count = 0; count < 3; count++) await addBot.click();
-	await page.getByRole('button', { name: 'Ready Up' }).click();
+	await page.getByRole('button', { name: 'Ready', exact: true }).click();
 	await page.getByRole('button', { name: 'Start Game' }).click();
 
 	const bidding = page.getByRole('region', { name: 'Choose your bid' });

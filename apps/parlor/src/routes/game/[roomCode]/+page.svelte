@@ -121,7 +121,9 @@
   .lid-inner {
     max-width: 800px;
     margin: 0 auto;
-    padding: 10px 16px;
+    /* 8px, not 10px: Leave room's hit area is 44px but its pill is 40px, so the
+       visible lid stays the height it was. */
+    padding: 8px 16px;
     box-sizing: border-box;
     display: flex;
     flex-wrap: wrap;

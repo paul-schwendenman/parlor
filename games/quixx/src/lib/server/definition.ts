@@ -3,6 +3,7 @@ import { DEFAULT_CONFIG, type QuixxAction } from '../types/game.js';
 import { QuixxEngine } from './game/QuixxEngine.js';
 import { scheduleBotActions } from './game/botController.js';
 import { validateQuixxAction } from './validateAction.js';
+import { quixxMeta } from '../../meta.js';
 
 type Game = GameContext<QuixxEngine>;
 
@@ -168,17 +169,7 @@ function scheduleStandIn(game: Game): void {
 
 /** Quixx on the typed game contract (plan 3.1b). Servers use `quixxDefinition`. */
 export const quixxGame: TypedGameDefinition<'quixx', QuixxEngine> = {
-  meta: {
-    id: 'quixx',
-    name: 'Quixx',
-    description: 'A fast-paced dice game of marking numbers and strategic choices',
-    minPlayers: 2,
-    maxPlayers: 5,
-    estimatedMinutes: '15-20',
-    tags: ['dice', 'strategy', 'quick'],
-    displayModes: ['peer'],
-    supportsBots: true,
-  },
+  meta: quixxMeta,
 
   validateAction: validateQuixxAction,
 

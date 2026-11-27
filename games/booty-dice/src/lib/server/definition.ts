@@ -9,6 +9,7 @@ import { GameEngine } from './game/GameEngine.js';
 import { createPlayer } from '../types/game.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 import { validateBootyDiceAction } from './validateAction.js';
+import { bootyDiceMeta } from '../../meta.js';
 
 type Game = GameContext<GameEngine>;
 
@@ -137,17 +138,7 @@ function requireRolling(engine: GameEngine, playerId: string): void {
 
 /** Booty Dice on the typed game contract (plan 3.1b). Servers use `bootyDiceDefinition`. */
 export const bootyDiceGame: TypedGameDefinition<'booty-dice', GameEngine> = {
-  meta: {
-    id: 'booty-dice',
-    name: 'Booty Dice',
-    description: 'A pirate dice game of treasure, attacks, and survival',
-    minPlayers: 2,
-    maxPlayers: 6,
-    estimatedMinutes: '15-30',
-    tags: ['dice', 'pirates', 'competitive'],
-    displayModes: ['peer'],
-    supportsBots: true,
-  },
+  meta: bootyDiceMeta,
 
   validateAction: validateBootyDiceAction,
 

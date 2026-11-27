@@ -1,8 +1,4 @@
 <script lang="ts">
-  import { euchreMeta } from '@parlor/euchre/meta';
-  import { ohHellMeta } from '@parlor/oh-hell/meta';
-  import { spadesMeta } from '@parlor/spades/meta';
-  import { heartsMeta } from '@parlor/hearts/meta';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
@@ -13,21 +9,9 @@
   import { playerState } from '$lib/stores/playerStore.svelte.js';
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
   import { getSocket, ballotAction, readyAction, startGameAction } from '$lib/stores/socketClient.js';
-  import type { GameMeta } from '@parlor/game-types';
+  import { catalog as games, findGame, minutesRange, playerCount, playersNeeded } from '$lib/games/catalog.js';
   import LeaveRoomButton from '$lib/components/LeaveRoomButton.svelte';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
-
-  const games: GameMeta[] = [
-    { id: 'quixx', name: 'Quixx', description: 'Fast-paced dice game', minPlayers: 2, maxPlayers: 5, estimatedMinutes: '15-20', tags: ['dice', 'strategy'], displayModes: ['peer'], supportsBots: true },
-    { id: 'crazy-eights', name: 'Crazy Eights', description: 'Classic card game', minPlayers: 2, maxPlayers: 5, estimatedMinutes: '10-15', tags: ['cards', 'classic'], displayModes: ['peer'], supportsBots: true },
-    { id: 'booty-dice', name: 'Booty Dice', description: 'Pirate dice game', minPlayers: 2, maxPlayers: 6, estimatedMinutes: '15-30', tags: ['dice', 'pirates'], displayModes: ['peer'], supportsBots: true },
-    { id: 'liars-dice', name: "Liar's Dice", description: 'Bluff and bid dice game', minPlayers: 2, maxPlayers: 6, estimatedMinutes: '15-25', tags: ['dice', 'bluffing'], displayModes: ['peer'], supportsBots: true },
-    { id: 'kings-corner', name: 'Kings Corner', description: 'Solitaire-style card game', minPlayers: 2, maxPlayers: 4, estimatedMinutes: '15-25', tags: ['cards', 'classic'], displayModes: ['peer'], supportsBots: true },
-    heartsMeta,
-    spadesMeta,
-    euchreMeta,
-    ohHellMeta,
-  ];
 
   // Seat colours cycle through the palette; the first is Deep Clay, not Kiln
   // Terracotta, because a cream initial on #C4663A is below 4.5:1.
@@ -67,7 +51,7 @@
   let isHost = $derived(!!playerState.id && lobbyState.hostId === playerState.id);
   let spectator = $derived(playerState.roomCode === roomCode && !playerState.id);
   let me = $derived(lobbyState.players.find(p => p.id === playerState.id));
-  let selectedGame = $derived(games.find(g => g.id === lobbyState.selectedGameId));
+  let selectedGame = $derived(findGame(lobbyState.selectedGameId));
   let gameSupportsAI = $derived(selectedGame?.supportsBots ?? false);
   let hasBots = $derived(lobbyState.players.some(p => p.isBot));
   let botsBlockStart = $derived(hasBots && !gameSupportsAI);
@@ -99,7 +83,7 @@
 
   let rulesGameId = $state<string | null>(null);
   let rulesOpen = $derived(rulesGameId !== null);
-  let rulesGame = $derived(games.find((g) => g.id === rulesGameId));
+  let rulesGame = $derived(findGame(rulesGameId));
 
   async function updateBallot(action: 'open' | 'vote' | 'confirm', gameId: string | null = null) {
     if (ballotPending) return;
@@ -221,7 +205,7 @@
       <section class="game-panel" aria-label="Selected game">
         <div class="game-panel-text">
           <h2 class="game-panel-name" tabindex="-1" bind:this={gameHeading}>{selectedGame.name}</h2>
-          <span class="game-panel-meta">{selectedGame.minPlayers}–{selectedGame.maxPlayers} players · {selectedGame.estimatedMinutes.replace('-', '–')} min</span>
+          <span class="game-panel-meta">{playerCount(selectedGame)} · {minutesRange(selectedGame)} min</span>
         </div>
         {#if isHost}
           <button type="button" class="pill pill-on-dark" onclick={() => updateBallot('open')} disabled={ballotPending}>Vote for next game</button>
@@ -251,11 +235,11 @@
                 <div>
                   <h3 class="picker-name">{game.name}</h3>
                   <p class="picker-meta">
-                    {game.minPlayers}–{game.maxPlayers} players
+                    {playerCount(game)}
                     {#if tooMany}
                       · Too many players
                     {:else if seatCount < game.minPlayers}
-                      · Need {game.minPlayers - seatCount} more
+                      · {playersNeeded(game.minPlayers - seatCount)}
                     {/if}
                   </p>
                 </div>
@@ -296,7 +280,7 @@
               <span class="avatar {seatColors[i % seatColors.length]}" aria-hidden="true">{player.name.trim().charAt(0).toUpperCase()}</span>
             {/if}
             <span class="player-name">
-              <span>{player.name}</span>
+              <span class="name-text" title={player.name}>{player.name}</span>
               <!-- Roles wrap as one unit so "· Host · You" never splits across lines. -->
               <span class="roles">
                 {#if player.id === lobbyState.hostId}<span class="role">Host</span>{/if}
@@ -330,18 +314,18 @@
         <button type="button" class="btn btn-primary" onclick={startGame} disabled={!canStart}>Start Game</button>
         <div class="secondary" class:single={!gameSupportsAI}>
           <button type="button" class="pill" disabled={!me} onclick={toggleReady}>
-            {me?.isReady ? 'Not Ready' : 'Ready Up'}
+            {me?.isReady ? 'Not ready' : 'Ready'}
           </button>
           {#if gameSupportsAI}
-            <button type="button" class="pill" onclick={addBot}>Add Bot</button>
+            <button type="button" class="pill" onclick={addBot}>Add bot</button>
           {/if}
         </div>
       {:else if selectedGame}
         {#if me?.isReady}
           <p class="hint">Waiting for the host to start…</p>
-          <button type="button" class="pill pill-wide" disabled={!me} onclick={toggleReady}>Not Ready</button>
+          <button type="button" class="pill pill-wide" disabled={!me} onclick={toggleReady}>Not ready</button>
         {:else}
-          <button type="button" class="btn btn-primary" disabled={!me} onclick={toggleReady}>Ready Up</button>
+          <button type="button" class="btn btn-primary" disabled={!me} onclick={toggleReady}>Ready</button>
         {/if}
       {/if}
 
@@ -391,7 +375,7 @@
   .lid-inner {
     max-width: 480px;
     margin: 0 auto;
-    padding: 18px 20px 22px;
+    padding: 16px 20px 22px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -401,7 +385,7 @@
   .lid-bar {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
   }
 
@@ -409,15 +393,21 @@
     font-family: var(--font-heading);
     font-weight: 900;
     font-size: 1.5rem;
-    line-height: 40px;
+    line-height: 1;
     letter-spacing: -0.02em;
     color: var(--color-cream);
     text-decoration: none;
     transition: color 0.2s ease;
+    /* 44px hit area without a heavier lid: the text stays the same size. */
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
 
-  .wordmark:hover {
-    color: var(--color-mustard-tint);
+  @media (hover: hover) {
+    .wordmark:hover {
+      color: var(--color-mustard-tint);
+    }
   }
 
   .lid :global(:focus-visible) {
@@ -608,10 +598,20 @@
     font-size: 0.875rem;
   }
 
+  /* Pressed (voted) and Confirm are solid ink. Pill hover below is wrapped in
+     :where() so it can never outrank these, and it only exists on devices
+     that really hover, so a tap on a phone doesn't leave a sticky fill. */
   .vote-actions .pill[aria-pressed='true'],
   .vote-actions .confirm-game:not(:disabled) {
     background: var(--color-espresso);
     color: var(--color-cream);
+  }
+
+  @media (hover: hover) {
+    .vote-actions .pill[aria-pressed='true']:hover,
+    .vote-actions .confirm-game:not(:disabled):hover {
+      background: #2E2727;
+    }
   }
 
   .picker-name {
@@ -712,7 +712,16 @@
     font-family: var(--font-heading);
     font-weight: 800;
     font-size: 1.0625rem;
-    overflow-wrap: anywhere;
+  }
+
+  /* Long names (up to 20 characters) end in an ellipsis rather than clip or
+     wrap mid-word; the full name is in the title and the accessible text. */
+  .name-text {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .roles {
@@ -803,8 +812,10 @@
     text-transform: uppercase;
   }
 
-  .btn-primary:hover:not(:disabled) {
-    background: #2E2727;
+  @media (hover: hover) {
+    .btn-primary:hover:not(:disabled) {
+      background: #2E2727;
+    }
   }
 
   .btn-accent {
@@ -817,9 +828,11 @@
     letter-spacing: 0;
   }
 
-  .btn-accent:hover {
-    background: var(--color-terracotta-press);
-    border-color: var(--color-terracotta-press);
+  @media (hover: hover) {
+    .btn-accent:hover {
+      background: var(--color-terracotta-press);
+      border-color: var(--color-terracotta-press);
+    }
   }
 
   .btn:active:not(:disabled),
@@ -860,8 +873,10 @@
     transition: background 0.2s ease, transform 0.1s ease;
   }
 
-  .pill:hover:not(:disabled) {
-    background: rgba(59, 47, 47, 0.06);
+  @media (hover: hover) {
+    .pill:where(:hover:not(:disabled)) {
+      background: rgba(59, 47, 47, 0.06);
+    }
   }
 
   .pill-wide {
@@ -877,8 +892,10 @@
     font-size: 0.8125rem;
   }
 
-  .pill-on-dark:hover:not(:disabled) {
-    background: rgba(253, 246, 236, 0.14);
+  @media (hover: hover) {
+    .pill-on-dark:where(:hover:not(:disabled)) {
+      background: rgba(253, 246, 236, 0.14);
+    }
   }
 
   .hint {
