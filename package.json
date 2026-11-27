@@ -2,7 +2,7 @@
   "name": "parlor",
   "private": true,
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "turbo build --filter='./packages/*' && turbo dev --filter=@parlor/app --filter='./packages/*'",
     "build": "turbo build",
     "check": "turbo check",
     "test": "turbo test",
