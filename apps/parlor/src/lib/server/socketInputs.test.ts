@@ -106,6 +106,8 @@ const cases = {
 	'lobby:spectate': { reply: [false, 'Invalid room code'] },
 	'lobby:ready': { reply: [false, 'Invalid ready value'] },
 	'lobby:selectGame': { reply: [false, 'Invalid game'] },
+	'lobby:vote': { reply: [false, 'This vote has closed. Use the current lobby to vote again.'] },
+	'lobby:confirmGame': { reply: [false, 'This vote has closed. Use the current lobby to vote again.'] },
 	'lobby:removeBot': { reply: [false, 'Invalid bot id'] },
 	'player:reconnect': { reply: [false] },
 	'lobby:addBot': {},
@@ -148,6 +150,7 @@ it.each(fuzzCases)('$event rejects $value at argument $position and keeps servin
 	sender.on('error', (message) => errors.push(message));
 
 	const wireArgs: unknown[] = [];
+	if (event === 'lobby:vote' || event === 'lobby:confirmGame') wireArgs.push(null, 'quixx');
 	if (event === 'lobby:join') wireArgs.push(seat.roomCode, 'Visitor');
 	if (event === 'player:reconnect') wireArgs.push(seat.roomCode, seat.playerId, seat.reconnectToken);
 	wireArgs[position] = value;

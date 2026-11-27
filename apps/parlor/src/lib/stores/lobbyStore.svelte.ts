@@ -1,7 +1,8 @@
-import type { LobbyPlayer } from '@parlor/game-types';
+import type { GameBallotSnapshot, LobbyPlayer } from '@parlor/game-types';
 
 class LobbyState {
 	players = $state<LobbyPlayer[]>([]);
+	ballot = $state<GameBallotSnapshot | null>(null);
 	canStart = $state(false);
 	hostId = $state('');
 	gameStarting = $state(false);
@@ -26,6 +27,7 @@ class LobbyState {
 
 	reset() {
 		this.players = [];
+		this.ballot = null;
 		this.canStart = false;
 		this.hostId = '';
 		this.gameStarting = false;

@@ -8,9 +8,10 @@
     onclose: () => void;
     /** Omitted mid-game, where there is nothing to start. */
     onplay?: () => void;
+    playLabel?: string;
   }
 
-  let { open, gameId, gameName, onclose, onplay }: Props = $props();
+  let { open, gameId, gameName, onclose, onplay, playLabel = 'Play Now' }: Props = $props();
 </script>
 
 {#if open}
@@ -204,7 +205,7 @@
 
   <div class="modal-footer">
     <button class="btn-close" onclick={onclose}>Close</button>
-    {#if onplay}<button class="btn-play" onclick={onplay}>Play Now</button>{/if}
+    {#if onplay}<button class="btn-play" onclick={onplay}>{playLabel}</button>{/if}
   </div>
 </Modal>
 {/if}

@@ -30,6 +30,9 @@ export function getSocket(): GameSocket {
 	const socket = runtime.getSocket();
 	if (socket !== boundSocket) {
 		boundSocket = socket;
+		socket.on('lobby:ballot', (roomCode, ballot) => {
+			if (playerState.roomCode === roomCode) lobbyState.ballot = ballot;
+		});
 		socket.on('room:closed', (roomCode) => {
 			if (playerState.roomCode === roomCode) clearRoomState();
 		});
@@ -90,8 +93,26 @@ export function joinRoomAction(
 	return runtime.joinRoomAction(roomCode, playerName);
 }
 
-export function selectGameAction(gameId: string | null): void {
-	runtime.selectGameAction(gameId);
+export async function ballotAction(
+	action: 'open' | 'vote' | 'confirm',
+	gameId: string | null = null,
+	roundId = '',
+): Promise<void> {
+	const socket = getSocket();
+	if (!socket.connected) throw new Error('Reconnect to update your game choice.');
+	await new Promise<void>((resolve, reject) => {
+		const failure = 'Could not update your game choice. Try again.';
+		const timer = setTimeout(() => reject(new Error(failure)), 5000);
+		const ack = (ok: boolean, message?: string) => {
+			clearTimeout(timer);
+			if (ok) resolve();
+			else reject(new Error(message ?? failure));
+		};
+		if (action === 'open') socket.emit('lobby:selectGame', null, ack);
+		else if (action === 'vote') socket.emit('lobby:vote', roundId, gameId, ack);
+		else if (gameId !== null) socket.emit('lobby:confirmGame', roundId, gameId, ack);
+		else ack(false, 'Choose a game first.');
+	});
 }
 
 export function readyAction(isReady: boolean): void {
