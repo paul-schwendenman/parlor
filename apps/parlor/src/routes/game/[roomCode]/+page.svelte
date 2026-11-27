@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { page } from '$app/stores';
   import { gameState } from '$lib/stores/gameStore.svelte.js';
   import { playerState } from '$lib/stores/playerStore.svelte.js';
@@ -36,7 +37,7 @@
     if (view) {
       hadView = true;
     } else if (hadView && playerState.roomCode === roomCode) {
-      goto(`/lobby/${roomCode}`).catch(console.error);
+      goto(resolve('/lobby/[roomCode]', { roomCode })).catch(console.error);
     }
   });
 
@@ -44,27 +45,31 @@
     getSocket().emit('lobby:resetGame');
     gameState.reset();
     lobbyState.gameStarting = false;
-    goto(`/lobby/${roomCode}`).catch(console.error);
+    goto(resolve('/lobby/[roomCode]', { roomCode })).catch(console.error);
   }
 </script>
 
 <svelte:head><title>Playing - Parlor</title></svelte:head>
 
-{#if playerState.roomCode === roomCode}
-  <div class="room-nav">
-    {#if !playerState.id}<span>Watching as spectator</span>{/if}
-    <LeaveRoomButton />
+<header class="lid">
+  <div class="lid-inner">
+    <span class="wordmark">PARLOR</span>
+    {#if playerState.roomCode === roomCode}
+      <span class="code-chip" aria-label="Room code {roomCode}">{roomCode}</span>
+      {#if !playerState.id}<span class="spectating">Watching as spectator</span>{/if}
+      <div class="leave"><LeaveRoomButton /></div>
+    {/if}
   </div>
-{/if}
+</header>
 
 {#if !view}
   <div class="loading">
-    <a href="/" class="logo">Parlor</a>
     {#if roomNotFound}
-      <p class="error-message">This game doesn't exist or has ended.</p>
-      <a href="/" class="back-link">Back to home</a>
+      <h1 class="state-title">This game doesn't exist or has ended.</h1>
+      <p class="state-body">Check the code with whoever invited you, or start a new room.</p>
+      <a href={resolve('/')} class="back-link">Back to home</a>
     {:else}
-      <p>Loading game...</p>
+      <p class="state-body" role="status">Loading game…</p>
     {/if}
   </div>
 {:else}
@@ -77,47 +82,106 @@
 {/if}
 
 <style>
-  .room-nav {
+  /* A slim lid: identity and the room code without taking the board's space. */
+  .lid {
+    background: var(--color-terracotta);
+    border-bottom: 3px solid var(--color-espresso);
+    margin-bottom: 12px;
+  }
+
+  .lid-inner {
     max-width: 800px;
     margin: 0 auto;
-    padding: 0.75rem 1rem 0;
+    padding: 10px 16px;
+    box-sizing: border-box;
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
-    align-items: baseline;
-    gap: 0.75rem;
+    align-items: center;
+    gap: 8px 10px;
+  }
+
+  .wordmark {
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.5rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--color-cream);
+  }
+
+  .code-chip {
+    padding: 4px 10px;
+    border: 2px solid var(--color-espresso);
+    border-radius: 10px;
+    background: var(--color-mustard);
     color: var(--color-espresso);
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1rem;
+    letter-spacing: 0.14em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .spectating {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--color-cream);
+    color: var(--color-espresso);
+    font-size: 0.8125rem;
+    font-weight: 700;
+  }
+
+  .leave {
+    margin-left: auto;
+  }
+
+  .lid :global(:focus-visible) {
+    outline-color: var(--color-cream);
   }
 
   .loading {
-    text-align: center;
-    padding: 64px 16px;
-    color: #a8a29e;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 32px 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
   }
-  .logo {
-    display: block;
+
+  .state-title {
+    margin: 0;
     font-family: var(--font-heading);
+    font-weight: 900;
     font-size: 1.5rem;
-    font-weight: 800;
+    line-height: 1.15;
     color: var(--color-espresso);
-    text-decoration: none;
-    margin-bottom: 1.5rem;
   }
-  .logo:hover {
-    color: var(--color-terracotta);
+
+  .state-body {
+    margin: 0 0 8px;
+    font-size: 1rem;
+    line-height: 1.45;
+    color: var(--color-ink-muted);
   }
-  .error-message {
-    color: #991b1b;
-    font-size: 1.1rem;
-    margin-bottom: 1rem;
-  }
+
   .back-link {
-    display: inline-block;
-    padding: 0.7rem 1.5rem;
-    background: var(--color-terracotta);
-    color: white;
-    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    height: 52px;
+    padding: 0 28px;
+    border-radius: 999px;
+    background: var(--color-terracotta-deep);
+    color: var(--color-cream);
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.0625rem;
     text-decoration: none;
-    font-weight: 600;
+    transition: background 0.2s ease;
+  }
+
+  .back-link:hover {
+    background: var(--color-terracotta-press);
   }
 </style>

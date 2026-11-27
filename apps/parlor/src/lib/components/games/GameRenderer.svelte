@@ -30,10 +30,40 @@
 {:else if state.gameId === 'kings-corner'}
   <KingsCornerGame view={state.view} {socket} {playerId} {onBackToLobby} />
 {:else}
-  <div style="text-align: center; padding: 4rem 1rem; color: #a8a29e;">
+  <div class="unknown">
     <p>Unknown game type</p>
-    {#if onBackToLobby}<button onclick={onBackToLobby} style="padding: 0.7rem 1.5rem; background: var(--color-terracotta); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
-      Back to Lobby
-    </button>{/if}
+    {#if onBackToLobby}<button type="button" onclick={onBackToLobby}>Back to Lobby</button>{/if}
   </div>
 {/if}
+
+<style>
+  .unknown {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 4rem 1rem;
+    color: var(--color-ink-muted);
+  }
+
+  .unknown p {
+    margin: 0;
+  }
+
+  .unknown button {
+    height: 52px;
+    padding: 0 28px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--color-terracotta-deep);
+    color: var(--color-cream);
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.0625rem;
+    cursor: pointer;
+  }
+
+  .unknown button:hover {
+    background: var(--color-terracotta-press);
+  }
+</style>
