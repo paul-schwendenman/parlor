@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-27T05:35:15Z",
+  "generatedAt": "2026-11-27T15:32:48Z",
   "title": "Design System: Parlor",
   "extensions": {
     "colorMeta": {
@@ -348,11 +348,27 @@
       "description": "Full-bleed terracotta lid with wordmark and a cream-filled Leave room pill.",
       "html": "<header class=\"ds-lid\"><a class=\"ds-lid-mark\" href=\"#\">PARLOR</a><button class=\"ds-lid-leave\">Leave room</button></header>",
       "css": ".ds-lid { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px; background: var(--color-terracotta, #C4663A); border-bottom: 3px solid var(--color-espresso, #3B2F2F); } .ds-lid-mark { font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 26px; letter-spacing: -0.02em; color: var(--color-cream, #FDF6EC); text-decoration: none; } .ds-lid-mark:hover { color: #F3E2B6; } .ds-lid-mark:focus-visible, .ds-lid-leave:focus-visible { outline: 3px solid var(--color-cream, #FDF6EC); outline-offset: 2px; } .ds-lid-leave { height: 40px; padding: 0 16px; border-radius: 999px; border: 2px solid var(--color-espresso, #3B2F2F); background: var(--color-cream, #FDF6EC); color: var(--color-espresso, #3B2F2F); font-family: 'DM Sans', system-ui, sans-serif; font-weight: 700; font-size: 14px; cursor: pointer; transition: background 200ms ease; } .ds-lid-leave:hover { background: #FFFFFF; }"
+    },
+    {
+      "name": "Turn Banner",
+      "kind": "custom",
+      "refersTo": "turn-banner",
+      "description": "The first thing on every game board: felt with cream text when it's your move, paper while you wait (TurnBanner in @parlor/ui).",
+      "html": "<div class=\"ds-turn ds-turn-mine\" role=\"status\"><p class=\"ds-turn-title\">Your turn</p><p class=\"ds-turn-detail\">Play a heart or the Queen of Spades.</p></div><div class=\"ds-turn\" role=\"status\"><p class=\"ds-turn-title\">Margaret's turn</p></div>",
+      "css": ".ds-turn { min-height: 60px; padding: 12px 18px; margin-bottom: 12px; border: 2.5px solid var(--color-espresso, #3B2F2F); border-radius: 18px; background: var(--color-paper, #FFFFFF); color: var(--color-espresso, #3B2F2F); display: flex; flex-direction: column; justify-content: center; gap: 2px; text-align: center; } .ds-turn-mine { background: var(--color-forest-deep, #2F5A3E); color: var(--color-cream, #FDF6EC); } .ds-turn-title { margin: 0; font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 22px; line-height: 1.1; letter-spacing: -0.01em; } .ds-turn-detail { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; font-weight: 500; font-size: 15px; line-height: 1.4; color: var(--color-ink-muted, #71625A); } .ds-turn-mine .ds-turn-detail { color: var(--color-cream, #FDF6EC); }"
+    },
+    {
+      "name": "Seat Chip",
+      "kind": "chip",
+      "refersTo": "seat-chip",
+      "description": "A player on a game board: outlined pill with the seat-coloured avatar from the lobby, name and one stat. Felt when it's their turn, mustard ring when you can target them (SeatChip in @parlor/ui).",
+      "html": "<div class=\"ds-seats\"><div class=\"ds-seat ds-seat-active\"><span class=\"ds-seat-av ds-tone-clay\">M</span><span class=\"ds-seat-name\">Margaret</span><span class=\"ds-seat-stat\">7 cards</span></div><button class=\"ds-seat ds-seat-target\" type=\"button\"><span class=\"ds-seat-av ds-tone-felt\">J</span><span class=\"ds-seat-name\">Joe</span><span class=\"ds-seat-stat\">5 cards</span></button><div class=\"ds-seat ds-seat-away\"><span class=\"ds-seat-av ds-tone-mustard\">B</span><span class=\"ds-seat-name\">Bea</span><span class=\"ds-seat-stat\">6 cards</span></div></div>",
+      "css": ".ds-seats { display: flex; flex-wrap: wrap; gap: 10px; } .ds-seat { min-height: 44px; padding: 4px 14px 4px 4px; border: 2px solid var(--color-espresso, #3B2F2F); border-radius: 999px; background: var(--color-paper, #FFFFFF); color: var(--color-espresso, #3B2F2F); display: inline-flex; align-items: center; gap: 8px; font: inherit; transition: background 0.25s ease, color 0.25s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1); } .ds-seat-active { background: var(--color-forest-deep, #2F5A3E); color: var(--color-cream, #FDF6EC); } .ds-seat-away { border-style: dashed; background: var(--color-linen, #F5EDE0); } button.ds-seat-target { cursor: pointer; outline: 3px solid var(--color-mustard, #D4A843); outline-offset: 3px; } button.ds-seat-target:hover { transform: translateY(-2px); } button.ds-seat-target:active { transform: scale(0.98); } button.ds-seat:focus-visible { outline: 3px solid var(--color-espresso, #3B2F2F); outline-offset: 3px; } .ds-seat-av { width: 32px; height: 32px; flex-shrink: 0; border-radius: 999px; border: 2px solid var(--color-espresso, #3B2F2F); display: inline-flex; align-items: center; justify-content: center; font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 15px; color: var(--color-cream, #FDF6EC); } .ds-tone-clay { background: var(--color-terracotta-deep, #A9532D); } .ds-tone-felt { background: var(--color-forest-deep, #2F5A3E); } .ds-tone-mustard { background: var(--color-mustard, #D4A843); color: var(--color-espresso, #3B2F2F); } .ds-seat-name { font-family: Nunito, system-ui, sans-serif; font-weight: 800; font-size: 15px; } .ds-seat-stat { font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; font-weight: 600; } .ds-seat-active .ds-seat-av { box-shadow: 0 0 0 2px var(--color-cream, #FDF6EC); }"
     }
   ],
   "narrative": {
     "northStar": "The Game Box Lid",
-    "overview": "Parlor should feel like the lid of a well-made board game: printed in flat colors, outlined in ink, with lettering you can read from across the room. Each screen is a box you open. A terracotta lid sits on top and carries the wordmark and the room code. Below it, the contents are laid out on cream: outlined player rows, a felt-green panel for tonight's game, and colored blocks for each game on the shelf. It's warm because the palette is earthy (clay, felt, mustard, espresso ink on cream stock), and it's playful because the type is heavy and the shapes are chunky and round.\n\nDensity is low and the targets are large. Parlor is played on phones held at arm's length and on laptops propped on a kitchen table, usually while people are also talking to each other. So everything is generous and every action is a big, obvious pill. Hierarchy comes from weight and color blocks, not from fine grey type or subtle depth. Expression sits in a few signature moves: the lid, the letter-tile room code, the ink outline and the color-blocked game shelf. Everything else stays plain so those moves read clearly.",
+    "overview": "Parlor should feel like the lid of a well-made board game: printed in flat colors, outlined in ink, with lettering you can read from across the room. Each screen is a box you open. A terracotta lid sits on top and carries the wordmark and the room code. Below it, the contents are laid out on cream: outlined player rows, a felt-green panel for tonight's game, and colored blocks for each game on the shelf. It's warm because the palette is earthy (clay, felt, mustard, espresso ink on cream stock), and it's playful because the type is heavy and the shapes are chunky and round.\n\nDensity is low and the targets are large. Parlor is played on phones held at arm's length and on laptops propped on a kitchen table, usually while people are also talking to each other. So everything is generous and every action is a big, obvious pill. Hierarchy comes from weight and color blocks, not from fine grey type or subtle depth. Expression sits in a few signature moves: the lid, the letter-tile room code, the ink outline and the color-blocked game shelf. Everything else stays plain so those moves read clearly.\n\n**Implementation status.** The Parlor app shell (home, lobby, game frame) and the shared `@parlor/ui` components follow this system. Game boards under `games/*` are migrated to the shared board kit one game at a time (all nine done 2026-11-27: Crazy Eights, Kings Corner, Quixx, Booty Dice, Liar's Dice, then the trick-taking four: Hearts, Spades, Euchre, Oh Hell); where a board and this file disagree, this file wins. See Game boards.",
     "keyCharacteristics": [
       "Terracotta \"lid\" header on every main screen, outlined at the bottom in ink.",
       "A 2–2.5px espresso outline on every surface that holds content; none on the cream ground.",
@@ -401,6 +417,11 @@
         "name": "The Ink Outline Rule",
         "body": "If it holds content, it has a full outline in espresso. If it's the ground, it has none. A bar down one side of a box is never the answer: use a full outline, a fill, or a leading icon.",
         "section": "elevation"
+      },
+      {
+        "name": "The Collection Rule",
+        "body": "If two games show the same kind of thing (whose turn it is, who's at the table, how it ended), they show it with the same component. A game's own identity goes into its pieces and its surface, never into the chrome around them.",
+        "section": "components"
       }
     ],
     "dos": [
