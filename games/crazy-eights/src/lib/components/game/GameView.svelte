@@ -1,8 +1,8 @@
 <script lang="ts">
+  import { cardEquals } from '@parlor/cards';
   import type { GameSocket } from '@parlor/multiplayer/client';
   import { TurnBanner, SeatChip, GameOver, Button, CardHand, cardName } from '@parlor/ui';
   import type { Card, Suit, CrazyEightsPlayerView } from '../../types/game.js';
-  import { cardEquals } from '../../game/validation.js';
   import Table from './Table.svelte';
 
   let {
@@ -124,9 +124,9 @@
       <CardHand
         cards={view.myHand}
         active={view.isActivePlayer && view.phase !== 'choosing-suit'}
-        isPlayable={(card) => view.playableCards.some((c) => c.rank === card.rank && c.suit === card.suit)}
+        isPlayable={(card) => view.playableCards.some((c) => cardEquals(c, card))}
         selected={selectedCard}
-        onpick={(card) => pick(card as Card)}
+        onpick={pick}
       />
     {/if}
   {/if}

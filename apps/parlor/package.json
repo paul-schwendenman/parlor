@@ -17,6 +17,7 @@
     "@parlor/booty-dice": "workspace:*",
     "@parlor/crazy-eights": "workspace:*",
     "@parlor/game-types": "workspace:*",
+    "@parlor/hearts": "workspace:*",
     "@parlor/kings-corner": "workspace:*",
     "@parlor/liars-dice": "workspace:*",
     "@parlor/multiplayer": "workspace:*",

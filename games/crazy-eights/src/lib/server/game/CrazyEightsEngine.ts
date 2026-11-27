@@ -1,3 +1,4 @@
+import { cardEquals, createDeck } from '@parlor/cards';
 import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
 import { GameRuleError, RoomManager } from '@parlor/multiplayer';
 import type {
@@ -9,8 +10,7 @@ import type {
   CrazyEightsConfig,
 } from '../../types/game.js';
 import { DEFAULT_CONFIG, SUITS } from '../../types/game.js';
-import { createDeck } from '../../game/deck.js';
-import { canPlayCard, getPlayableCards, cardEquals } from '../../game/validation.js';
+import { canPlayCard, getPlayableCards } from '../../game/validation.js';
 
 interface Player {
   id: string;

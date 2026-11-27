@@ -1,3 +1,4 @@
+import { cardEquals, createDeck } from '@parlor/cards';
 import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
 import { GameRuleError, RoomManager } from '@parlor/multiplayer';
 import type {
@@ -15,8 +16,7 @@ import {
   CORNER_POSITIONS,
   ALL_POSITIONS,
 } from '../../types/game.js';
-import { createDeck } from '../../game/deck.js';
-import { cardEquals, canPlayCardOnPile, canMovePile } from '../../game/validation.js';
+import { canPlayCardOnPile, canMovePile } from '../../game/validation.js';
 
 interface Player {
   id: string;

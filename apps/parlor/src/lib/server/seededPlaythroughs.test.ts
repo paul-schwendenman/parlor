@@ -63,7 +63,7 @@ async function table(gameId: GameId) {
 	if (!address || typeof address === 'string') throw new Error('Expected TCP address');
 
 	const recipients: Recipient[] = [];
-	for (let index = 0; index < 5; index++) {
+	for (let index = 0; index < (gameId === 'hearts' ? 6 : 5); index++) {
 		const socket: Client = io(`http://127.0.0.1:${address.port}`, {
 			transports: ['websocket'], autoConnect: false, reconnection: false, timeout: 1000,
 		});
@@ -79,8 +79,8 @@ async function table(gameId: GameId) {
 		});
 	}
 
-	const [host, firstGuest, secondGuest, spectator, outsider] = recipients;
-	const guests = [firstGuest, secondGuest];
+	const [host, ...guests] = recipients.slice(0, -2);
+	const [spectator, outsider] = recipients.slice(-2);
 	const seat = await host.socket.timeout(1000).emitWithAck('lobby:create', 'Host');
 	if (!seat) throw new Error('Could not create playthrough room');
 	host.id = seat.playerId;
@@ -118,7 +118,10 @@ function choose<T>(items: readonly T[], select: Select): T {
 	return items[select(items.length)];
 }
 
-function nextMove(views: GameStateEnvelope[], select: Select, engine: unknown): Move | null {
+const games = ['crazy-eights', 'kings-corner', 'liars-dice', 'quixx', 'booty-dice'] as const;
+type SeededFrame = GameStateEnvelope<(typeof games)[number]>;
+
+function nextMove(views: SeededFrame[], select: Select, engine: unknown): Move | null {
 	const first = views[0];
 	switch (first.gameId) {
 		case 'crazy-eights': {
@@ -265,7 +268,7 @@ type LiarEngine = {
 };
 
 function assertView(
-	frame: GameStateEnvelope, gameId: GameId, id: string | null, engine: unknown,
+	frame: SeededFrame, gameId: GameId, id: string | null, engine: unknown,
 ) {
 	expect(frame.gameId).toBe(gameId);
 	const { view } = frame;
@@ -339,7 +342,6 @@ function assertView(
 	}
 }
 
-const games = ['crazy-eights', 'kings-corner', 'liars-dice', 'quixx', 'booty-dice'] as const;
 const seeds = [1, 7, 42, 2026, 0x5eed, 0xcafe, 0xbeef, 0x123456];
 const trials = games.flatMap((gameId) => seeds.map((seed) => ({ gameId, seed })));
 
@@ -359,7 +361,8 @@ it.each(trials)('$gameId seed $seed plays legal moves and delivers recipient-saf
 		expect(spectatorFrames.length, `step ${step}, spectator broadcast count`).toBeGreaterThan(0);
 		const views = batches.map(({ id, frames }) => {
 			expect(frames, `step ${step}, recipient ${id ?? 'spectator'}`).toHaveLength(spectatorFrames.length);
-			for (const frame of frames) {
+			const seededFrames = frames.filter((frame): frame is SeededFrame => frame.gameId !== 'hearts');
+			for (const frame of seededFrames) {
 				assertView(frame, gameId, id, room.gameData);
 				if (frame.gameId === 'quixx' && frame.view.phase === 'phase1') {
 					const sheets = frame.view.players.map(({ sheet }) => sheet);
@@ -370,7 +373,8 @@ it.each(trials)('$gameId seed $seed plays legal moves and delivers recipient-saf
 					}
 				}
 			}
-			return frames.at(-1)!;
+			expect(seededFrames).toHaveLength(frames.length);
+			return seededFrames.at(-1)!;
 		});
 		const spectator = views.at(-1)!;
 		const move = nextMove(views.slice(0, -1), select, room.gameData);
@@ -389,3 +393,58 @@ it.each(trials)('$gameId seed $seed plays legal moves and delivers recipient-saf
 	}
 	throw new Error('Playthrough exceeded 750 moves');
 }, 15_000);
+
+
+it('Hearts sends private passes and hands to their recipients and advances a completed trick', async () => {
+	engineInt = seededInt(42);
+	const game = await table('hearts');
+
+	async function collect() {
+		return (await game.collect()).map(({ id, frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'hearts') throw new Error('Expected a Hearts view');
+			return { id, view: frame.view };
+		});
+	}
+
+	const initial = await collect();
+	const submissions = initial.slice(0, 4).map(({ view }) => view.myHand.slice(0, 3));
+	for (const [index, { socket }] of game.players.entries()) {
+		expect(await socket.timeout(1000).emitWithAck('game:action', {
+			type: 'pass-cards', cards: submissions[index],
+		})).toEqual({ ok: true });
+	}
+	let views = await collect();
+	for (const [index, { view }] of views.slice(0, 4).entries()) {
+		expect(view.receivedCards).toEqual(submissions[(index + 3) % 4]);
+		expect(view.myHand).toHaveLength(13);
+	}
+	expect(cardKeys(views[4].view)).toEqual([]);
+	expect(new Set(views.slice(0, 4).flatMap(({ view }) => cardKeys(view.myHand))).size).toBe(52);
+
+	for (let count = 0; count < 4; count++) {
+		const active = views[4].view.activePlayerId;
+		const player = game.players.find(({ id }) => id === active);
+		const card = views.find(({ id }) => id === active)?.view.playableCards[0];
+		if (!player || !card) throw new Error('Missing active Hearts card');
+		if (count === 0) expect(card).toEqual({ rank: '2', suit: 'clubs' });
+		expect(await player.socket.timeout(1000).emitWithAck('game:action', {
+			type: 'play-card', card,
+		})).toEqual({ ok: true });
+		views = await collect();
+		expect(views[4].view.trick).toHaveLength(count + 1);
+	}
+	const revealed = views[4].view;
+	expect(revealed.phase).toBe('trick-won');
+	expect(revealed.trickWinnerId).toBeTruthy();
+	const spectatorStates = await vi.waitFor(async () => {
+		const batches = await game.collect();
+		const frame = batches[4].frames.at(-1);
+		expect(frame?.gameId).toBe('hearts');
+		if (frame?.gameId !== 'hearts') throw new Error('Expected the next trick');
+		return frame.view;
+	}, { timeout: 3000 });
+	expect(spectatorStates).toMatchObject({
+		phase: 'playing', trickNumber: 2, trick: [], activePlayerId: revealed.trickWinnerId,
+	});
+});

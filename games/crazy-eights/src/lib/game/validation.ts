@@ -1,9 +1,5 @@
 import type { Card, Suit } from '../types/game.js';
 
-export function cardEquals(a: Card, b: Card): boolean {
-  return a.suit === b.suit && a.rank === b.rank;
-}
-
 export function canPlayCard(card: Card, topDiscard: Card, declaredSuit: Suit | null): boolean {
   // 8s are always playable
   if (card.rank === '8') return true;

@@ -18,6 +18,7 @@
     "dev": "svelte-package --watch"
   },
   "dependencies": {
+    "@parlor/cards": "workspace:*",
     "@parlor/game-types": "workspace:*"
   },
   "devDependencies": {

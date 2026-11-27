@@ -1,8 +1,8 @@
 <script lang="ts">
+  import { cardEquals } from '@parlor/cards';
   import type { GameSocket } from '@parlor/multiplayer/client';
   import { TurnBanner, SeatChip, GameOver, Button, CardHand, cardName } from '@parlor/ui';
   import type { Card, PilePosition, KingsCornerPlayerView } from '../../types/game.js';
-  import { cardEquals } from '../../game/validation.js';
   import Board from './Board.svelte';
 
   let {
@@ -166,9 +166,9 @@
       <CardHand
         cards={view.myHand}
         active={playing}
-        isPlayable={(card) => !!playEntry(card as Card)}
+        isPlayable={(card) => !!playEntry(card)}
         selected={selectedCard}
-        onpick={(card) => pickCard(card as Card)}
+        onpick={pickCard}
       />
     {/if}
   {/if}

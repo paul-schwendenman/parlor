@@ -5,23 +5,21 @@
    * means; this only draws the hand and reports taps.
    */
   import PlayingCard from './PlayingCard.svelte';
-  import type { CardSuit } from './suits.js';
-
-  type HandCard = { rank: string; suit: CardSuit };
+  import { cardEquals, type Card } from '@parlor/cards';
 
   interface Props {
-    cards: HandCard[];
+    cards: Card[];
     /** Whether the viewer can act on their hand right now. */
     active: boolean;
-    isPlayable: (card: HandCard) => boolean;
-    selected: HandCard | null;
-    onpick: (card: HandCard) => void;
+    isPlayable: (card: Card) => boolean;
+    selected: Card | null;
+    onpick: (card: Card) => void;
   }
 
   let { cards, active, isPlayable, selected, onpick }: Props = $props();
 
-  const isSelected = (card: HandCard) =>
-    selected !== null && selected.rank === card.rank && selected.suit === card.suit;
+  const isSelected = (card: Card) =>
+    selected !== null && cardEquals(selected, card);
 
   // Every column but the last can shrink below a card's width, so the cards
   // fan over each other rather than wrapping onto a second line.

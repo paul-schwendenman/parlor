@@ -17,6 +17,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@parlor/cards": "workspace:*",
     "@parlor/game-types": "workspace:*",
     "@parlor/multiplayer": "workspace:*",
     "@parlor/ui": "workspace:*",
