@@ -13,42 +13,65 @@
       await leaveRoomAction();
       await goto(resolve('/'));
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Could not leave the room';
+      error = err instanceof Error ? err.message : 'Could not leave the room. Try again.';
     } finally {
       leaving = false;
     }
   }
 </script>
 
-<button type="button" onclick={leave} disabled={leaving}>Leave room</button>
-{#if error}
-  <p role="alert">{error}</p>
-{/if}
+<div class="leave">
+  <button type="button" onclick={leave} disabled={leaving}>Leave room</button>
+  {#if error}
+    <p role="alert">{error}</p>
+  {/if}
+</div>
 
 <style>
+  .leave {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  /* Cream fill + ink outline: readable on the terracotta lid and on cream. */
   button {
-    border: 1px solid #d6cdc3;
-    border-radius: 8px;
-    background: var(--color-linen);
+    height: 40px;
+    padding: 0 16px;
+    border: 2px solid var(--color-espresso);
+    border-radius: 999px;
+    background: var(--color-cream);
     color: var(--color-espresso);
-    padding: 0.5rem 0.85rem;
     font: inherit;
     font-size: 0.875rem;
+    font-weight: 700;
     cursor: pointer;
+    transition: background 0.2s ease, transform 0.1s ease;
   }
 
   button:hover:not(:disabled) {
-    border-color: var(--color-terracotta);
+    background: var(--color-paper);
+  }
+
+  button:active:not(:disabled) {
+    transform: scale(0.98);
   }
 
   button:disabled {
-    opacity: 0.55;
-    cursor: default;
+    opacity: 0.6;
+    cursor: progress;
   }
 
   p {
-    color: #991b1b;
-    font-size: 0.875rem;
-    margin: 0.5rem 0 0;
+    margin: 0;
+    padding: 4px 10px;
+    border-radius: 10px;
+    background: var(--color-cream);
+    color: var(--color-danger);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    max-width: 16rem;
+    text-align: right;
   }
 </style>

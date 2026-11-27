@@ -292,7 +292,7 @@ Each game is a solid color block: 2.5px espresso outline, 18px corners, 18px pad
 - **Error:** Spilled Wine text below the field naming the problem and the fix; the outline stays espresso.
 
 ### Lid header / navigation
-A terracotta block running edge to edge with a 3px espresso bottom edge. The wordmark sits at the left (PARLOR, Nunito 900, links home), with a cream outline "Leave room" pill on the right when the player is in a room. The home lid holds the 76px display wordmark and the tagline. The connection-status bar sits above the lid: mustard for disconnected, Deep Clay for reconnecting and Spilled Wine for errors, always with text in the passing color.
+A terracotta block running edge to edge with a 3px espresso bottom edge. The wordmark sits at the left (PARLOR, Nunito 900, links home), with a cream-filled, ink-outlined "Leave room" pill on the right when the player is in a room. Pills on the lid are always cream-filled: cream text on Kiln Terracotta would break the Deep Clay Rule. The home lid holds the 76px display wordmark and the tagline. The connection-status bar sits above the lid: mustard for disconnected, Deep Clay for reconnecting and Spilled Wine for errors, always with text in the passing color.
 
 ## Do's and Don'ts
 

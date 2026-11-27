@@ -193,7 +193,7 @@
 
   .note {
     font-size: 0.85rem;
-    color: #78716c;
+    color: var(--color-ink-muted);
     font-style: italic;
   }
 
@@ -232,7 +232,7 @@
     flex-wrap: wrap;
     gap: 0.5rem;
     font-size: 0.8rem;
-    color: #78716c;
+    color: var(--color-ink-muted);
     margin: 0.25rem 0 0.5rem;
   }
 
@@ -272,9 +272,9 @@
 
   .combo-item {
     padding: 0.4rem 0.6rem;
-    background: #fef2f2;
-    border-left: 3px solid var(--color-terracotta);
-    border-radius: 0 4px 4px 0;
+    background: var(--color-mustard-tint);
+    border: 1.5px solid var(--color-espresso);
+    border-radius: 8px;
     font-size: 0.85rem;
     color: var(--color-espresso);
   }
@@ -301,20 +301,20 @@
   .btn-close {
     background: var(--color-linen);
     border: none;
-    color: #78716c;
+    color: var(--color-ink-muted);
   }
 
   .btn-close:hover {
-    background: #e7e5e4;
+    background: var(--color-mustard-tint);
   }
 
   .btn-play {
-    background: var(--color-terracotta);
+    background: var(--color-terracotta-deep);
     border: none;
-    color: white;
+    color: var(--color-cream);
   }
 
   .btn-play:hover {
-    background: #a8552f;
+    background: var(--color-terracotta-press);
   }
 </style>

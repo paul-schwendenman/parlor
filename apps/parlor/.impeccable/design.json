@@ -345,9 +345,9 @@
       "name": "Lid Header",
       "kind": "nav",
       "refersTo": "lid-header",
-      "description": "Full-bleed terracotta lid with wordmark and cream Leave room pill.",
+      "description": "Full-bleed terracotta lid with wordmark and a cream-filled Leave room pill.",
       "html": "<header class=\"ds-lid\"><a class=\"ds-lid-mark\" href=\"#\">PARLOR</a><button class=\"ds-lid-leave\">Leave room</button></header>",
-      "css": ".ds-lid { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px; background: var(--color-terracotta, #C4663A); border-bottom: 3px solid var(--color-espresso, #3B2F2F); } .ds-lid-mark { font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 26px; letter-spacing: -0.02em; color: var(--color-cream, #FDF6EC); text-decoration: none; } .ds-lid-mark:hover { color: #F3E2B6; } .ds-lid-mark:focus-visible, .ds-lid-leave:focus-visible { outline: 3px solid var(--color-cream, #FDF6EC); outline-offset: 2px; } .ds-lid-leave { height: 40px; padding: 0 14px; border-radius: 999px; border: 2px solid var(--color-cream, #FDF6EC); background: transparent; color: var(--color-cream, #FDF6EC); font-family: 'DM Sans', system-ui, sans-serif; font-weight: 700; font-size: 14px; cursor: pointer; transition: background 200ms ease; } .ds-lid-leave:hover { background: rgba(253, 246, 236, 0.14); }"
+      "css": ".ds-lid { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px; background: var(--color-terracotta, #C4663A); border-bottom: 3px solid var(--color-espresso, #3B2F2F); } .ds-lid-mark { font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 26px; letter-spacing: -0.02em; color: var(--color-cream, #FDF6EC); text-decoration: none; } .ds-lid-mark:hover { color: #F3E2B6; } .ds-lid-mark:focus-visible, .ds-lid-leave:focus-visible { outline: 3px solid var(--color-cream, #FDF6EC); outline-offset: 2px; } .ds-lid-leave { height: 40px; padding: 0 16px; border-radius: 999px; border: 2px solid var(--color-espresso, #3B2F2F); background: var(--color-cream, #FDF6EC); color: var(--color-espresso, #3B2F2F); font-family: 'DM Sans', system-ui, sans-serif; font-weight: 700; font-size: 14px; cursor: pointer; transition: background 200ms ease; } .ds-lid-leave:hover { background: #FFFFFF; }"
     }
   ],
   "narrative": {
