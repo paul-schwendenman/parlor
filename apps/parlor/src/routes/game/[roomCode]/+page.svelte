@@ -55,7 +55,12 @@
   <div class="lid-inner">
     <span class="wordmark">PARLOR</span>
     {#if playerState.roomCode === roomCode}
-      <span class="code-chip" aria-label="Room code {roomCode}">{roomCode}</span>
+      <span class="code">
+        <span class="sr-only">Room code {roomCode}</span>
+        {#each roomCode.split('') as char, i (i)}
+          <span class="code-tile" aria-hidden="true">{char}</span>
+        {/each}
+      </span>
       {#if !playerState.id}<span class="spectating">Watching as spectator</span>{/if}
       <div class="leave"><LeaveRoomButton /></div>
     {/if}
@@ -109,17 +114,58 @@
     color: var(--color-cream);
   }
 
-  .code-chip {
-    padding: 4px 10px;
+  /* The room code as letter tiles, scaled down for the slim lid. */
+  .code {
+    display: inline-flex;
+    gap: 3px;
+  }
+
+  .code-tile {
+    width: 26px;
+    height: 32px;
+    box-sizing: border-box;
     border: 2px solid var(--color-espresso);
-    border-radius: 10px;
+    border-radius: 7px;
     background: var(--color-mustard);
     color: var(--color-espresso);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-family: var(--font-heading);
     font-weight: 900;
-    font-size: 1rem;
-    letter-spacing: 0.14em;
+    font-size: 1.0625rem;
+    line-height: 1;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Phones: keep wordmark, code and Leave on one row. */
+  @media (max-width: 420px) {
+    .wordmark {
+      font-size: 1.25rem;
+    }
+
+    .code {
+      gap: 2px;
+    }
+
+    .code-tile {
+      width: 21px;
+      height: 28px;
+      border-radius: 6px;
+      font-size: 0.9375rem;
+    }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .spectating {

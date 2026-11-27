@@ -25,6 +25,7 @@ body {
   min-height: 100vh;
   background: var(--color-cream);
   color: var(--color-espresso);
+  caret-color: var(--color-terracotta-deep);
 }
 
 :focus-visible {

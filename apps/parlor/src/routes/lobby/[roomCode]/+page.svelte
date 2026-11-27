@@ -48,7 +48,7 @@
 
   $effect(() => {
     if (playerState.roomCode === roomCode && (lobbyState.gameStarting || gameState.view)) {
-      goto(`/game/${roomCode}`).catch(console.error);
+      goto(resolve('/game/[roomCode]', { roomCode })).catch(console.error);
     }
   });
 
@@ -107,7 +107,7 @@
     area.style.opacity = '0';
     document.body.appendChild(area);
     area.select();
-    let ok = false;
+    let ok: boolean;
     try {
       ok = document.execCommand('copy');
     } catch {
@@ -227,9 +227,12 @@
             {/if}
             <span class="player-name">
               <span>{player.name}</span>
-              {#if player.id === lobbyState.hostId}<span class="role">Host</span>{/if}
-              {#if player.id === playerState.id}<span class="role">You</span>{/if}
-              {#if player.isBot}<span class="role">Bot</span>{/if}
+              <!-- Roles wrap as one unit so "· Host · You" never splits across lines. -->
+              <span class="roles">
+                {#if player.id === lobbyState.hostId}<span class="role">Host</span>{/if}
+                {#if player.id === playerState.id}<span class="role">You</span>{/if}
+                {#if player.isBot}<span class="role">Bot</span>{/if}
+              </span>
             </span>
             <span class="status" class:is-ready={player.isReady}>
               {player.isReady ? 'Ready' : 'Waiting'}
@@ -603,13 +606,27 @@
   .seat-mustard { background: var(--color-mustard); color: var(--color-espresso); }
   .seat-ink { background: var(--color-espresso); }
 
+  /* Name and roles are flex items: roles wrap under the name as one unit,
+     with no dangling separator at the start of the line. */
   .player-name {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 8px;
     font-family: var(--font-heading);
     font-weight: 800;
     font-size: 1.0625rem;
     overflow-wrap: anywhere;
+  }
+
+  .roles {
+    white-space: nowrap;
+  }
+
+  .roles:empty {
+    display: none;
   }
 
   .role {
@@ -619,7 +636,7 @@
     color: var(--color-ink-muted);
   }
 
-  .role::before {
+  .role + .role::before {
     content: ' · ';
   }
 
@@ -656,8 +673,10 @@
     transition: background 0.2s ease;
   }
 
-  .icon-btn:hover {
-    background: rgba(59, 47, 47, 0.08);
+  @media (hover: hover) {
+    .icon-btn:hover {
+      background: rgba(59, 47, 47, 0.08);
+    }
   }
 
   /* Actions */
@@ -771,6 +790,7 @@
   .hint {
     margin: 0;
     text-align: center;
+    text-wrap: balance;
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--color-ink-muted);
@@ -779,6 +799,7 @@
   .action-error {
     margin: 0;
     text-align: center;
+    text-wrap: balance;
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--color-danger);
@@ -795,6 +816,17 @@
     font-weight: 900;
     font-size: 1.0625rem;
     color: var(--color-espresso);
+  }
+
+  /* Actions sit in the thumb zone on phones; on a laptop they follow the list. */
+  @media (min-width: 720px) {
+    .content {
+      min-height: 0;
+    }
+
+    .actions {
+      margin-top: 8px;
+    }
   }
 
   /* Not found */

@@ -221,6 +221,8 @@
           autocapitalize="characters"
           spellcheck="false"
           class="input input-code"
+          aria-invalid={!!error && !selectedGameForCreate && !joinCode.trim()}
+          aria-describedby={error && !selectedGameForCreate ? 'join-error' : undefined}
         />
       </label>
       <label class="field">
@@ -232,10 +234,12 @@
           maxlength="20"
           autocomplete="nickname"
           class="input"
+          aria-invalid={!!error && !selectedGameForCreate && !!joinCode.trim() && !joinName.trim()}
+          aria-describedby={error && !selectedGameForCreate ? 'join-error' : undefined}
         />
       </label>
       {#if error && !selectedGameForCreate}
-        <p class="error" role="alert">{error}</p>
+        <p id="join-error" class="error" role="alert">{error}</p>
       {/if}
       <button type="submit" class="btn btn-primary" disabled={loading}>Join</button>
     </form>
@@ -294,10 +298,12 @@
           maxlength="20"
           autocomplete="nickname"
           class="input"
+          aria-invalid={!!error && !createName.trim()}
+          aria-describedby={error ? 'create-error' : undefined}
         />
       </label>
       {#if error}
-        <p class="error" role="alert">{error}</p>
+        <p id="create-error" class="error" role="alert">{error}</p>
       {/if}
       <div class="create-actions">
         <button type="button" class="pill" onclick={cancelCreate}>Cancel</button>
@@ -416,6 +422,10 @@
 
   .input::placeholder {
     color: var(--color-ink-muted);
+  }
+
+  .input[aria-invalid='true'] {
+    border-color: var(--color-danger);
   }
 
   .input-code {
