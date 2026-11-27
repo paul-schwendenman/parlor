@@ -1,24 +1,38 @@
 import {
   defineGame,
+  RoomManager,
   scheduleAbsentTurn,
   type GameContext,
   type TypedGameDefinition,
 } from '@parlor/multiplayer';
 import { CrazyEightsEngine } from './game/CrazyEightsEngine.js';
 import { DEFAULT_CONFIG } from '../types/game.js';
+import { takeBotStep } from './game/takeBotStep.js';
 import { validateCrazyEightsAction } from './validateAction.js';
 
-/**
- * After any change of turn: if the turn has reached a disconnected player, take
- * their stand-in turn (plan 3.9). Removed seats are skipped by the engine.
- */
-function coverAbsentTurn(game: GameContext<CrazyEightsEngine>): void {
-  const engine = game.state;
+function driveTurn(game: GameContext<CrazyEightsEngine>): void {
+  const { state: engine, instance } = game;
+  if (!instance.isCurrent() || engine.isGameOver()) return;
+
+  const activeId = engine.getActivePlayerId();
+  if (RoomManager.isBotPlayer(activeId)) {
+    instance.schedule(() => {
+      if (engine.isGameOver() || engine.getActivePlayerId() !== activeId) return;
+      takeBotStep(engine, activeId);
+      game.broadcast();
+      driveTurn(game);
+    }, 450, 'bot-turn');
+    return;
+  }
+
   scheduleAbsentTurn(game, {
     activePlayer: () => (engine.isGameOver() ? null : engine.getActivePlayerId()),
     isAbsent: (playerId) => !engine.isConnected(playerId),
     anyonePresent: () => engine.hasConnectedPlayer(),
     takeTurn: (playerId) => engine.takeAbsentTurn(playerId),
+    afterTurn: () => {
+      if (RoomManager.isBotPlayer(engine.getActivePlayerId())) driveTurn(game);
+    },
   });
 }
 
@@ -33,6 +47,7 @@ export const crazyEightsGame: TypedGameDefinition<'crazy-eights', CrazyEightsEng
     estimatedMinutes: '10-15',
     tags: ['cards', 'classic', 'quick'],
     displayModes: ['peer'],
+    supportsBots: true,
   },
 
   validateAction: validateCrazyEightsAction,
@@ -44,22 +59,24 @@ export const crazyEightsGame: TypedGameDefinition<'crazy-eights', CrazyEightsEng
       DEFAULT_CONFIG,
     ),
 
+  onGameStart: driveTurn,
+
   actions: {
     'play-card': (game, action) => {
       game.state.playCard(game.playerId, action.card);
-      coverAbsentTurn(game);
+      driveTurn(game);
     },
     'draw-card': (game) => {
       game.state.drawCard(game.playerId);
-      coverAbsentTurn(game);
+      driveTurn(game);
     },
     pass: (game) => {
       game.state.pass(game.playerId);
-      coverAbsentTurn(game);
+      driveTurn(game);
     },
     'choose-suit': (game, action) => {
       game.state.chooseSuit(game.playerId, action.suit);
-      coverAbsentTurn(game);
+      driveTurn(game);
     },
   },
 
@@ -71,23 +88,22 @@ export const crazyEightsGame: TypedGameDefinition<'crazy-eights', CrazyEightsEng
   // gets a stand-in move now and each time it comes round until they return.
   onPlayerDisconnect: (game) => {
     game.state.handleDisconnect(game.playerId);
-    coverAbsentTurn(game);
+    driveTurn(game);
   },
   onPlayerReconnect: (game) => {
     game.state.handleReconnect(game.playerId);
     // Stand-ins pause while nobody is connected; a return resumes them.
-    coverAbsentTurn(game);
+    driveTurn(game);
   },
 
   // The seat is gone for good: stand in for this turn if it is theirs, then
   // take it out of the turn order (the game ends if one seat is left).
   onPlayerRemoved: (game) => {
     game.state.removePlayer(game.playerId);
-    coverAbsentTurn(game);
+    driveTurn(game);
   },
 
-  // Nothing to release: the engine holds no timers or outside resources, and the
-  // core has already invalidated the game instance.
+  // The game instance cancels pending bot and stand-in turns on destruction.
   onRoomDestroyed: () => undefined,
 };
 
