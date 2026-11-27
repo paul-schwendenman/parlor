@@ -1,7 +1,7 @@
 <script lang="ts">
   import { cardEquals, SUITS, type Card, type Suit } from '@parlor/cards';
   import type { GameSocket } from '@parlor/multiplayer/client';
-  import { Button, CardHand, Felt, GameOver, PlayingCard, SuitIcon, TurnBanner, cardName, SUIT_NAMES } from '@parlor/ui';
+  import { Button, CardBoard, CardHand, Felt, GameOver, PlayingCard, SeatChip, SuitIcon, TurnBanner, cardName, SUIT_NAMES } from '@parlor/ui';
   import { effectiveSuit } from './rules.js';
   import type { EuchreAction, EuchreView } from './types.js';
 
@@ -83,12 +83,7 @@
   }
 </script>
 
-<section class="board" aria-label="Euchre game">
-  <header class="heading">
-    <h1>Euchre</h1>
-    <p>Hand {view.round} · Play to {view.goal}</p>
-  </header>
-
+<CardBoard label="Euchre game">
   {#if view.phase === 'game-over'}
     <GameOver
       headline={view.winningTeam === me?.team ? 'Your team wins!' : `${standings[0].name} win!`}
@@ -118,24 +113,22 @@
           : myTurn && leadSuit ? `Follow ${SUIT_NAMES[leadSuit].toLowerCase()} if you can.` : undefined} />
     {/if}
 
+    <ul class="seats" aria-label="Players">
+      {#each view.players as player, seat (player.id)}
+        {@const role = [player.id === view.dealerId && 'Dealer', player.id === view.lonerId && 'Alone', player.sittingOut && 'Sitting out'].filter(Boolean).join(' · ')}
+        <li><SeatChip name={player.name} {seat} you={player.id === playerId}
+          active={player.id === view.activePlayerId} stat={`Team ${player.team + 1}${role ? ` · ${role}` : ''}`} /></li>
+      {/each}
+    </ul>
+
     <section class="scoreboard" aria-label="Team scores">
       {#each view.teams as score, team (team)}
         <section class="score" class:mine={me?.team === team} aria-label={`Team ${team + 1}`}>
           <header>
-            <h2>{me ? me.team === team ? 'Your team' : 'Opponents' : `Team ${team + 1}`}</h2>
+            <h2>Team {team + 1}</h2>
             <strong>{score} <small>pts</small></strong>
           </header>
           <p>{view.tricks[team]} {view.tricks[team] === 1 ? 'trick' : 'tricks'}{#if maker?.team === team} · Makers{/if}</p>
-          <ul>
-            {#each view.players.filter((player) => player.team === team) as player (player.id)}
-              <li title={player.name}>
-                {player.id === playerId ? 'You' : player.name}
-                {#if player.id === view.dealerId} · Dealer{/if}
-                {#if player.id === view.lonerId} · Alone{/if}
-                {#if player.sittingOut} · Sitting out{/if}
-              </li>
-            {/each}
-          </ul>
         </section>
       {/each}
     </section>
@@ -203,29 +196,24 @@
         </div>
       </section>
     {/if}
+    <p class="game-info">Hand {view.round} · Play to {view.goal}</p>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   {/if}
-</section>
+</CardBoard>
 
 <style>
-  .board {
-    display: grid;
-    gap: 0.8rem;
-    max-width: 42rem;
-    margin: 0 auto;
-    padding: 0.5rem 1rem 2rem;
-    color: var(--color-espresso);
-  }
-  .heading, .score header, .trick-heading {
+  .seats { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; list-style: none; margin: 0; padding: 0; }
+  .seats li { max-width: 100%; }
+  .game-info { margin: 0; text-align: center; color: var(--color-ink-muted); font-size: .85rem; }
+  .score header, .trick-heading {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.25rem 1rem;
   }
-  h1, h2, p, ol, ul { margin: 0; }
-  .heading h1 { font: 900 2rem/1.1 var(--font-heading); }
-  .heading p, .score p { color: var(--color-ink-muted); }
+  h2, p, ol, ul { margin: 0; }
+  .score p { color: var(--color-ink-muted); }
   .scoreboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; }
   .score {
     background: var(--color-paper);
@@ -236,8 +224,7 @@
   .score.mine { background: var(--color-mustard-tint); }
   .score h2 { font: 900 1rem/1.1 var(--font-heading); }
   .score strong { font: 900 1.35rem/1 var(--font-heading); }
-  .score ul { list-style: none; padding: 0; margin-top: 0.35rem; }
-  .score li, .trick small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .trick small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
   .up-card { display: grid; gap: 0.5rem; justify-items: center; }
   .trick { width: min(100%, 24rem); --card-w: clamp(2.7rem, 12vw, 3.6rem); }
   .trick-heading { font-size: 0.85rem; }

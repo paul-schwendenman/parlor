@@ -140,6 +140,20 @@
         <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
       </section>
 
+    {:else if gameId === 'oh-hell'}
+      <section>
+        <h3>Bidding</h3>
+        <p>Starting left of the dealer, bid exactly how many tricks you expect to win. The dealer bids last and must leave the total bids different from the number of tricks available.</p>
+      </section>
+      <section>
+        <h3>Playing Tricks</h3>
+        <p>The face-up card sets trump. Follow the led suit if you can. The highest trump takes the trick. If nobody plays trump, the highest card of the led suit wins. The winner leads next.</p>
+      </section>
+      <section>
+        <h3>Scoring</h3>
+        <p>Hit your bid exactly to score 10 points plus your tricks. A missed bid scores zero. Hand sizes grow from one to five cards, then shrink back to one. The highest score after nine hands wins, with ties shared.</p>
+      </section>
+
     {:else if gameId === 'euchre'}
       <section>
         <h3>Calling Trump</h3>

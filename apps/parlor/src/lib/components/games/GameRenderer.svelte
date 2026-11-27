@@ -7,6 +7,7 @@
   import BootyDiceGame from '@parlor/booty-dice/game-view';
   import LiarsDiceGame from '@parlor/liars-dice/game-view';
   import EuchreGame from '@parlor/euchre/game-view';
+  import OhHellGame from '@parlor/oh-hell/game-view';
   import SpadesGame from '@parlor/spades/game-view';
   import HeartsGame from '@parlor/hearts/game-view';
   import KingsCornerGame from '@parlor/kings-corner/game-view';
@@ -31,6 +32,8 @@
   <BootyDiceGame view={state.view} {socket} {playerId} />
 {:else if state.gameId === 'liars-dice'}
   <LiarsDiceGame view={state.view} {socket} {playerId} />
+{:else if state.gameId === 'oh-hell'}
+  <OhHellGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'euchre'}
   <EuchreGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'spades'}

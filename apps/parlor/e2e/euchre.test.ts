@@ -31,7 +31,7 @@ test('a Euchre room with bots advances from dealer pickup and discard to the nex
 
 	await playFromHand(6);
 	await expect(page.getByRole('region', { name: 'Euchre trick table' })).toBeVisible();
-	const sittingOut = await page.getByText('You · Dealer · Sitting out', { exact: true }).isVisible();
+	const sittingOut = await page.getByRole('group', { name: /Alex, you, .*Dealer .*Sitting out/ }).isVisible();
 	if (!sittingOut) await playFromHand(5);
 	await expect(page.getByText('Trick 2 of 5', { exact: true })).toBeVisible();
 	const hand = page.getByRole('region', { name: 'Your hand, 4 cards' });

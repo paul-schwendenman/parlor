@@ -17,12 +17,14 @@
     /** Can be played now: the card lifts on hover and takes clicks. */
     playable?: boolean;
     selected?: boolean;
+    /** A card highlighted by the game, e.g. one received in a pass. */
+    marked?: boolean;
     /** Not playable while it's your turn: printed faded. */
     dimmed?: boolean;
     onclick?: () => void;
   }
 
-  let { rank = '', suit = 'spades', faceDown = false, playable = false, selected = false, dimmed = false, onclick }: Props = $props();
+  let { rank = '', suit = 'spades', faceDown = false, playable = false, selected = false, marked = false, dimmed = false, onclick }: Props = $props();
 
   let red = $derived(isRedSuit(suit));
   let name = $derived(cardName(rank, suit));
@@ -37,6 +39,7 @@
     class:red
     class:playable
     class:selected
+    class:marked
     class:dimmed
     aria-label={name}
     aria-pressed={selected}
@@ -46,7 +49,7 @@
     {@render face()}
   </button>
 {:else}
-  <div class="card face" class:red role="img" aria-label={name}>
+  <div class="card face" class:red class:marked role="img" aria-label={name}>
     {@render face()}
   </div>
 {/if}
@@ -79,6 +82,8 @@
     cursor: default;
     transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease, opacity 0.2s ease;
   }
+
+  .face.marked { border-color: var(--color-forest-deep, #2F5A3E); }
 
   .face.red {
     color: var(--color-danger, #991B1B);

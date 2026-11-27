@@ -1,5 +1,6 @@
 <script lang="ts">
   import { euchreMeta } from '@parlor/euchre/meta';
+  import { ohHellMeta } from '@parlor/oh-hell/meta';
   import { spadesMeta } from '@parlor/spades/meta';
   import { heartsMeta } from '@parlor/hearts/meta';
   import { page } from '$app/stores';
@@ -25,6 +26,7 @@
     heartsMeta,
     spadesMeta,
     euchreMeta,
+    ohHellMeta,
   ];
 
   // Seat colours cycle through the palette; the first is Deep Clay, not Kiln

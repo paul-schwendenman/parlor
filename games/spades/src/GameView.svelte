@@ -1,7 +1,7 @@
 <script lang="ts">
   import { cardEquals, type Card } from '@parlor/cards';
   import type { GameSocket } from '@parlor/multiplayer/client';
-  import { Button, CardHand, Felt, GameOver, PlayingCard, SuitIcon, TurnBanner, cardName } from '@parlor/ui';
+  import { Button, CardBoard, CardHand, Felt, GameOver, PlayingCard, SeatChip, TurnBanner, cardName } from '@parlor/ui';
   import type { SpadesAction, SpadesView } from './types.js';
 
   let { view, socket, playerId, isHost }: {
@@ -68,12 +68,7 @@
   }
 </script>
 
-<section class="board" aria-label="Spades game">
-  <header class="heading">
-    <h1><SuitIcon suit="spades" size={26} /> Spades</h1>
-    <p>Round {view.round} · Play to {view.goal}</p>
-  </header>
-
+<CardBoard label="Spades game">
   {#if view.phase === 'game-over'}
     <GameOver
       headline={view.winningTeam === me?.team ? 'Your team wins!' : `${standings[0].name} win!`}
@@ -81,7 +76,9 @@
       onplayagain={isHost ? () => socket.emit('lobby:restartGame') : undefined}
       onlobby={isHost ? () => socket.emit('lobby:resetGame') : undefined}
     />
-  {:else if view.phase !== 'round-scoring'}
+  {:else if view.phase === 'round-scoring'}
+    <TurnBanner mine={false} title={`Round ${view.round} complete`} detail="The dealer rotates clockwise for the next hand." />
+  {:else}
     {#if bidding}
       <TurnBanner mine={myTurn}
         title={myTurn ? 'Bid on your hand' : `${active?.name ?? 'Next player'} is bidding`}
@@ -95,28 +92,25 @@
     {/if}
   {/if}
 
+  {#if view.phase !== 'game-over'}
+    <ul class="seats" aria-label="Players">
+      {#each view.players as player, seat (player.id)}
+        {@const bid = player.bid === null ? 'Waiting to bid' : player.bid === 0 ? player.tricks ? 'Nil failed' : 'Nil' : `${player.tricks}/${player.bid} tricks`}
+        {@const team = `Team ${player.team + 1}`}
+        <li><SeatChip name={player.name} {seat} you={player.id === playerId}
+          active={player.id === view.activePlayerId} stat={`${team} · ${player.id === view.dealerId ? 'Dealer · ' : ''}${bid}`} /></li>
+      {/each}
+    </ul>
+  {/if}
+
   <div class="scoreboard" aria-label="Team scores">
     {#each view.teams as team (team.team)}
       <section class="score" class:mine={me?.team === team.team} aria-label={`Team ${team.team + 1}`}>
         <header>
-          <h2>{me ? me.team === team.team ? 'Your team' : 'Opponents' : `Team ${team.team + 1}`}</h2>
+          <h2>Team {team.team + 1}</h2>
           <strong>{team.score} <small>pts</small></strong>
         </header>
         <p>{team.bags} {team.bags === 1 ? 'bag' : 'bags'}{#if team.bid !== null} · {team.tricks}/{team.bid} tricks{/if}</p>
-        <ul class="team-players">
-          {#each view.players.filter((player) => player.team === team.team) as player (player.id)}
-            <li>
-              <span title={player.name}>{player.id === playerId ? 'You' : player.name}{player.id === view.dealerId ? ' · Dealer' : ''}</span>
-              {#if player.bid === null}
-                <small>Waiting to bid</small>
-              {:else if player.bid === 0}
-                <small>{player.tricks ? 'Nil failed' : 'Nil'}</small>
-              {:else}
-                <small>{player.tricks}/{player.bid} tricks</small>
-              {/if}
-            </li>
-          {/each}
-        </ul>
         {#if team.roundScore}
           <dl class="round-score" aria-label="Round scoring">
             <div><dt>Contract</dt><dd>{signed(team.roundScore.bidPoints)}</dd></div>
@@ -130,9 +124,7 @@
     {/each}
   </div>
 
-  {#if view.phase === 'round-scoring'}
-    <TurnBanner mine={false} title={`Round ${view.round} complete`} detail="The dealer rotates clockwise for the next hand." />
-  {:else if view.phase === 'playing' || view.phase === 'trick-won'}
+  {#if view.phase === 'playing' || view.phase === 'trick-won'}
     <Felt label="Spades trick table">
       <div class="trick">
         <header class="trick-heading">
@@ -171,33 +163,22 @@
       {/each}
     </section>
   {/if}
+  <p class="game-info">Round {view.round} · Play to {view.goal}</p>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
-</section>
+</CardBoard>
 
 <style>
-  .board {
-    display: grid;
-    gap: 0.8rem;
-    max-width: 42rem;
-    margin: 0 auto;
-    padding: 0.5rem 1rem 2rem;
-    color: var(--color-espresso);
-  }
-  .heading, .score header, .trick-heading {
+  .seats { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; list-style: none; margin: 0; padding: 0; }
+  .seats li { max-width: 100%; }
+  .game-info { margin: 0; text-align: center; color: var(--color-ink-muted); font-size: .85rem; }
+  .score header, .trick-heading {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.25rem 1rem;
   }
-  .heading h1 {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font: 900 2rem/1.1 var(--font-heading);
-  }
-  h1, h2, p, ol, ul, dl, dd { margin: 0; }
-  .heading p { color: var(--color-ink-muted); }
+  h2, p, ol, ul, dl, dd { margin: 0; }
   .scoreboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; }
   .score {
     background: var(--color-paper);
@@ -208,22 +189,8 @@
   .score.mine { background: var(--color-mustard-tint); }
   .score h2 { font: 900 1rem/1.1 var(--font-heading); }
   .score strong { font: 900 1.35rem/1 var(--font-heading); }
-  .score p, .team-players small { font-size: 0.8rem; color: var(--color-ink-muted); }
-  .team-players {
-    list-style: none;
-    padding: 0;
-    margin-top: 0.45rem;
-  }
-  .team-players li {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    column-gap: 0.45rem;
-    align-items: baseline;
-    border-top: 1px solid rgba(59, 47, 47, 0.2);
-    padding: 0.15rem 0;
-  }
-  .team-players span, .trick small {
+  .score p { font-size: 0.8rem; color: var(--color-ink-muted); }
+  .trick small {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

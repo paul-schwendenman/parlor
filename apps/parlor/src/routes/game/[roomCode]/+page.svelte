@@ -20,6 +20,9 @@
     'booty-dice': 'Booty Dice',
     'liars-dice': "Liar's Dice",
     hearts: 'Hearts',
+    spades: 'Spades',
+    euchre: 'Euchre',
+    'oh-hell': 'Oh Hell',
   };
 
   let roomCode = $derived($page.params.roomCode ?? '');
