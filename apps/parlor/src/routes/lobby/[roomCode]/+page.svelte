@@ -8,7 +8,7 @@
   import { gameState } from '$lib/stores/gameStore.svelte.js';
   import { playerState } from '$lib/stores/playerStore.svelte.js';
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
-  import { getSocket, ballotAction, readyAction, startGameAction } from '$lib/stores/socketClient.js';
+  import { getSocket, ballotAction, readyAction, roomExistsAction, startGameAction } from '$lib/stores/socketClient.js';
   import { catalog as games, findGame, minutesRange, playerCount, playerRange, playersNeeded, type CatalogGame } from '$lib/games/catalog.js';
   import { MAX_BOTS, type LobbyPlayer } from '@parlor/game-types';
   import { seatTone, initial } from '@parlor/ui';
@@ -20,7 +20,8 @@
   const votingSeatCap = Math.max(...games.map(game => game.maxPlayers));
 
   let roomCode = $derived($page.params.roomCode ?? '');
-  let roomNotFound = $state(false);
+  /** Why this page can't show the room: it's gone, or we couldn't check. */
+  let roomMissing = $state<'gone' | 'unchecked' | null>(null);
   let copyStatus = $state<'idle' | 'copied' | 'failed'>('idle');
   let botError = $state('');
   let ballotError = $state('');
@@ -35,13 +36,29 @@
   $effect(() => {
     // State arrived (or we already have an identity): we are in this room.
     if (playerState.roomCode === roomCode) {
-      roomNotFound = false;
+      roomMissing = null;
       return;
     }
     if (connectionState.status !== 'connected') return;
-    // Wait for the reconnect handshake before declaring the room gone.
+    // Wait for the reconnect handshake: a returning player is recognised there.
     if (connectionState.reconnectPending) return;
-    roomNotFound = true;
+    // No seat here (a pasted link, or a seat that expired). If the room is
+    // live, send them to the join form with the code filled in; only a room
+    // that is really gone gets the not-found page.
+    const code = roomCode;
+    let cancelled = false;
+    void roomExistsAction(code).then((exists) => {
+      if (cancelled || playerState.roomCode === code) return;
+      if (exists) {
+        // eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve('/') plus a query string
+        goto(`${resolve('/')}?join=${encodeURIComponent(code)}`, { replaceState: true }).catch(console.error);
+      } else {
+        roomMissing = exists === false ? 'gone' : 'unchecked';
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   });
 
   $effect(() => {
@@ -67,9 +84,17 @@
   // Ballot. Every game is ranked by votes, playable or not, so the summary
   // never hides a leader; what stands in its way is said alongside it.
   let votes = $derived(ballot?.votes ?? {});
+  /**
+   * After "Change game" the confirmed game stays the room's game: it leads
+   * until a vote puts another game ahead, and wins ties it is part of (after
+   * the host's own vote). Keeping it restores the room exactly.
+   */
+  let currentGame = $derived(findGame(ballot?.currentGameId));
+  let anyVotes = $derived(games.some(game => (ballot?.totals[game.id] ?? 0) > 0));
   let leaders = $derived.by(() => {
     const high = Math.max(0, ...games.map(game => ballot?.totals[game.id] ?? 0));
-    return high ? games.filter(game => (ballot?.totals[game.id] ?? 0) === high) : [];
+    if (!high) return currentGame ? [currentGame] : [];
+    return games.filter(game => (ballot?.totals[game.id] ?? 0) === high);
   });
   /** Games the room fits (or could, with more players or a bot), in shelf order. */
   let shelfGames = $derived(games.filter(game => seatCount <= game.maxPlayers));
@@ -92,6 +117,7 @@
     if (leaders.length > 1) return `Tied · ${leaders.map(game => game.name).join(', ')}`;
     const lead = leaders[0];
     if (!lead) return '';
+    if (!anyVotes) return `Leading · ${lead.name} (current game)`;
     const note = seatCount > lead.maxPlayers ? 'too many players' : fitNote(lead).toLowerCase();
     return `Leading · ${lead.name}${note ? ` (${note})` : ''}`;
   });
@@ -106,11 +132,11 @@
     return lobbyState.players.filter(p => votes[p.id] === gameId);
   }
 
-  /** "Hearts: 2 votes, Margaret and Joe. Needs 1 more player." */
+  /** "Hearts: current game, 2 votes, Margaret and Joe. Needs 1 more player." */
   function rowLabel(game: CatalogGame, voters: LobbyPlayer[]): string {
     const count = voters.length === 0 ? 'no votes' : `${voters.length} ${voters.length === 1 ? 'vote' : 'votes'}, ${nameList(voters)}`;
     const note = fitNote(game);
-    return `${game.name}: ${count}.${note ? ` ${note}.` : ''}`;
+    return `${game.name}: ${game === currentGame ? 'current game, ' : ''}${count}.${note ? ` ${note}.` : ''}`;
   }
 
   function seatOf(player: LobbyPlayer): string {
@@ -118,12 +144,20 @@
   }
 
   // The host's one Play button follows the leader. A tie goes to the host's
-  // own vote if it is one of the tied games, else the first one the room can play.
+  // own vote if it is one of the tied games, then the current game, else the
+  // first one the room can play.
   let playTarget = $derived(leaders.find(game => game.id === ballot?.myVote)
+    ?? leaders.find(game => game === currentGame)
     ?? leaders.find(canPlay) ?? leaders[0]);
+  /**
+   * The leader is the game the room already has. Play stays off (Keep, on the
+   * current-game panel, is how the host backs out) so there's one Keep, not two.
+   */
+  let playKeeps = $derived(!!playTarget && playTarget === currentGame);
   let playHint = $derived.by(() => {
     const game = playTarget;
     if (!game) return 'Vote to pick a game.';
+    if (playKeeps) return `${game.name} stays unless another game takes the lead.`;
     if (seatCount > game.maxPlayers) {
       return `${game.name} seats ${seatsPhrase(game.minPlayers, game.maxPlayers)}. ${hasBots ? 'Remove a bot or vote' : 'Vote'} for another game.`;
     }
@@ -234,14 +268,14 @@
   let rulesOpen = $derived(rulesGameId !== null);
   let rulesGame = $derived(findGame(rulesGameId));
 
-  async function updateBallot(action: 'open' | 'vote' | 'confirm', gameId: string | null = null) {
+  async function updateBallot(action: 'open' | 'vote' | 'confirm' | 'keep', gameId: string | null = null) {
     if (ballotPending) return;
     ballotError = '';
     ballotPending = true;
     try {
       await ballotAction(action, gameId, ballot?.roundId);
       await tick();
-      if (action === 'confirm') gameHeading?.focus();
+      if (action === 'confirm' || action === 'keep') gameHeading?.focus();
       if (action === 'open') ballotHeading?.focus();
     } catch (error) {
       ballotError = error instanceof Error ? error.message : 'Could not update your game choice.';
@@ -256,8 +290,20 @@
 
   function playGame(gameId: string) {
     rulesGameId = null;
-    void updateBallot('confirm', gameId);
+    void updateBallot(gameId === currentGame?.id ? 'keep' : 'confirm', gameId);
   }
+
+  function keepCurrentGame() {
+    void updateBallot('keep');
+  }
+
+  /** The reopened ballot's panel line: who is choosing, and what happens to readiness. */
+  let currentNote = $derived.by(() => {
+    if (!currentGame) return '';
+    if (isHost) return 'Choosing again. Anyone ready stays ready if you keep it.';
+    if (me?.isReady) return `${hostName} is choosing again. You stay ready if ${currentGame.name} stays.`;
+    return `${hostName} is choosing again. ${currentGame.name} stays unless another game is played.`;
+  });
 
   function addBot() {
     botError = '';
@@ -311,7 +357,7 @@
 
 <svelte:head><title>Lobby {roomCode} - Parlor</title></svelte:head>
 
-{#if roomNotFound}
+{#if roomMissing}
   <header class="lid">
     <div class="lid-inner">
       <div class="lid-bar">
@@ -320,9 +366,15 @@
     </div>
   </header>
   <div class="content not-found">
-    <h1 class="not-found-title">This lobby doesn't exist or has ended.</h1>
-    <p class="not-found-body">Check the code with whoever invited you, or start a new room.</p>
-    <a href={resolve('/')} class="btn btn-accent">Back to home</a>
+    {#if roomMissing === 'gone'}
+      <h1 class="not-found-title">This lobby doesn't exist or has ended.</h1>
+      <p class="not-found-body">Check the code with whoever invited you, or start a new room.</p>
+      <a href={resolve('/')} class="btn btn-accent">Back to home</a>
+    {:else}
+      <h1 class="not-found-title">Couldn't open lobby {roomCode}.</h1>
+      <p class="not-found-body">Check your connection, then try again.</p>
+      <button type="button" class="btn btn-accent" onclick={() => location.reload()}>Try again</button>
+    {/if}
   </div>
 {:else}
   <header class="lid" class:wide={!selectedGame && !!ballot}>
@@ -364,13 +416,15 @@
 
   {#snippet rowFace(game: CatalogGame, voters: LobbyPlayer[], voted: boolean)}
     {@const note = fitNote(game)}
+    {@const current = game === currentGame}
     <span class="row-head">
       <span class="row-name">{game.name}</span>
       <span class="row-meta">{playerRange(game)} · {minutesRange(game)}m</span>
     </span>
     <span class="row-desc">{game.description}</span>
-    {#if note || voters.length || voted}
+    {#if note || voters.length || voted || current}
       <span class="row-foot">
+        {#if current}<span class="row-current">Current</span>{/if}
         {#if note}<span class="row-note">{note}</span>{/if}
         <span class="row-votes">
           {#if voted}
@@ -410,7 +464,7 @@
     </li>
   {/snippet}
 
-  <div class="content" class:voting={!selectedGame && !!ballot}>
+  <div class="content" class:voting={!selectedGame && !!ballot} class:reopened={!selectedGame && !!currentGame}>
     {#if selectedGame}
       <section class="game-panel" aria-label="Selected game">
         <div class="game-panel-text">
@@ -418,10 +472,23 @@
           <span class="game-panel-meta">{playerCount(selectedGame)} · {minutesRange(selectedGame)} min</span>
         </div>
         {#if isHost}
-          <button type="button" class="pill pill-on-dark" onclick={() => updateBallot('open')} disabled={ballotPending}>Vote for next game</button>
+          <button type="button" class="pill pill-on-dark" onclick={() => updateBallot('open')} disabled={ballotPending}>Change game</button>
         {/if}
       </section>
     {:else if ballot}
+      {#if currentGame}
+        <!-- "Change game" reopened the ballot: the game stays on, where the
+             host tapped Change, with Keep to back out. -->
+        <section class="game-panel current-panel" aria-label="Current game">
+          <div class="game-panel-text">
+            <h2 class="game-panel-name">{currentGame.name}</h2>
+            <span class="game-panel-meta">{currentNote}</span>
+          </div>
+          {#if isHost}
+            <button type="button" class="pill pill-on-dark" onclick={keepCurrentGame} aria-disabled={ballotPending || undefined}>Keep {currentGame.name}</button>
+          {/if}
+        </section>
+      {/if}
       <!-- Phone: who's here, at a glance, above the ballot. Desktop shows the
            full list in the side column instead. -->
       <section class="table-strip" aria-label="Players">
@@ -473,9 +540,9 @@
                game the room fits can be played from its "?" rules sheet. -->
           <div class="play-bar">
             {#if playHint}<p class="hint" aria-live="polite">{playHint}</p>{/if}
-            <button type="button" class="btn btn-primary" disabled={!playTarget || !canPlay(playTarget)}
+            <button type="button" class="btn btn-primary" disabled={!playTarget || playKeeps || !canPlay(playTarget)}
               aria-disabled={ballotPending || undefined}
-              onclick={() => playTarget && playGame(playTarget.id)}>{playTarget ? `Play ${playTarget.name}` : 'Play'}</button>
+              onclick={() => playTarget && playGame(playTarget.id)}>{playTarget && !playKeeps ? `Play ${playTarget.name}` : 'Play'}</button>
           </div>
         {/if}
       </section>
@@ -937,6 +1004,20 @@
   .row-note {
     font-size: 0.8125rem;
     font-weight: 800;
+  }
+
+  /* The game the room already has, on a reopened ballot: a plain outline tag
+     in the spine's own text colour, so it never competes with "Your vote". */
+  .row-current {
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1.5px solid currentColor;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    white-space: nowrap;
   }
 
   .row-votes {
@@ -1449,6 +1530,8 @@
     min-height: 44px;
     height: auto;
     padding: 0 14px;
+    flex-shrink: 0;
+    white-space: nowrap;
     border-color: var(--color-cream);
     color: var(--color-cream);
     font-size: 0.8125rem;
@@ -1543,6 +1626,15 @@
 
     .content.voting .picker {
       grid-area: ballot;
+    }
+
+    /* A reopened ballot keeps the current game on top of the ballot column. */
+    .content.voting.reopened {
+      grid-template-areas: 'current players' 'ballot players' 'actions players';
+    }
+
+    .content.voting .current-panel {
+      grid-area: current;
     }
 
     .content.voting .players {

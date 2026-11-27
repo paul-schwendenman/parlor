@@ -15,6 +15,7 @@
   let error = $state('');
   let loading = $state(false);
   let interactive = $state(false);
+  let nameInput = $state<HTMLInputElement | null>(null);
 
   // For game card "create" flow
   let selectedGameForCreate = $state<string | undefined>();
@@ -36,6 +37,8 @@
 
   onMount(() => {
     interactive = true;
+    // An invite link (or a pasted lobby link) already has the code: the name is next.
+    if (prefillCode) nameInput?.focus();
     if (browser) {
       getSocket();
     }
@@ -153,6 +156,9 @@
   <!-- Join -->
   <section class="join" aria-labelledby="join-title">
     <h2 id="join-title" class="join-title">Join a room</h2>
+    {#if prefillCode}
+      <p class="join-invite">Add your name to join room {prefillCode.toUpperCase()}.</p>
+    {/if}
     <form class="join-form" onsubmit={handleJoinSubmit} novalidate>
       <label class="field">
         <span class="field-label">Room code</span>
@@ -174,6 +180,7 @@
         <input
           type="text"
           bind:value={joinName}
+          bind:this={nameInput}
           placeholder="Your name"
           maxlength={PLAYER_NAME_MAX_LENGTH}
           autocomplete="nickname"
@@ -331,6 +338,13 @@
     line-height: 1.1;
     letter-spacing: -0.01em;
     color: var(--color-espresso);
+  }
+
+  .join-invite {
+    margin: 0 0 14px;
+    font-size: 1rem;
+    line-height: 1.4;
+    color: var(--color-ink-muted);
   }
 
   .join-form,

@@ -143,6 +143,12 @@ export interface GameBallotSnapshot {
   votes: Partial<Record<string, string>>;
   /** The recipient's own vote; always null for a spectator. */
   myVote: string | null;
+  /**
+   * The game the room had confirmed when the host reopened the ballot ("Change
+   * game"), or null on a first ballot. It stays the room's game, and leads,
+   * until the host plays another; `lobby:keepGame` restores it unchanged.
+   */
+  currentGameId: string | null;
 }
 
 export type ServerToClientEvents = {
@@ -174,6 +180,13 @@ export type LobbyClientEvents = {
   'lobby:vote': (roundId: string, gameId: string | null, callback: (success: boolean, error?: string) => void) => void;
   'lobby:confirmGame': (roundId: string, gameId: string, callback: (success: boolean, error?: string) => void) => void;
   'lobby:selectGame': (gameId: string | null, callback?: (success: boolean, error?: string) => void) => void;
+  /** Host backs out of a reopened ballot: the current game, readiness and all, stays. */
+  'lobby:keepGame': (roundId: string, callback: (success: boolean, error?: string) => void) => void;
+  /**
+   * Whether a room with this code exists, for a pasted `/lobby/CODE` link with
+   * no session. Reveals nothing a join attempt by code wouldn't.
+   */
+  'lobby:roomExists': (roomCode: string, callback: (exists: boolean, error?: string) => void) => void;
   'lobby:join': (
     roomCode: string,
     playerName: string,

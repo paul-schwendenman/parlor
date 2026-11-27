@@ -238,6 +238,17 @@ export class RoomManager {
     return true;
   }
 
+  /**
+   * Readiness is for a particular game: when the room switches to another one,
+   * every human seat is asked again (bots stay ready). Only in the lobby.
+   */
+  clearReadiness(roomCode: string): boolean {
+    const room = this.getRoom(roomCode);
+    if (!room || room.status !== 'waiting') return false;
+    for (const player of room.players.values()) player.isReady = player.isBot;
+    return true;
+  }
+
   canStartGame(roomCode: string): boolean {
     const room = this.getRoom(roomCode);
     if (!room || room.status !== 'waiting') return false;

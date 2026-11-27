@@ -17,6 +17,12 @@ import { getGameDefinition } from './gameRegistry.js';
 interface Ballot {
 	roundId: string;
 	votes: Map<string, string>;
+	/**
+	 * The game the host had confirmed before reopening the ballot ("Change
+	 * game"), or null on a first ballot. Readiness is left alone while the
+	 * ballot is open, so keeping this game restores the room exactly.
+	 */
+	currentGameId: string | null;
 }
 
 export function setupParlorSocketHandlers(io: AppServer, roomManager = new RoomManager()): void {
@@ -24,8 +30,8 @@ export function setupParlorSocketHandlers(io: AppServer, roomManager = new RoomM
 
 	const ballots = new WeakMap<GameRoom, Ballot>();
 
-	function openBallot(room: GameRoom): Ballot {
-		const ballot = { roundId: randomUUID(), votes: new Map<string, string>() };
+	function openBallot(room: GameRoom, currentGameId: string | null = null): Ballot {
+		const ballot = { roundId: randomUUID(), votes: new Map<string, string>(), currentGameId };
 		ballots.set(room, ballot);
 		return ballot;
 	}
@@ -57,7 +63,8 @@ export function setupParlorSocketHandlers(io: AppServer, roomManager = new RoomM
 				roundId: ballot.roundId,
 				totals: counts,
 				votes,
-				myVote: playerId ? ballot.votes.get(playerId) ?? null : null
+				myVote: playerId ? ballot.votes.get(playerId) ?? null : null,
+				currentGameId: ballot.currentGameId
 			});
 		}
 	}
@@ -187,11 +194,20 @@ export function setupParlorSocketHandlers(io: AppServer, roomManager = new RoomM
 				}
 
 				// An already-open ballot is preserved if the request to open it is retried.
+				const previousGameId = room.gameId;
 				if (!roomManager.selectGame(roomCode, definition?.meta ?? null)) {
 					ack(false, 'Could not select this game');
 					return;
 				}
-				if (definition) ballots.delete(room);
+				if (definition) {
+					// Readiness was for the game before; a different game asks everyone again.
+					if (gameId !== (ballot?.currentGameId ?? previousGameId)) roomManager.clearReadiness(roomCode);
+					ballots.delete(room);
+				} else if (previousGameId !== null) {
+					// "Change game": the confirmed game stays current (and leads) until
+					// the host plays another or keeps it.
+					openBallot(room, previousGameId);
+				}
 				io.to(roomCode).emit('lobby:gameSelected', room.gameId);
 				io.to(roomCode).emit('lobby:state', roomManager.getPlayersInRoom(roomCode), roomManager.canStartGame(roomCode));
 				publishBallot(roomCode);
@@ -201,7 +217,56 @@ export function setupParlorSocketHandlers(io: AppServer, roomManager = new RoomM
 			}
 		}
 
+		// The host backs out of a reopened ballot: the current game comes back
+		// exactly as it was (readiness was never touched), and the ballot closes.
+		function keepGame(roundId: unknown, callback: ((success: boolean, error?: string) => void) | undefined): void {
+			const ack = safeAck(callback);
+			try {
+				if (!allowSocketRequest(socket)) {
+					ack(false, RATE_LIMIT_MESSAGE);
+					return;
+				}
+				const { roomCode, playerId } = socket.data;
+				if (!roomCode) {
+					ack(false, 'Not in a room');
+					return;
+				}
+				if (!roomManager.isSeatedPlayer(roomCode, playerId, socket.id) || !roomManager.isHost(roomCode, playerId)) {
+					ack(false, 'Only the host can keep the game');
+					return;
+				}
+				const room = roomManager.getRoom(roomCode);
+				if (!room || room.status !== 'waiting') {
+					ack(false, 'Cannot change game after it has started');
+					return;
+				}
+				const ballot = ballots.get(room);
+				if (!ballot || ballot.roundId !== roundId) {
+					ack(false, 'This vote has closed. Use the current lobby to vote again.');
+					return;
+				}
+				const definition = ballot.currentGameId ? getGameDefinition(ballot.currentGameId) : undefined;
+				if (!definition) {
+					ack(false, 'There is no current game to keep. Vote on a game instead.');
+					return;
+				}
+				const { name, maxPlayers } = definition.meta;
+				if (room.players.size > maxPlayers || !roomManager.selectGame(roomCode, definition.meta)) {
+					ack(false, `${name} seats ${maxPlayers}. Remove a bot or play another game.`);
+					return;
+				}
+				ballots.delete(room);
+				io.to(roomCode).emit('lobby:gameSelected', room.gameId);
+				io.to(roomCode).emit('lobby:state', roomManager.getPlayersInRoom(roomCode), roomManager.canStartGame(roomCode));
+				publishBallot(roomCode);
+				ack(true);
+			} catch (err) {
+				ack(false, toPublicError(err, 'Could not keep the game', roomManager.getErrorContext(socket.data.roomCode, socket.data.playerId)).message);
+			}
+		}
+
 		socket.on('lobby:selectGame', (gameId, callback) => updateGameChoice('select', gameId, callback));
+		socket.on('lobby:keepGame', (roundId, callback) => keepGame(roundId, callback));
 		socket.on('lobby:confirmGame', (roundId, gameId, callback) => updateGameChoice('confirm', gameId, callback, roundId));
 		socket.on('lobby:vote', (roundId, gameId, callback) => updateGameChoice('vote', gameId, callback, roundId));
 

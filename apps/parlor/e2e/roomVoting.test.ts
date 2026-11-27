@@ -60,14 +60,32 @@ test('friends vote together and the host plays a tied game', async ({ page, brow
 		await expect(guest.getByRole('heading', { name: 'Quixx', exact: true })).toBeVisible();
 		await expect(friend.getByRole('button', { name: 'Ready', exact: true })).toBeVisible();
 
-		await page.getByRole('button', { name: 'Vote for next game' }).click();
+		await friend.getByRole('button', { name: 'Ready', exact: true }).click();
+		await expect(friend.getByRole('button', { name: 'Not ready', exact: true })).toBeVisible();
+
+		// Change game reopens the ballot without losing Quixx: it is marked
+		// current, leads until another game gets a vote, and Keep backs out.
+		await page.getByRole('button', { name: 'Change game', exact: true }).click();
 		await expect(page.getByRole('heading', { name: 'Vote on a game' })).toBeFocused();
+		await expect(page.getByText('Leading · Quixx (current game)', { exact: true })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Vote for Quixx', exact: true }))
+			.toHaveAccessibleDescription('Quixx: current game, no votes.');
+		await expect(guest.getByText('Host is choosing again. Quixx stays unless another game is played.', { exact: true })).toBeVisible();
+		await expect(friend.getByText('Host is choosing again. You stay ready if Quixx stays.', { exact: true })).toBeVisible();
 		await expect(guest.getByRole('button', { name: 'Vote for Hearts', exact: true })).toBeVisible();
 		await expect(guest.getByText(/^[1-9]\d* votes?$/)).toHaveCount(0);
-		// The host can play any game the room fits from its rules sheet.
+		await expect(guest.getByRole('button', { name: /^Keep / })).toHaveCount(0);
+		await page.getByRole('button', { name: 'Keep Quixx', exact: true }).click();
+		await expect(page.getByRole('heading', { name: 'Quixx', exact: true })).toBeFocused();
+		await expect(friend.getByRole('button', { name: 'Not ready', exact: true })).toBeVisible();
+
+		// The host can play any game the room fits from its rules sheet; a
+		// different game asks everyone to get ready again.
+		await page.getByRole('button', { name: 'Change game', exact: true }).click();
 		await page.getByRole('button', { name: 'How to play Crazy Eights', exact: true }).click();
 		await page.getByRole('dialog').getByRole('button', { name: 'Play this', exact: true }).click();
 		await expect(friend.getByRole('heading', { name: 'Crazy Eights', exact: true })).toBeVisible();
+		await expect(friend.getByRole('button', { name: 'Ready', exact: true })).toBeVisible();
 	} finally {
 		await Promise.all(guestContexts.map(context => context.close()));
 	}

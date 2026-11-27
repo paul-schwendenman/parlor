@@ -108,6 +108,8 @@ const cases = {
 	'lobby:selectGame': { reply: [false, 'Invalid game'] },
 	'lobby:vote': { reply: [false, 'This vote has closed. Use the current lobby to vote again.'] },
 	'lobby:confirmGame': { reply: [false, 'This vote has closed. Use the current lobby to vote again.'] },
+	'lobby:keepGame': { reply: [false, 'This vote has closed. Use the current lobby to vote again.'] },
+	'lobby:roomExists': { reply: [false] },
 	'lobby:removeBot': { reply: [false, 'Invalid bot id'] },
 	'player:reconnect': { reply: [false] },
 	'lobby:addBot': {},

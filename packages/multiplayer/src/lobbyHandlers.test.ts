@@ -654,3 +654,62 @@ it('shares the lookup limit across join and spectate, and refills while other re
     clock.mockRestore();
   }
 });
+
+describe('lobby:roomExists', () => {
+  it('answers yes or no for a code and reveals nothing else', () => {
+    const rm = new RoomManager();
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, undefined, 'host');
+    host.fire('lobby:create', 'Margaret', vi.fn());
+    const roomCode = host.data.roomCode;
+    const before = structuredClone(rm.getRoom(roomCode));
+
+    const visitor = connectFakeSocket(io, rm, undefined, 'visitor');
+    const emittedBefore = io.emitted.length;
+    const live = vi.fn();
+    visitor.fire('lobby:roomExists', roomCode.toLowerCase(), live);
+    expect(live).toHaveBeenCalledExactlyOnceWith(true);
+    const missing = vi.fn();
+    visitor.fire('lobby:roomExists', 'NOPE99', missing);
+    expect(missing).toHaveBeenCalledExactlyOnceWith(false);
+    for (const bad of [42, null, '', undefined]) {
+      const ack = vi.fn();
+      expect(() => visitor.fire('lobby:roomExists', bad, ack)).not.toThrow();
+      expect(ack).toHaveBeenCalledExactlyOnceWith(false);
+    }
+    expect(() => visitor.fire('lobby:roomExists', roomCode)).not.toThrow();
+
+    // No player names, no room membership, no broadcast, no change to the room.
+    expect(JSON.stringify(live.mock.calls)).not.toContain('Margaret');
+    expect(visitor.received).toEqual([]);
+    expect(visitor.data.roomCode).toBe('');
+    expect(io.emitted.length).toBe(emittedBefore);
+    expect(rm.getRoom(roomCode)).toEqual(before);
+  });
+
+  it('shares the join/spectate lookup limit and says when it is rate limited', () => {
+    let now = 0;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+    try {
+      const rm = new RoomManager();
+      const io = createFakeIo();
+      const host = connectFakeSocket(io, rm, undefined, 'host');
+      host.fire('lobby:create', 'Host', vi.fn());
+      const visitor = connectFakeSocket(io, rm, undefined, 'visitor');
+      for (let index = 0; index < 6; index++) visitor.fire('lobby:roomExists', 'MISSING', vi.fn());
+      const limited = vi.fn();
+      visitor.fire('lobby:roomExists', host.data.roomCode, limited);
+      expect(limited).toHaveBeenCalledWith(false, expect.stringMatching(/Too many/));
+      const join = vi.fn();
+      visitor.fire('lobby:join', host.data.roomCode, 'Guest', join);
+      expect(join).toHaveBeenCalledWith({ success: false, error: expect.stringMatching(/Too many/) });
+
+      now = 500;
+      const ack = vi.fn();
+      visitor.fire('lobby:roomExists', host.data.roomCode, ack);
+      expect(ack).toHaveBeenCalledExactlyOnceWith(true);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+});

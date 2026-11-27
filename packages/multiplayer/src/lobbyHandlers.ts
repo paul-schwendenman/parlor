@@ -255,6 +255,23 @@ export function setupLobbyHandlers(
     }
   });
 
+  // A pasted `/lobby/CODE` link with no session asks this before offering to
+  // join. It answers only yes or no, which a join attempt by code already
+  // reveals, and spends the same lookup budget as join and spectate.
+  socket.on('lobby:roomExists', (roomCode, callback) => {
+    const ack = typeof callback === 'function' ? callback : undefined;
+    try {
+      if (!ack) return;
+      if (!allowSocketRequest(socket, true)) {
+        ack(false, RATE_LIMIT_MESSAGE);
+        return;
+      }
+      ack(isNonEmptyString(roomCode) && roomManager.getRoom(roomCode) !== undefined);
+    } catch (err) {
+      ack?.(false, toPublicError(err, 'Could not check this room', context()).message);
+    }
+  });
+
   socket.on('lobby:spectate', (roomCode, callback) => {
     let acknowledged = false;
     try {

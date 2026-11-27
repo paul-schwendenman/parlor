@@ -316,3 +316,25 @@ describe('RoomManager.isSeatedPlayer', () => {
     expect(rm.isSeatedPlayer(host.roomCode, guest.playerId, 'sockB')).toBe(false);
   });
 });
+
+describe('RoomManager.clearReadiness', () => {
+  it('unreadies every human seat, keeps bots ready, and refuses once a game is running', () => {
+    const rm = new RoomManager();
+    const host = rm.createRoom('sockA', 'Ann');
+    const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
+    rm.selectGame(host.roomCode, gameRules);
+    rm.setPlayerReady(guest.playerId!, true);
+    expect(rm.addBot(host.roomCode, 'Bot Cy').success).toBe(true);
+
+    expect(rm.clearReadiness(host.roomCode)).toBe(true);
+    const ready = Object.fromEntries(rm.getPlayersInRoom(host.roomCode).map(p => [p.name, p.isReady]));
+    expect(ready).toEqual({ Ann: false, Bob: false, 'Bot Cy': true });
+    expect(rm.clearReadiness('NOPE99')).toBe(false);
+
+    rm.setPlayerReady(guest.playerId!, true);
+    rm.startGame(host.roomCode);
+    const before = structuredClone(rm.getRoom(host.roomCode));
+    expect(rm.clearReadiness(host.roomCode)).toBe(false);
+    expect(rm.getRoom(host.roomCode)).toEqual(before);
+  });
+});

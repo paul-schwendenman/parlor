@@ -69,7 +69,7 @@ for (const game of ['Crazy Eights', 'Quixx', 'Kings Corner']) {
       await expect(host).toHaveURL(`/lobby/${roomCode}`);
       await expect(host.locator('.player-name', { hasText: 'Host' })).toBeVisible();
 
-      await host.getByRole('button', { name: 'Vote for next game' }).click();
+      await host.getByRole('button', { name: 'Change game', exact: true }).click();
       await expect(host.getByRole('heading', { name: 'Vote on a game' })).toBeVisible();
       // Any game the room fits can be played from its rules sheet.
       await host.getByRole('button', { name: `How to play ${game}`, exact: true }).click();

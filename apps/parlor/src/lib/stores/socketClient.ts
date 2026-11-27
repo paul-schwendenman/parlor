@@ -94,7 +94,7 @@ export function joinRoomAction(
 }
 
 export async function ballotAction(
-	action: 'open' | 'vote' | 'confirm',
+	action: 'open' | 'vote' | 'confirm' | 'keep',
 	gameId: string | null = null,
 	roundId = '',
 ): Promise<void> {
@@ -110,8 +110,23 @@ export async function ballotAction(
 		};
 		if (action === 'open') socket.emit('lobby:selectGame', null, ack);
 		else if (action === 'vote') socket.emit('lobby:vote', roundId, gameId, ack);
+		else if (action === 'keep') socket.emit('lobby:keepGame', roundId, ack);
 		else if (gameId !== null) socket.emit('lobby:confirmGame', roundId, gameId, ack);
 		else ack(false, 'Choose a game first.');
+	});
+}
+
+/**
+ * Does a room with this code exist? `null` when we couldn't tell (offline,
+ * timed out or rate limited), so a caller never mistakes that for "gone".
+ */
+export async function roomExistsAction(roomCode: string): Promise<boolean | null> {
+	const socket = getSocket();
+	if (!socket.connected) return null;
+	return new Promise((resolve) => {
+		socket.timeout(5000).emit('lobby:roomExists', roomCode.trim().toUpperCase(), (timeout, exists, error) => {
+			resolve(timeout || error ? null : exists);
+		});
 	});
 }
 
