@@ -135,6 +135,23 @@
         <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
       </section>
 
+    {:else if gameId === 'spades'}
+      <section>
+        <h3>Bidding</h3>
+        <p>Partners sit across from each other. Starting left of the dealer, bid how many of the 13 tricks you expect to take. Add both partners’ bids to get your team’s contract.</p>
+      </section>
+      <section>
+        <h3>Trump and Tricks</h3>
+        <p>Follow the led suit if you can. The highest spade wins the trick, or the highest card of the led suit if nobody played a spade. The winner leads next.</p>
+        <p>You can lead with spades after one has been played or if your hand contains only spades.</p>
+      </section>
+      <section>
+        <h3>Scoring and Nil</h3>
+        <p>Make your contract to score 10 points per bid trick. Each extra trick scores one point and adds a bag. Ten bags cost 100 points. Miss your contract and lose 10 points per bid trick.</p>
+        <p>A nil bid earns 100 points for taking zero tricks and loses 100 if you take any. Tricks taken by a nil bidder do not count toward their team’s contract.</p>
+        <p>The higher-scoring team wins once either team reaches 500. A tie goes to another round.</p>
+      </section>
+
     {:else if gameId === 'hearts'}
       <section>
         <h3>Passing</h3>
