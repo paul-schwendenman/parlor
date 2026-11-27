@@ -1,25 +1,30 @@
 <script lang="ts">
   import { Modal } from '@parlor/ui';
   import FaceIcon from '@parlor/booty-dice/face-icon';
+  import { findGame, playerCount } from '$lib/games/catalog.js';
 
   interface Props {
     open: boolean;
     gameId: string | null;
     gameName: string;
     onclose: () => void;
-    /** Omitted mid-game, where there is nothing to start. */
+    /** Omitted mid-game, where there is nothing to start. Labelled "Play <game>". */
     onplay?: () => void;
-    playLabel?: string;
-    /** A second, outline action beside play (the host's Vote in the lobby). */
-    onsecondary?: () => void;
-    secondaryLabel?: string;
+    /** The lobby ballot: a toggle that reads "Vote", or "Your vote" when pressed. */
+    onvote?: () => void;
+    voted?: boolean;
   }
 
-  let { open, gameId, gameName, onclose, onplay, playLabel = 'Play Now', onsecondary, secondaryLabel = '' }: Props = $props();
+  let { open, gameId, gameName, onclose, onplay, onvote, voted = false }: Props = $props();
+
+  let game = $derived(findGame(gameId));
+  /** "4 players · bots can fill seats", "2–5 players · no bots". */
+  let fitLine = $derived(game ? `${playerCount(game)} · ${game.supportsBots ? 'bots can fill seats' : 'no bots'}` : '');
 </script>
 
 {#if open}
-<Modal open={true} {onclose} title="{gameName} — How to Play">
+<Modal open={true} {onclose} title="How to play {gameName}">
+  {#if fitLine}<p class="fit">{fitLine}</p>{/if}
   <div class="rules-content">
     {#if gameId === 'quixx'}
       <section>
@@ -28,7 +33,7 @@
       </section>
 
       <section>
-        <h3>The Scoresheet</h3>
+        <h3>The scoresheet</h3>
         <p>Four colored rows of numbers 2-12:</p>
         <ul>
           <li><span class="color-dot red"></span> <strong>Red</strong> and <span class="color-dot yellow"></span> <strong>Yellow</strong> — ascending (2 to 12)</li>
@@ -38,12 +43,12 @@
       </section>
 
       <section>
-        <h3>The Dice</h3>
+        <h3>The dice</h3>
         <p>6 dice total: 2 white + 1 red, 1 yellow, 1 green, 1 blue.</p>
       </section>
 
       <section>
-        <h3>Each Turn</h3>
+        <h3>Each turn</h3>
         <ol>
           <li><strong>Phase 1 — White sum:</strong> The active player rolls all dice. <em>Every</em> player may cross off the sum of the two white dice in any row.</li>
           <li><strong>Phase 2 — Colored combo:</strong> Only the active player may add one white die + one colored die and cross off that number in the matching colored row.</li>
@@ -52,7 +57,7 @@
       </section>
 
       <section>
-        <h3>Locking a Row</h3>
+        <h3>Locking a row</h3>
         <p>To cross off the last number in a row (12 for red/yellow, 2 for green/blue), you need <strong>5 or more</strong> marks in that row. Locking a row removes its die from the game for everyone.</p>
       </section>
 
@@ -90,7 +95,7 @@
       </section>
 
       <section>
-        <h3>Your Turn</h3>
+        <h3>Your turn</h3>
         <ol>
           <li>Play a card that matches the top card's <strong>suit</strong> or <strong>rank</strong></li>
           <li>If you can't play, <strong>draw</strong> a card from the pile</li>
@@ -99,7 +104,7 @@
       </section>
 
       <section>
-        <h3>Eights are Wild</h3>
+        <h3>Eights are wild</h3>
         <p>Play an <strong>8</strong> at any time, regardless of the top card. When you play an 8, you choose the suit that the next player must follow.</p>
       </section>
 
@@ -115,12 +120,12 @@
       </section>
 
       <section>
-        <h3>The Table</h3>
+        <h3>The table</h3>
         <p>Everyone gets <strong>7 cards</strong>. Four cards are dealt face up to the north, south, east and west piles around the draw pile. The four <strong>corners</strong> start empty.</p>
       </section>
 
       <section>
-        <h3>Your Turn</h3>
+        <h3>Your turn</h3>
         <ol>
           <li><strong>Draw</strong> a card from the draw pile</li>
           <li>Play as many cards as you like, then <strong>end your turn</strong></li>
@@ -128,7 +133,7 @@
       </section>
 
       <section>
-        <h3>Playing Cards</h3>
+        <h3>Playing cards</h3>
         <ul>
           <li>A card goes on a pile if it is <strong>one rank lower</strong> and the <strong>opposite colour</strong>: a red 9 on a black 10</li>
           <li>Only a <strong>King</strong> can start an empty corner</li>
@@ -146,11 +151,12 @@
     {:else if gameId === 'oh-hell'}
       <section>
         <h3>Bidding</h3>
+        <p>A trick is one card from each player. Whoever plays the best card takes them all.</p>
         <p>Starting left of the dealer, bid exactly how many tricks you expect to win. The dealer bids last and must leave the total bids different from the number of tricks available.</p>
       </section>
       <section>
-        <h3>Playing Tricks</h3>
-        <p>The face-up card sets trump. Follow the led suit if you can. The highest trump takes the trick. If nobody plays trump, the highest card of the led suit wins. The winner leads next.</p>
+        <h3>Playing tricks</h3>
+        <p>The face-up card sets trump, the suit that beats all the others. Follow the led suit (the suit of the first card in the trick) if you can. The highest trump takes the trick. If nobody plays trump, the highest card of the led suit wins. The winner leads next.</p>
       </section>
       <section>
         <h3>Scoring</h3>
@@ -159,35 +165,36 @@
 
     {:else if gameId === 'euchre'}
       <section>
-        <h3>Calling Trump</h3>
-        <p>Partners sit across from each other and each player gets five cards. Order up the face-up card to make its suit trump, then the dealer takes the card and discards one.</p>
+        <h3>Calling trump</h3>
+        <p>Partners sit across from each other and each player gets five cards. A trick is one card from each player, and the best card takes them all. Trump is the suit that beats all the others.</p>
+        <p>Order up (say yes to) the face-up card to make its suit trump, then the dealer takes the card and discards one.</p>
         <p>If everyone passes, choose from the other three suits. If the decision gets back to the dealer again, the dealer must name trump.</p>
       </section>
       <section>
-        <h3>The Bowers</h3>
-        <p>The jack of trump is the right bower, the strongest card. The other jack of the same color is the left bower. It ranks second and counts as trump when following suit.</p>
-        <p>Follow suit when you can. The highest trump takes the trick, or the highest card of the led suit if no one played trump. The winner leads the next trick.</p>
+        <h3>The bowers</h3>
+        <p>The bowers are the two highest trumps. The jack of trump is the right bower, the strongest card. The other jack of the same color is the left bower. It ranks second and counts as trump when following suit.</p>
+        <p>Follow suit (play the same suit as the first card in the trick) when you can. The highest trump takes the trick, or the highest card of the led suit if no one played trump. The winner leads the next trick.</p>
       </section>
       <section>
         <h3>Scoring</h3>
-        <p>Take three or four tricks as makers for one point, or all five for two. If the makers take fewer than three, the defenders score two.</p>
+        <p>The makers are the team that chose trump; the other team defends. Take three or four tricks as makers for one point, or all five for two. If the makers take fewer than three, the defenders score two.</p>
         <p>Call trump alone to sit out your partner. A lone sweep scores four points. The first team to 10 wins.</p>
       </section>
 
     {:else if gameId === 'spades'}
       <section>
         <h3>Bidding</h3>
-        <p>Partners sit across from each other. Starting left of the dealer, bid how many of the 13 tricks you expect to take. Add both partners’ bids to get your team’s contract.</p>
+        <p>Partners sit across from each other. Starting left of the dealer, bid how many of the 13 tricks you expect to take. A trick is one card from each player, and the best card takes all four. Add both partners’ bids to get your team’s contract, the number of tricks your team promised to take.</p>
       </section>
       <section>
-        <h3>Trump and Tricks</h3>
-        <p>Follow the led suit if you can. The highest spade wins the trick, or the highest card of the led suit if nobody played a spade. The winner leads next.</p>
-        <p>You can lead with spades after one has been played or if your hand contains only spades.</p>
+        <h3>Trump and tricks</h3>
+        <p>Spades are trump: they beat every other suit. Follow the led suit (the suit of the first card in the trick) if you can. The highest spade wins the trick, or the highest card of the led suit if nobody played a spade. The winner leads next.</p>
+        <p>You can lead (play the first card of a trick) with spades after one has been played or if your hand contains only spades.</p>
       </section>
       <section>
-        <h3>Scoring and Nil</h3>
-        <p>Make your contract to score 10 points per bid trick. Each extra trick scores one point and adds a bag. Ten bags cost 100 points. Miss your contract and lose 10 points per bid trick.</p>
-        <p>A nil bid earns 100 points for taking zero tricks and loses 100 if you take any. Tricks taken by a nil bidder do not count toward their team’s contract.</p>
+        <h3>Scoring and nil</h3>
+        <p>Make your contract to score 10 points per bid trick. Each extra trick scores one point and adds a bag (a trick over your bid). Ten bags cost 100 points. Miss your contract and lose 10 points per bid trick.</p>
+        <p>A nil bid means you promise to take no tricks at all. It earns 100 points for taking zero tricks and loses 100 if you take any. Tricks taken by a nil bidder do not count toward their team’s contract.</p>
         <p>The higher-scoring team wins once either team reaches 500. A tie goes to another round.</p>
       </section>
 
@@ -197,9 +204,9 @@
         <p>Each player gets 13 cards. Pass three cards left in the first round, right in the second, and across in the third. Keep your hand in the fourth round, then repeat.</p>
       </section>
       <section>
-        <h3>Taking Tricks</h3>
-        <p>The 2 of clubs opens the round. Play the same suit if you can. The highest card of that suit wins, and its player leads the next trick. Aces are high.</p>
-        <p>Avoid playing penalty cards on the first trick. If you have only penalty cards and cannot follow suit, play a heart. You may lead hearts once a heart has been played, or if your hand contains only hearts.</p>
+        <h3>Taking tricks</h3>
+        <p>A trick is one card from each player. The 2 of clubs opens the round. Play the same suit if you can. The highest card of that suit wins, and its player leads the next trick. Aces are high.</p>
+        <p>Avoid playing penalty cards (any heart, or the queen of spades) on the first trick. If you have only penalty cards and cannot follow suit, play a heart. You may lead (play the first card of a trick with) hearts once a heart has been played, or if your hand contains only hearts.</p>
       </section>
       <section>
         <h3>Scoring</h3>
@@ -222,7 +229,7 @@
       </section>
 
       <section>
-        <h3>Your Turn</h3>
+        <h3>Your turn</h3>
         <ol>
           <li>Roll 6 dice (up to 3 rolls per turn)</li>
           <li>Lock dice you want to keep between rolls</li>
@@ -232,7 +239,7 @@
       </section>
 
       <section>
-        <h3>Dice Faces</h3>
+        <h3>Dice faces</h3>
         <div class="dice-list">
           <div class="dice-item"><span class="dice-icon"><FaceIcon face="doubloon" size={20} /></span><div><strong>Doubloon</strong> — Gain 2 doubloons</div></div>
           <div class="dice-item"><span class="dice-icon"><FaceIcon face="x_marks_spot" size={20} /></span><div><strong>X Marks the Spot</strong> — Lose 2 doubloons</div></div>
@@ -253,7 +260,7 @@
       </section>
 
       <section>
-        <h3>Captain's Plunder</h3>
+        <h3>Captain's plunder</h3>
         <p>If you eliminate another pirate, you claim <strong>all their doubloons</strong>!</p>
       </section>
     {:else if gameId === 'liars-dice'}
@@ -280,7 +287,7 @@
       </section>
 
       <section>
-        <h3>Wild Ones</h3>
+        <h3>Wild ones</h3>
         <p><strong>1s count as every face.</strong> If someone bids "four 3s", every 1 and every 3 counts.</p>
         <ul>
           <li>Switching to a bid on 1s: the count can drop to half (rounded up)</li>
@@ -298,7 +305,7 @@
       </section>
 
       <section>
-        <h3>Spot On</h3>
+        <h3>Spot on</h3>
         <p>Think the bid is exactly right? Call Spot on:</p>
         <ul>
           <li>If it's exact, <strong>everyone else</strong> loses a die</li>
@@ -314,9 +321,18 @@
   </div>
 
   <div class="modal-footer">
-    <button class="btn-close" onclick={onclose}>Close</button>
-    {#if onsecondary}<button class="btn-close" onclick={onsecondary}>{secondaryLabel}</button>{/if}
-    {#if onplay}<button class="btn-play" onclick={onplay}>{playLabel}</button>{/if}
+    <button type="button" class="btn-close" onclick={onclose}>Close</button>
+    {#if onvote}
+      <button type="button" class="btn-close btn-vote" aria-pressed={voted} onclick={onvote}>
+        {#if voted}
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          Your vote
+        {:else}
+          Vote
+        {/if}
+      </button>
+    {/if}
+    {#if onplay}<button type="button" class="btn-play" onclick={onplay}>Play {gameName}</button>{/if}
   </div>
 </Modal>
 {/if}
@@ -324,6 +340,13 @@
 <style>
   .rules-content {
     max-width: 28rem;
+  }
+
+  .fit {
+    margin: -6px 0 16px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
   }
 
   section {
@@ -487,24 +510,34 @@
     color: var(--color-espresso);
   }
 
+  /* Pinned to the bottom of the sheet: on a phone the rules scroll beneath
+     it, so Close and the actions are always in reach. */
   .modal-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 0.75rem;
-    margin-top: 1.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--color-linen);
+    gap: 8px;
+    margin: 20px -24px -24px;
+    padding: 12px 24px 16px;
+    background: var(--color-paper);
+    border-top: 2px solid var(--color-linen);
   }
 
   .btn-close, .btn-play {
-    height: 46px;
-    padding: 0 20px;
+    min-height: 44px;
+    padding: 0 18px;
     border-radius: 999px;
     font-size: 0.9375rem;
     font-weight: 700;
     font-family: var(--font-body);
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     transition: background 0.2s ease;
   }
 
@@ -514,8 +547,9 @@
     color: var(--color-espresso);
   }
 
-  .btn-close:hover {
-    background: rgba(59, 47, 47, 0.06);
+  /* Pressed reads as a marked ballot, not as a call to action. */
+  .btn-vote[aria-pressed='true'] {
+    background: var(--color-mustard-tint);
   }
 
   .btn-play {
@@ -524,8 +558,29 @@
     color: var(--color-cream);
   }
 
-  .btn-play:hover {
-    background: var(--color-terracotta-press);
-    border-color: var(--color-terracotta-press);
+  @media (hover: hover) {
+    .btn-close:hover {
+      background: rgba(59, 47, 47, 0.06);
+    }
+
+    .btn-vote[aria-pressed='true']:hover {
+      background: var(--color-mustard-tint);
+    }
+
+    .btn-play:hover {
+      background: var(--color-terracotta-press);
+      border-color: var(--color-terracotta-press);
+    }
+  }
+
+  .btn-close:active, .btn-play:active {
+    transform: scale(0.98);
+  }
+
+  /* On a phone the buttons share the row; a third wraps to a full-width row. */
+  @media (max-width: 519px) {
+    .btn-close, .btn-play {
+      flex: 1 1 auto;
+    }
   }
 </style>

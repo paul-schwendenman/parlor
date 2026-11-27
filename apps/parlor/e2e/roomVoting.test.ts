@@ -41,10 +41,14 @@ test('friends vote together and the host plays a tied game', async ({ page, brow
 		// A tie the host hasn't voted in goes to the first tied game on the shelf.
 		await expect(page.getByText('Tied · Quixx, Crazy Eights', { exact: true })).toBeVisible();
 		await expect(page.getByText('Tied with Crazy Eights. Vote to break the tie.', { exact: true })).toBeVisible();
-		// Guests only ever vote: no Play button, and no Play this in the rules sheet.
+		// Guests only ever vote: no Play button, and no Play in the rules sheet,
+		// where their vote shows as a pressed toggle.
 		await expect(guest.getByRole('button', { name: /^Play / })).toHaveCount(0);
 		await guest.getByRole('button', { name: 'How to play Quixx', exact: true }).click();
-		await expect(guest.getByRole('dialog').getByRole('button', { name: 'Play this' })).toHaveCount(0);
+		const guestRules = guest.getByRole('dialog');
+		await expect(guestRules.getByText('2–5 players · bots can fill seats', { exact: true })).toBeVisible();
+		await expect(guestRules.getByRole('button', { name: /^Play / })).toHaveCount(0);
+		await expect(guestRules.getByRole('button', { name: 'Your vote', exact: true })).toHaveAttribute('aria-pressed', 'true');
 		await guest.keyboard.press('Escape');
 
 		// When the host's own vote is one of the tied games, Play follows it.
@@ -83,7 +87,7 @@ test('friends vote together and the host plays a tied game', async ({ page, brow
 		// different game asks everyone to get ready again.
 		await page.getByRole('button', { name: 'Change game', exact: true }).click();
 		await page.getByRole('button', { name: 'How to play Crazy Eights', exact: true }).click();
-		await page.getByRole('dialog').getByRole('button', { name: 'Play this', exact: true }).click();
+		await page.getByRole('dialog').getByRole('button', { name: 'Play Crazy Eights', exact: true }).click();
 		await expect(friend.getByRole('heading', { name: 'Crazy Eights', exact: true })).toBeVisible();
 		await expect(friend.getByRole('button', { name: 'Ready', exact: true })).toBeVisible();
 	} finally {

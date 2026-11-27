@@ -14,6 +14,7 @@
   import { seatTone, initial } from '@parlor/ui';
   import LeaveRoomButton from '$lib/components/LeaveRoomButton.svelte';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
+  import QrModal from '$lib/components/lobby/QrModal.svelte';
 
   // While voting there is no game to size the room by, so Add bot stops at the
   // largest table any game in the catalogue can seat.
@@ -337,8 +338,18 @@
     return ok;
   }
 
+  /** The invite link: the home page's join form with this code filled in. */
+  let inviteUrl = $derived(browser ? `${window.location.origin}/?join=${roomCode}` : '');
+  // Phones (and some desktops) have a share sheet; elsewhere we copy.
+  let canShare = $state(false);
+  let qrOpen = $state(false);
+
+  onMount(() => {
+    canShare = typeof navigator.share === 'function';
+  });
+
   async function copyLink() {
-    const url = window.location.origin + '?join=' + roomCode;
+    const url = inviteUrl;
     let ok = false;
     try {
       if (navigator.clipboard?.writeText) {
@@ -352,6 +363,21 @@
     if (!ok) ok = legacyCopy(url);
     copyStatus = ok ? 'copied' : 'failed';
     setTimeout(() => (copyStatus = 'idle'), ok ? 2000 : 4000);
+  }
+
+  async function shareInvite() {
+    if (!canShare) return copyLink();
+    try {
+      await navigator.share({
+        title: 'Join my Parlor room',
+        text: `Join my game room on Parlor. The code is ${roomCode}.`,
+        url: inviteUrl,
+      });
+    } catch (err) {
+      // Closing the share sheet is not a failure.
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      await copyLink();
+    }
   }
 </script>
 
@@ -391,10 +417,20 @@
             <span class="tile">{char}</span>
           {/each}
         </div>
-        <button type="button" class="copy" onclick={copyLink}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
-          {copyStatus === 'copied' ? 'Link copied' : 'Copy invite link'}
-        </button>
+        <div class="share-row">
+          <button type="button" class="copy" onclick={shareInvite}>
+            {#if canShare}
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+            {:else}
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+            {/if}
+            {copyStatus === 'copied' ? 'Link copied' : canShare ? 'Share invite' : 'Copy invite link'}
+          </button>
+          <button type="button" class="copy" onclick={() => (qrOpen = true)}>
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3"/><path d="M21 14v.01"/><path d="M14 21h.01"/><path d="M17.5 21H21v-3.5"/></svg>
+            Show QR code
+          </button>
+        </div>
         <span class="sr-only" aria-live="polite">
           {copyStatus === 'copied' ? 'Invite link copied' : copyStatus === 'failed' ? "Couldn't copy the link. Read the code out instead." : ''}
         </span>
@@ -653,23 +689,20 @@
     </section>
   </div>
 
+  <QrModal open={qrOpen} url={inviteUrl} {roomCode} onclose={() => (qrOpen = false)} />
+
   <RulesModal
     open={rulesOpen}
     gameId={rulesGameId}
     gameName={rulesGame?.name ?? ''}
     onclose={() => (rulesGameId = null)}
-    secondaryLabel={ballot?.myVote === rulesGameId ? 'Clear vote' : 'Vote'}
-    onsecondary={isHost && ballot && rulesGame && (canPlay(rulesGame) || ballot.myVote === rulesGameId)
+    voted={!!rulesGameId && ballot?.myVote === rulesGameId}
+    onvote={ballot && me && rulesGame && ((isHost ? canPlay(rulesGame) : seatCount <= rulesGame.maxPlayers) || ballot.myVote === rulesGameId)
       ? () => { if (rulesGameId) voteFor(rulesGameId); rulesGameId = null; }
       : undefined}
-    playLabel={isHost ? 'Play this' : ballot?.myVote === rulesGameId ? 'Clear vote' : 'Vote'}
-    onplay={!ballot || !me || !rulesGame
-      ? undefined
-      : isHost
-        ? canPlay(rulesGame) ? () => { if (rulesGameId) playGame(rulesGameId); } : undefined
-        : seatCount <= rulesGame.maxPlayers || ballot.myVote === rulesGameId
-          ? () => { if (rulesGameId) voteFor(rulesGameId); rulesGameId = null; }
-          : undefined}
+    onplay={isHost && ballot && me && rulesGame && canPlay(rulesGame)
+      ? () => { if (rulesGameId) playGame(rulesGameId); }
+      : undefined}
   />
 {/if}
 
@@ -763,19 +796,27 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .share-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
   .copy {
     height: 44px;
-    padding: 0 18px;
+    padding: 0 14px;
     border-radius: 999px;
     border: 2px solid var(--color-espresso);
     background: var(--color-cream);
     color: var(--color-espresso);
     font-family: var(--font-body);
     font-weight: 700;
-    font-size: 1rem;
+    font-size: 0.9375rem;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
+    white-space: nowrap;
     cursor: pointer;
     transition: background 0.2s ease, transform 0.1s ease;
   }

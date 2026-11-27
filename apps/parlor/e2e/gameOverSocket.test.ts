@@ -73,7 +73,7 @@ for (const game of ['Crazy Eights', 'Quixx', 'Kings Corner']) {
       await expect(host.getByRole('heading', { name: 'Vote on a game' })).toBeVisible();
       // Any game the room fits can be played from its rules sheet.
       await host.getByRole('button', { name: `How to play ${game}`, exact: true }).click();
-      await host.getByRole('dialog').getByRole('button', { name: 'Play this', exact: true }).click();
+      await host.getByRole('dialog').getByRole('button', { name: `Play ${game}`, exact: true }).click();
       await expect(host.getByRole('heading', { name: game, exact: true })).toBeVisible();
     } finally {
       await hostContext.close();
