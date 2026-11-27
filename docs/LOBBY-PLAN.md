@@ -60,25 +60,31 @@ Small, low-risk changes that clear the way before the bigger work.
 
 The main fix. Hearts, Spades and Euchre need exactly 4 players, and Oh Hell needs 3 or more.
 
-- [ ] **2.1 Seat-count branch in `startHint`** (`:85-90`).
+- [x] **2.1 Seat-count branch in `startHint`** (`:85-90`).
   - Check seat count before readiness, using `selectedGame.minPlayers` and `maxPlayers`. For example: "Hearts needs 4 players. Invite 1 more or add a bot." The too-many case already blocks start; its hint should say so too.
   - Ordering: seats, then bots the game doesn't support, then readiness.
-- [ ] **2.2 Seat rows.**
+  - **Done:** `startHint` goes seats → unsupported bots → reconnecting players → readiness. "Hearts needs 4 players. Invite 1 more or add a bot." (range games: "needs at least 3 players"); "or add a bot" drops when the game has no bots or the room is at `MAX_BOTS`. Too many: "Hearts seats 4. Remove a bot or choose another game." Readiness names up to two people ("Waiting for Joe and Ann to get ready"), else counts ("Waiting for 3 players…"). Added "Waiting for Joe to reconnect." and a "Reconnecting" role on disconnected rows, since a disconnected guest also blocks start.
+- [x] **2.2 Seat rows.**
   - After a game is confirmed, show `max(players, minPlayers)` rows. Missing seats are dashed linen "Open seat" rows, styled like the current bot rows, and for the host each one has an *Add bot* button (hidden if the game has `supportsBots: false`).
   - If the room has fewer people than `maxPlayers`, add one quieter line: "Room for N more".
   - The header count shows "3 of 4" while seats are open.
-- [ ] **2.3 Guest messaging.** Guests should see the real reason they're waiting: "Hearts needs 1 more player. Waiting for Margaret to invite someone or add a bot." That replaces the open-ended "Waiting for the host to start…".
-- [ ] **2.4 Bots during voting.**
+  - **Done:** Open seats are `<li>`s in the same list: dashed linen row, dashed-ring avatar with the seat number, "Open seat" in Faded Ink; the host gets an outline "Add bot" pill per seat. Its accessible name is "Add bot to seat 4" rather than "Add a bot to seat 4" so the visible label stays inside the name (WCAG 2.5.3). Below the list one quiet line: "Room for N more" (everyone) or, for the host at a full table, "All 4 seats are taken" next to a disabled Add bot. Readiness chips now only show once a game is chosen and say "Not ready" instead of "Waiting". Recorded in design-full.md (Player rows, Spacing).
+- [x] **2.3 Guest messaging.** Guests should see the real reason they're waiting: "Hearts needs 1 more player. Waiting for Margaret to invite someone or add a bot." That replaces the open-ended "Waiting for the host to start…".
+  - **Done:** Guests see the seat / bots reason naming the host, then (once they're ready) "Waiting for Joe to get ready." or "Waiting for Margaret to start." No hint while their own Ready is the next step and nothing else blocks.
+- [x] **2.4 Bots during voting.**
   - The server already allows `lobby:addBot` without a selected game. Only the client blocks it: the actions block only renders when a game is confirmed (`:328`).
   - Show *Add bot* while voting so a host on their own can fill seats first.
-- [ ] **2.5 Add bot limits.**
+  - **Done:** The plan was wrong about the server: `RoomManager.addBot` refused with no game (`!room.gameRules?.supportsBots`). It now only refuses when the chosen game has `supportsBots: false` (test added). The client shows one quiet line under the player list for the host while voting: "Short on players? Bots can fill seats." + Add bot. It still sits below the nine ballot rows until Phase 3.2 moves players up. While voting, Add bot stops at the largest catalogue table (6) even though the room cap is 8.
+- [x] **2.5 Add bot limits.**
   - Disable *Add bot* when the room is at `maxPlayers` or the bot limit (`MAX_BOTS = 4` in `RoomManager.ts`), and explain why inline ("Hearts seats 4").
   - Clear `botError` whenever the selected game or ballot round changes, since today it lingers after a re-vote.
   - Rewrite the server messages so they say what to do: "The room is full. Remove a bot or a player to make space."
-- [ ] **2.6 Host readiness.**
+  - **Done:** `MAX_BOTS` moved to `@parlor/game-types` so client and server share it. Disabled reasons: "Hearts seats 4, and every seat is taken." / "Rooms can have 4 bots at most. Invite someone for the next seat." / "No game here seats more than 6." `botError` now shows under the player list (next to the buttons that cause it) and clears when the selected game or ballot round changes. Server addBot messages rewritten (full, bot limit ×2, game in progress, game without bots); tests updated and added (rejections leave the room unchanged, a valid add afterwards succeeds). Join's "Room is full" was left alone.
+- [x] **2.6 Host readiness.**
   - The host shouldn't need a separate "Ready" step, because pressing START already says they're ready.
   - Recommended change: `canStartGame` in `packages/multiplayer/src/RoomManager.ts` stops requiring the host to be ready, and the lobby hides the Ready button for the host.
   - Needs server tests: start succeeds when every non-host player is ready, and fails when any guest isn't.
+  - **Done:** `canStartGame` requires every seat to be connected and every non-host seat ready. The host has no Ready button and no status chip ("Host" stays in the roles text). Tests in `lobbyHandlers.test.ts`: host never ready + guests ready starts; one guest not ready is rejected with the room unchanged, then starts once they ready; a ready guest who disconnects blocks start. E2E specs updated to stop clicking the host's Ready and to use "Add bot to seat N": hearts, spades, euchre, oh-hell, crazyEights, reconnect, gameOverSocket, smoke (not run here).
 
 ## Phase 3: Ballot redesign (P1 wall of options, P1 wrong leader)
 
@@ -140,9 +146,11 @@ Redesign the voting state. It should feel like pulling a box off the shelf, not 
 |---|---|---|---|
 | 2026-11-27 | — | Critique run (21/40); plan written | — |
 | 2026-11-27 | 1 | Quick fixes: touch-safe pill states, shared game catalogue with fixed shelf colours, player-count copy, sentence-case labels, GamePicker removed, 44px header targets, 20-char name limit shared with the server | uncommitted |
+| 2026-11-27 | 2 | Seats and the start hint: open-seat rows with per-seat Add bot, "N of M" count, "Room for N more", seat-first start hint and guest copy naming the host, Add bot while voting (server now allows it), Add bot limits with inline reasons, rewritten addBot errors, host no longer needs Ready | uncommitted |
 
 ## Notes
 
 - Detector advisories in `RulesModal.svelte` (`#B8372B`, `#2F5C8A`) may be deliberate suit or team colours. Check before "fixing" them, and if they stay, record them as tokens in DESIGN.md.
 - Open question from the critique, not decided: should "Ready" exist at all for guests in a private room, replaced by START plus a short "Margaret is starting Hearts…" countdown? Revisit after Phase 2.
 - Phase 1 deferrals: the standalone game apps' own `JoinForm.svelte` inputs still hard-code `maxlength="20"` (matches the server, but could import `PLAYER_NAME_MAX_LENGTH`). The "Voted ✓" label uses a Unicode glyph as an icon (craft floor); replace it during the Phase 3 ballot redesign. The trick-taking boards could set `--card-back` to their new shelf colour (design-full says a game's colour shows on its pieces); not done here. The design-full shelf spec says the solid shelf button reads "Start a room"; the UI says "Start game" — pick one. The `startHint` copy ("Need at least 2 players", "ready up") is left for Phase 2.
+- Phase 2 deferrals: the voting-time Add bot line still sits under the whole ballot (Phase 3.2 moves the player list up). The plan's "reminder to share the code" on open seats was left to the hint ("Invite 1 more…"); a per-row Copy link could follow with 6.3's share work. Guests now see a "Not ready" chip on their row and a "Not ready" button below; the button could read "I'm not ready" or "Cancel ready" if that confuses anyone. While voting the client caps Add bot at 6 (largest game) but the server room cap is still 8. The bot-name pool and `MAX_BOTS` are both 4; a human named "Bot Alice" shrinks the pool and the handler's message still says 4. `joinRoom`'s "Room is full" / "Game already in progress" weren't rewritten. The open question above (does Ready exist at all for guests?) is still open; the host side is settled.

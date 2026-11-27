@@ -33,10 +33,10 @@ test('Crazy Eights renders each seat its own hand from the typed envelope', asyn
   try {
     const roomCode = await createRoom(hostPage);
     await joinRoom(guestPage, roomCode, 'Guest');
-    await expect(hostPage.getByText('Guest')).toBeVisible();
+    await expect(hostPage.getByText('Guest', { exact: true })).toBeVisible();
 
+    // The guest readies up; the host's START is their ready.
     await guestPage.getByRole('button', { name: 'Ready', exact: true }).click();
-    await hostPage.getByRole('button', { name: 'Ready', exact: true }).click();
     const startBtn = hostPage.getByRole('button', { name: 'Start Game' });
     await expect(startBtn).toBeEnabled();
     await startBtn.click();
@@ -77,7 +77,6 @@ test('a spectator can watch before play starts, leave, and rejoin a live game', 
     await expect(watcher.getByRole('button', { name: 'Ready', exact: true })).toHaveCount(0);
 
     await guest.getByRole('button', { name: 'Ready', exact: true }).click();
-    await host.getByRole('button', { name: 'Ready', exact: true }).click();
     await host.getByRole('button', { name: 'Start Game' }).click();
 
     await expect(watcher).toHaveURL(`/game/${roomCode}`);
@@ -130,8 +129,7 @@ test('a Quixx spectator sees the table without a player scoresheet', async ({ br
     const host = await hostContext.newPage();
     const watcher = await watcherContext.newPage();
     const roomCode = await createRoom(host, 'Quixx');
-    await host.getByRole('button', { name: 'Add bot' }).click();
-    await host.getByRole('button', { name: 'Ready', exact: true }).click();
+    await host.getByRole('button', { name: 'Add bot to seat 2' }).click();
     await host.getByRole('button', { name: 'Start Game' }).click();
     await expect(host).toHaveURL(`/game/${roomCode}`);
 

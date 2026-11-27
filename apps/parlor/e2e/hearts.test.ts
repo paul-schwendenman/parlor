@@ -16,9 +16,12 @@ test('a player can pass cards and play a trick in a Hearts room with bots', asyn
 	await page.getByRole('button', { name: 'Create Room' }).click();
 	await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
 
-	const addBot = page.getByRole('button', { name: 'Add bot' });
-	for (let count = 0; count < 3; count++) await addBot.click();
-	await page.getByRole('button', { name: 'Ready', exact: true }).click();
+	// Each open seat has its own "Add bot to seat N"; the host's START is their ready.
+	const addBot = page.getByRole('button', { name: /^Add bot to seat/ }).first();
+	for (let count = 1; count <= 3; count++) {
+		await addBot.click();
+		await expect(page.getByText('Bot', { exact: true })).toHaveCount(count);
+	}
 	await page.getByRole('button', { name: 'Start Game' }).click();
 
 	await page.getByRole('button', { name: 'How to play Hearts' }).click();
@@ -32,7 +35,11 @@ test('a player can pass cards and play a trick in a Hearts room with bots', asyn
 	await page.getByRole('button', { name: 'Confirm pass' }).click();
 
 	await expect(page.getByRole('status').filter({ hasText: 'Your turn' })).toBeVisible();
-	await hand.locator('button:enabled').first().click({ position: { x: 8, y: 24 } });
+	// The first tap lifts the card; the second plays it.
+	const card = hand.locator('button:enabled').first();
+	await card.click({ position: { x: 8, y: 24 } });
+	await expect(card).toHaveAttribute('aria-pressed', 'true');
+	await card.click({ position: { x: 8, y: 24 } });
 	await expect(page.getByText('Trick 2 of 13', { exact: true })).toBeVisible();
 	await expect(hand.getByRole('button')).toHaveCount(12);
 });

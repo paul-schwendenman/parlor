@@ -1,6 +1,6 @@
 import { secureRandomInt, type RandomInt } from './random.js';
 import { randomUUID } from 'node:crypto';
-import type { GameMeta, LobbyPlayer } from '@parlor/game-types';
+import { MAX_BOTS, type GameMeta, type LobbyPlayer } from '@parlor/game-types';
 import { GameInstance } from './gameInstance.js';
 import { foldPlayerName } from './playerNames.js';
 import { GameRuleError } from './errors.js';
@@ -9,7 +9,6 @@ import { generateRoomCode } from './utils.js';
 
 const MAX_ROOMS = 512;
 const MAX_SPECTATORS = 16;
-const MAX_BOTS = 4;
 const ROOM_CODE_ATTEMPTS = 16;
 
 type GameRules = Pick<GameMeta, 'id' | 'minPlayers' | 'maxPlayers' | 'supportsBots'>;
@@ -179,12 +178,22 @@ export class RoomManager {
   addBot(code: string, botName: string): { success: boolean; error?: string; botId?: string } {
     const room = this.rooms.get(code.toUpperCase());
     if (!room) return { success: false, error: 'Room not found' };
-    if (room.players.size >= room.maxPlayers) return { success: false, error: 'Room is full' };
-    if (room.status !== 'waiting') return { success: false, error: 'Game already in progress' };
-    if (!room.gameRules?.supportsBots) return { success: false, error: 'The selected game does not support bots' };
+    if (room.status !== 'waiting') {
+      return { success: false, error: 'Bots can only join between games. Add one when you are back in the lobby.' };
+    }
+    if (room.players.size >= room.maxPlayers) {
+      return { success: false, error: 'The room is full. Remove a bot or a player to make space.' };
+    }
+    // With no game chosen yet (voting), bots may fill seats early; a game
+    // without bot support is caught at selection/start instead.
+    if (room.gameRules && !room.gameRules.supportsBots) {
+      return { success: false, error: 'This game does not use bots. Invite someone instead, or choose another game.' };
+    }
 
     const botCount = [...room.players.values()].filter((player) => player.isBot).length;
-    if (botCount >= MAX_BOTS) return { success: false, error: 'Room has reached its bot limit' };
+    if (botCount >= MAX_BOTS) {
+      return { success: false, error: `A room can have ${MAX_BOTS} bots at most. Invite someone for the next seat.` };
+    }
 
     const botId = `bot-${++this.botCounter}`;
     const bot: LobbyPlayer = {
@@ -233,7 +242,9 @@ export class RoomManager {
     const room = this.getRoom(roomCode);
     if (!room || room.status !== 'waiting') return false;
     const players = [...room.players.values()];
-    return this.meetsGameRequirements(room, players) && players.every((p) => p.connected && p.isReady);
+    // Pressing START is the host's ready; every other seat must be connected and ready.
+    return this.meetsGameRequirements(room, players)
+      && players.every((p) => p.connected && (p.isReady || p.id === room.hostId));
   }
 
   startGame(roomCode: string, onFailure?: () => void): LobbyPlayer[] | null {

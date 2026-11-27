@@ -230,7 +230,7 @@ Single column, centered, phone-first. Main content sits in a 20px gutter (`xl`).
 
 Spacing is tight inside groups and wide between them: 8px (`sm`) between player rows, 12px (`md`) between fields, 16px (`lg`) between panels, 28px (`2xl`) between major regions. On the home page, the join sheet overlaps the bottom of the lid by 68px, which ties the two together.
 
-Actions sit at the bottom of the lobby (`margin-top: auto`), in thumb reach: the primary pill full-width, with secondary pills in a two-column grid beneath it. The hint explaining why Start is disabled sits directly above the button it explains.
+Actions sit at the bottom of the lobby (`margin-top: auto`), in thumb reach: the primary pill full-width (START GAME for the host, Ready for a guest). The hint explaining why Start is disabled (or, for a guest, what they are waiting on, naming the host) sits directly above the button it explains. Add bot lives with the seats, not in the action area.
 
 The existing breakpoint is 600px: below it, join fields stack and the shelf is one column. Touch targets are at least 44px everywhere; hover-revealed actions must always be visible on `(hover: none)` devices.
 
@@ -277,7 +277,7 @@ The signature component. The code is shown as six separate mustard tiles (10px c
 - **Metadata (shelf):** 1.5px outline in the block's text color, tabular numerals ("2–4 · 15–25m").
 
 ### Player rows
-Paper fill, 2px espresso outline, 14px corners. A 36px color avatar with the player's initial (cycling Kiln Terracotta, Felt, Mustard and Espresso), the name in Nunito 800, roles as Faded Ink text after it ("· host · you"), and the status chip on the right. Bot rows use linen with a dashed outline, an espresso avatar with a robot glyph, and an icon-only remove button (aria-labelled).
+Paper fill, 2px espresso outline, 14px corners. A 36px color avatar with the player's initial (cycling Kiln Terracotta, Felt, Mustard and Espresso), the name in Nunito 800, roles as Faded Ink text after it ("· host · you"), and the status chip on the right. Bot rows use linen with a dashed outline, an espresso avatar with a robot glyph, and an icon-only remove button (aria-labelled). The status chip (Ready / Not ready) only appears once a game is chosen, and never on the host's row: the host's START is their ready. Open seats (a confirmed game's missing seats up to its minimum) use the same linen dashed row with a dashed-ring avatar holding the seat number, "Open seat" in Faded Ink, and, for the host, an outline Add bot pill (44px, labelled "Add bot to seat N"). Below the list, one quiet Faded Ink line ("Room for 2 more", or while voting "Short on players? Bots can fill seats.") carries the host's Add bot; when it is disabled, the reason sits beneath it in Faded Ink.
 
 ### Game panel (tonight's game)
 A felt block with a 2px espresso outline and 18px corners. The game name in cream Nunito 900 24px, and a cream outline "Change" pill for the host.

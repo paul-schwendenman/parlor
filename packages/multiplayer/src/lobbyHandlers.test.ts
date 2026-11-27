@@ -271,6 +271,124 @@ describe('lobbyHandlers host gates', () => {
   });
 });
 
+describe('lobbyHandlers host readiness', () => {
+  function threePlayers(callbacks?: LobbyCallbacks) {
+    const rm = new RoomManager();
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, callbacks, 's1');
+    const joe = connectFakeSocket(io, rm, callbacks, 's2');
+    const ann = connectFakeSocket(io, rm, callbacks, 's3');
+    let roomCode = '';
+    host.fire('lobby:create', 'Margaret', (res: { roomCode: string }) => {
+      roomCode = res.roomCode;
+    });
+    joe.fire('lobby:join', roomCode, 'Joe', vi.fn());
+    ann.fire('lobby:join', roomCode, 'Ann', vi.fn());
+    rm.selectGame(roomCode, gameRules);
+    return { rm, io, host, joe, ann, roomCode };
+  }
+
+  it('starts when every connected guest is ready and the host never pressed Ready', () => {
+    const onGameStart = vi.fn();
+    const { rm, host, joe, ann, roomCode } = threePlayers({ onGameStart });
+    joe.fire('lobby:ready', true, vi.fn());
+    ann.fire('lobby:ready', true, vi.fn());
+    const hostSeat = rm.getPlayersInRoom(roomCode).find((player) => player.id === rm.getRoom(roomCode)?.hostId);
+    expect(hostSeat?.isReady).toBe(false);
+    expect(rm.canStartGame(roomCode)).toBe(true);
+
+    const ack = vi.fn();
+    host.fire('lobby:startGame', ack);
+    expect(ack).toHaveBeenCalledWith(true);
+    expect(onGameStart).toHaveBeenCalledTimes(1);
+    expect(rm.getRoom(roomCode)?.status).toBe('playing');
+  });
+
+  it('rejects start while any guest is not ready, leaves the room unchanged, then accepts a valid start', () => {
+    const onGameStart = vi.fn();
+    const { rm, host, joe, ann, roomCode } = threePlayers({ onGameStart });
+    host.fire('lobby:ready', true, vi.fn());
+    joe.fire('lobby:ready', true, vi.fn());
+    expect(rm.canStartGame(roomCode)).toBe(false);
+    const before = structuredClone(rm.getRoom(roomCode));
+
+    const ack = vi.fn();
+    host.fire('lobby:startGame', ack);
+    expect(ack).toHaveBeenLastCalledWith(false, expect.any(String));
+    expect(rm.getRoom(roomCode)).toEqual(before);
+    expect(onGameStart).not.toHaveBeenCalled();
+
+    ann.fire('lobby:ready', true, vi.fn());
+    host.fire('lobby:startGame', ack);
+    expect(ack).toHaveBeenLastCalledWith(true);
+    expect(onGameStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('still requires a guest who is ready but disconnected to come back', () => {
+    const { rm, joe, ann, roomCode } = threePlayers();
+    joe.fire('lobby:ready', true, vi.fn());
+    ann.fire('lobby:ready', true, vi.fn());
+    expect(rm.canStartGame(roomCode)).toBe(true);
+    vi.useFakeTimers();
+    try {
+      rm.handleDisconnect('s3');
+      expect(rm.getPlayersInRoom(roomCode).find((player) => player.name === 'Ann')?.connected).toBe(false);
+      expect(rm.canStartGame(roomCode)).toBe(false);
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('lobbyHandlers addBot', () => {
+  function hostAlone() {
+    const rm = new RoomManager();
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, undefined, 's1');
+    let roomCode = '';
+    host.fire('lobby:create', 'Margaret', (res: { roomCode: string }) => {
+      roomCode = res.roomCode;
+    });
+    return { rm, io, host, roomCode };
+  }
+
+  it('adds a bot while the room is still voting on a game', () => {
+    const { rm, host, roomCode } = hostAlone();
+    expect(rm.getGameId(roomCode)).toBeNull();
+    const ack = vi.fn();
+    host.fire('lobby:addBot', ack);
+    expect(ack).toHaveBeenCalledWith(true);
+    expect(rm.getPlayersInRoom(roomCode).filter((player) => player.isBot)).toHaveLength(1);
+  });
+
+  it('says what to do when the room is full, leaves it unchanged, and accepts a bot once a seat frees up', () => {
+    const { rm, host, roomCode } = hostAlone();
+    rm.selectGame(roomCode, { ...gameRules, maxPlayers: 2 });
+    host.fire('lobby:addBot', vi.fn());
+    const before = structuredClone(rm.getRoom(roomCode));
+    const ack = vi.fn();
+    host.fire('lobby:addBot', ack);
+    expect(ack).toHaveBeenLastCalledWith(false, 'The room is full. Remove a bot or a player to make space.');
+    expect(rm.getRoom(roomCode)).toEqual(before);
+
+    const bot = rm.getPlayersInRoom(roomCode).find((player) => player.isBot)!;
+    host.fire('lobby:removeBot', bot.id, vi.fn());
+    host.fire('lobby:addBot', ack);
+    expect(ack).toHaveBeenLastCalledWith(true);
+  });
+
+  it('refuses bots for a game without bot support and names the way out', () => {
+    const { rm, host, roomCode } = hostAlone();
+    rm.selectGame(roomCode, { ...gameRules, supportsBots: false });
+    const before = structuredClone(rm.getRoom(roomCode));
+    const ack = vi.fn();
+    host.fire('lobby:addBot', ack);
+    expect(ack).toHaveBeenLastCalledWith(false, expect.stringMatching(/Invite someone instead, or choose another game/));
+    expect(rm.getRoom(roomCode)).toEqual(before);
+  });
+});
+
 describe('lobbyHandlers disconnect grace', () => {
   afterEach(() => {
     vi.useRealTimers();

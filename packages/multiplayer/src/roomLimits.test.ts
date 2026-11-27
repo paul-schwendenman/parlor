@@ -40,7 +40,7 @@ it('caps bots and accepts another after a bot is removed', () => {
     expect(rooms.addBot(roomCode, name).success).toBe(true);
   }
   const before = structuredClone(rooms.getRoom(roomCode));
-  expect(rooms.addBot(roomCode, 'Bot Eve')).toMatchObject({ success: false, error: expect.stringMatching(/bot limit/) });
+  expect(rooms.addBot(roomCode, 'Bot Eve')).toMatchObject({ success: false, error: expect.stringMatching(/4 bots at most/) });
   expect(rooms.getRoom(roomCode)).toEqual(before);
   const bot = rooms.getPlayersInRoom(roomCode).find((player) => player.isBot);
   expect(rooms.removeBot(roomCode, bot?.id ?? '').success).toBe(true);

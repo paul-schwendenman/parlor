@@ -1,4 +1,4 @@
-import type { LobbyPlayer, GameMeta } from '@parlor/game-types';
+import { MAX_BOTS, type LobbyPlayer, type GameMeta } from '@parlor/game-types';
 import type { RoomManager, DisconnectResult, ExpiryOutcome } from './RoomManager.js';
 import { safeAck } from './ack.js';
 import { foldPlayerName, validatePlayerName } from './playerNames.js';
@@ -350,7 +350,7 @@ export function setupLobbyHandlers(
       const occupiedNames = new Set(players.map((player) => foldPlayerName(player.name)));
       const botName = BOT_NAMES.find((name) => !occupiedNames.has(foldPlayerName(name)));
       if (!botName) {
-        callback(false, 'Room has reached the bot limit');
+        callback(false, `A room can have ${MAX_BOTS} bots at most. Invite someone for the next seat.`);
         return;
       }
 

@@ -43,7 +43,6 @@ for (const game of ['Crazy Eights', 'Quixx', 'Kings Corner']) {
       const roomCode = await createRoom(host, game);
       await joinRoom(guest, roomCode, 'Guest');
       await guest.getByRole('button', { name: 'Ready', exact: true }).click();
-      await host.getByRole('button', { name: 'Ready', exact: true }).click();
       const start = host.getByRole('button', { name: 'Start Game' });
       await expect(start).toBeEnabled();
       await start.click();
@@ -64,7 +63,8 @@ for (const game of ['Crazy Eights', 'Quixx', 'Kings Corner']) {
       await expect(host).toHaveURL(`/lobby/${roomCode}`);
 
       // The page's own socket must still own the seat: the lobby stays usable.
-      await expect(host.getByRole('button', { name: 'Ready', exact: true })).toBeVisible();
+      // Add bot is host-only and needs a seated, bound socket.
+      await expect(host.getByRole('button', { name: 'Add bot to seat 2' })).toBeEnabled();
       await host.reload();
       await expect(host).toHaveURL(`/lobby/${roomCode}`);
       await expect(host.locator('.player-name', { hasText: 'Host' })).toBeVisible();

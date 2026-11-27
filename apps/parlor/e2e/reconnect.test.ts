@@ -46,11 +46,10 @@ test.describe('Reconnect', () => {
     try {
       const roomCode = await createQuixxRoom(hostPage);
       await joinRoom(guestPage, roomCode, 'Guest');
-      await expect(hostPage.getByText('Guest')).toBeVisible();
+      await expect(hostPage.getByText('Guest', { exact: true })).toBeVisible();
 
-      // Both players ready up, host starts the game.
+      // The guest readies up and the host starts the game (START is the host's ready).
       await guestPage.getByRole('button', { name: 'Ready', exact: true }).click();
-      await hostPage.getByRole('button', { name: 'Ready', exact: true }).click();
       const startBtn = hostPage.getByRole('button', { name: 'Start Game' });
       await expect(startBtn).toBeEnabled();
       await startBtn.click();

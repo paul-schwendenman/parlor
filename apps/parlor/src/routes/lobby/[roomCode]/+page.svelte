@@ -10,12 +10,16 @@
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
   import { getSocket, ballotAction, readyAction, startGameAction } from '$lib/stores/socketClient.js';
   import { catalog as games, findGame, minutesRange, playerCount, playersNeeded } from '$lib/games/catalog.js';
+  import { MAX_BOTS, type LobbyPlayer } from '@parlor/game-types';
   import LeaveRoomButton from '$lib/components/LeaveRoomButton.svelte';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
   // Seat colours cycle through the palette; the first is Deep Clay, not Kiln
   // Terracotta, because a cream initial on #C4663A is below 4.5:1.
   const seatColors = ['seat-clay', 'seat-felt', 'seat-mustard', 'seat-ink'];
+  // While voting there is no game to size the room by, so Add bot stops at the
+  // largest table any game in the catalogue can seat.
+  const votingSeatCap = Math.max(...games.map(game => game.maxPlayers));
 
   let roomCode = $derived($page.params.roomCode ?? '');
   let roomNotFound = $state(false);
@@ -53,11 +57,13 @@
   let me = $derived(lobbyState.players.find(p => p.id === playerState.id));
   let selectedGame = $derived(findGame(lobbyState.selectedGameId));
   let gameSupportsAI = $derived(selectedGame?.supportsBots ?? false);
-  let hasBots = $derived(lobbyState.players.some(p => p.isBot));
-  let botsBlockStart = $derived(hasBots && !gameSupportsAI);
+  let botCount = $derived(lobbyState.players.filter(p => p.isBot).length);
+  let hasBots = $derived(botCount > 0);
+  let botsBlockStart = $derived(hasBots && !!selectedGame && !gameSupportsAI);
   let canStart = $derived(lobbyState.canStart && !!lobbyState.selectedGameId && !botsBlockStart);
   let ballot = $derived(lobbyState.ballot);
   let seatCount = $derived(lobbyState.players.length);
+  let hostName = $derived(lobbyState.players.find(p => p.id === lobbyState.hostId)?.name ?? 'the host');
   let leaders = $derived.by(() => {
     const playable = games.filter(game => seatCount >= game.minPlayers && seatCount <= game.maxPlayers
       && (!hasBots || game.supportsBots));
@@ -66,11 +72,86 @@
   });
   let codeChars = $derived(roomCode.split(''));
 
+  // Seats: once a game is confirmed, the list fills out to its minimum with
+  // open seats, and says how much room is left up to its maximum.
+  let openSeats = $derived(selectedGame ? Math.max(0, selectedGame.minPlayers - seatCount) : 0);
+  let openSeatNumbers = $derived(Array.from({ length: openSeats }, (_, k) => seatCount + k + 1));
+  let seatsLeft = $derived(selectedGame ? Math.max(0, selectedGame.maxPlayers - seatCount) : 0);
+  let overBy = $derived(selectedGame ? Math.max(0, seatCount - selectedGame.maxPlayers) : 0);
+  let seatCap = $derived(selectedGame?.maxPlayers ?? votingSeatCap);
+  /** Bots are an option for this room at all (the game uses them, or none is chosen yet). */
+  let botsAllowed = $derived(!selectedGame || gameSupportsAI);
+  /** Why Add bot is off right now, or '' when the host can add one. */
+  let botBlockReason = $derived.by(() => {
+    if (seatCount >= seatCap) {
+      return selectedGame
+        ? `${selectedGame.name} seats ${seatsPhrase(selectedGame.minPlayers, selectedGame.maxPlayers)}, and every seat is taken.`
+        : `No game here seats more than ${votingSeatCap}.`;
+    }
+    if (botCount >= MAX_BOTS) return `Rooms can have ${MAX_BOTS} bots at most. Invite someone for the next seat.`;
+    return '';
+  });
+  let botCanFill = $derived(botsAllowed && botCount < MAX_BOTS);
+
+  function seatsPhrase(min: number, max: number): string {
+    return min === max ? `${max}` : `up to ${max}`;
+  }
+
+  /** "Joe", "Joe and Ann", or "3 players". */
+  function who(list: LobbyPlayer[]): string {
+    return list.length <= 2 ? list.map(p => p.name).join(' and ') : `${list.length} players`;
+  }
+
+  // Humans the start is waiting on. The host's START is their ready, so they
+  // never count; bots are always ready.
+  let awayPlayers = $derived(lobbyState.players.filter(p => !p.isBot && !p.connected));
+  let notReady = $derived(lobbyState.players.filter(p => !p.isBot && p.connected && !p.isReady
+    && p.id !== lobbyState.hostId));
+
+  // Order: seats, then bots the game can't use, then readiness.
   let startHint = $derived.by(() => {
-    if (!lobbyState.selectedGameId) return 'Choose a game first';
-    if (botsBlockStart) return `Remove bots — ${selectedGame?.name} doesn't support AI players`;
-    if (lobbyState.players.length < 2) return 'Need at least 2 players';
-    return 'Waiting for all players to ready up';
+    if (!selectedGame) return 'Choose a game first.';
+    const name = selectedGame.name;
+    if (openSeats > 0) {
+      const needs = selectedGame.minPlayers === selectedGame.maxPlayers
+        ? `${selectedGame.minPlayers} players`
+        : `at least ${selectedGame.minPlayers} players`;
+      return `${name} needs ${needs}. Invite ${openSeats} more${botCanFill ? ' or add a bot' : ''}.`;
+    }
+    if (overBy > 0) {
+      return `${name} seats ${seatsPhrase(selectedGame.minPlayers, selectedGame.maxPlayers)}. ${hasBots ? 'Remove a bot or choose' : 'Choose'} another game.`;
+    }
+    if (botsBlockStart) return `${name} doesn't use bots. Remove them to start.`;
+    if (awayPlayers.length) return `Waiting for ${who(awayPlayers)} to reconnect.`;
+    if (notReady.length) return `Waiting for ${who(notReady)} to get ready.`;
+    return 'Getting the table ready…';
+  });
+
+  // What a guest is waiting on, naming the host. Empty while their own Ready
+  // button is the next step and nothing else is in the way.
+  let guestHint = $derived.by(() => {
+    if (!selectedGame) return '';
+    const name = selectedGame.name;
+    if (openSeats > 0) {
+      return `${name} needs ${playersNeeded(openSeats).replace('Needs ', '')}. Waiting for ${hostName} to invite someone${botCanFill ? ' or add a bot' : ''}.`;
+    }
+    if (overBy > 0) {
+      return `${name} seats ${seatsPhrase(selectedGame.minPlayers, selectedGame.maxPlayers)}. Waiting for ${hostName} to make room or choose another game.`;
+    }
+    if (botsBlockStart) return `${name} doesn't use bots. Waiting for ${hostName} to remove them.`;
+    if (!me?.isReady) return '';
+    if (awayPlayers.length) return `Waiting for ${who(awayPlayers)} to reconnect.`;
+    const others = notReady.filter(p => p.id !== me?.id);
+    if (others.length) return `Waiting for ${who(others)} to get ready.`;
+    return `Waiting for ${hostName} to start.`;
+  });
+
+  // A bot error belongs to the game or ballot it happened in.
+  let roundId = $derived(ballot?.roundId ?? null);
+  $effect(() => {
+    void lobbyState.selectedGameId;
+    void roundId;
+    botError = '';
   });
 
   function toggleReady() {
@@ -266,11 +347,19 @@
       <p class="waiting-game">Loading game choices…</p>
     {/if}
 
-    <!-- Players -->
-    <section class="players">
-      <h2 class="section-title">Players <span class="count">{lobbyState.players.length}</span></h2>
+    <!-- Players and seats -->
+    <section class="players" aria-labelledby="players-title">
+      <h2 id="players-title" class="section-title">
+        Players
+        {#if selectedGame && openSeats > 0}
+          <span class="count">{seatCount} of {selectedGame.minPlayers}</span>
+        {:else}
+          <span class="count">{seatCount}</span>
+        {/if}
+      </h2>
       <ul class="player-list">
         {#each lobbyState.players as player, i (player.id)}
+          {@const isHostRow = player.id === lobbyState.hostId}
           <li class="player" class:bot={player.isBot}>
             {#if player.isBot}
               <span class="avatar seat-ink" aria-hidden="true">
@@ -283,14 +372,19 @@
               <span class="name-text" title={player.name}>{player.name}</span>
               <!-- Roles wrap as one unit so "· Host · You" never splits across lines. -->
               <span class="roles">
-                {#if player.id === lobbyState.hostId}<span class="role">Host</span>{/if}
+                {#if isHostRow}<span class="role">Host</span>{/if}
                 {#if player.id === playerState.id}<span class="role">You</span>{/if}
                 {#if player.isBot}<span class="role">Bot</span>{/if}
+                {#if !player.connected}<span class="role">Reconnecting</span>{/if}
               </span>
             </span>
-            <span class="status" class:is-ready={player.isReady}>
-              {player.isReady ? 'Ready' : 'Waiting'}
-            </span>
+            <!-- Readiness only means something once a game is chosen, and the
+                 host's START is their ready, so their row carries no chip. -->
+            {#if selectedGame && !isHostRow}
+              <span class="status" class:is-ready={player.isReady}>
+                {player.isReady ? 'Ready' : 'Not ready'}
+              </span>
+            {/if}
             {#if isHost && player.isBot}
               <button type="button" class="icon-btn" onclick={() => removeBot(player.id)} aria-label="Remove {player.name}" title="Remove {player.name}">
                 <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -298,7 +392,38 @@
             {/if}
           </li>
         {/each}
+        {#each openSeatNumbers as seat (seat)}
+          <li class="player open-seat">
+            <span class="avatar seat-open" aria-hidden="true">{seat}</span>
+            <span class="player-name"><span class="name-text">Open seat</span></span>
+            {#if isHost && gameSupportsAI}
+              <button type="button" class="pill pill-row" onclick={addBot} disabled={!!botBlockReason} aria-label="Add bot to seat {seat}">Add bot</button>
+            {/if}
+          </li>
+        {/each}
       </ul>
+
+      {#if selectedGame && openSeats === 0}
+        {#if seatsLeft > 0 || (isHost && gameSupportsAI)}
+          <div class="seat-line">
+            <p>{seatsLeft > 0 ? `Room for ${seatsLeft} more` : `All ${seatCount} seats are taken`}</p>
+            {#if isHost && gameSupportsAI}
+              <button type="button" class="pill pill-row" onclick={addBot} disabled={!!botBlockReason} aria-describedby={botBlockReason ? 'bot-block' : undefined}>Add bot</button>
+            {/if}
+          </div>
+        {/if}
+      {:else if !selectedGame && ballot && isHost}
+        <div class="seat-line">
+          <p>Short on players? Bots can fill seats.</p>
+          <button type="button" class="pill pill-row" onclick={addBot} disabled={!!botBlockReason} aria-describedby={botBlockReason ? 'bot-block' : undefined}>Add bot</button>
+        </div>
+      {/if}
+      {#if isHost && botsAllowed && botBlockReason && (seatsLeft > 0 || !selectedGame)}
+        <p class="seat-reason" id="bot-block">{botBlockReason}</p>
+      {/if}
+      {#if botError}
+        <p class="action-error" role="alert">{botError}</p>
+      {/if}
     </section>
 
     <!-- Actions -->
@@ -310,19 +435,11 @@
       {#if spectator}
         <p class="hint">Watching as spectator</p>
       {:else if selectedGame && isHost}
-        {#if !canStart}<p class="hint">{startHint}</p>{/if}
+        {#if !canStart}<p class="hint" aria-live="polite">{startHint}</p>{/if}
         <button type="button" class="btn btn-primary" onclick={startGame} disabled={!canStart}>Start Game</button>
-        <div class="secondary" class:single={!gameSupportsAI}>
-          <button type="button" class="pill" disabled={!me} onclick={toggleReady}>
-            {me?.isReady ? 'Not ready' : 'Ready'}
-          </button>
-          {#if gameSupportsAI}
-            <button type="button" class="pill" onclick={addBot}>Add bot</button>
-          {/if}
-        </div>
       {:else if selectedGame}
+        {#if guestHint}<p class="hint" aria-live="polite">{guestHint}</p>{/if}
         {#if me?.isReady}
-          <p class="hint">Waiting for the host to start…</p>
           <button type="button" class="pill pill-wide" disabled={!me} onclick={toggleReady}>Not ready</button>
         {:else}
           <button type="button" class="btn btn-primary" disabled={!me} onclick={toggleReady}>Ready</button>
@@ -331,9 +448,6 @@
 
       {#if ballotError}
         <p class="action-error" role="alert">{ballotError}</p>
-      {/if}
-      {#if botError}
-        <p class="action-error" role="alert">{botError}</p>
       {/if}
       {#if connectionState.actionError}
         <p class="action-error" role="alert">{connectionState.actionError}</p>
@@ -675,10 +789,56 @@
     color: var(--color-espresso);
   }
 
-  .player.bot {
+  .player.bot,
+  .player.open-seat {
     border-style: dashed;
     background: var(--color-linen);
     padding-right: 4px;
+  }
+
+  .player.open-seat {
+    padding-right: 6px;
+  }
+
+  .open-seat .player-name {
+    color: var(--color-ink-muted);
+  }
+
+  /* An empty chair: a dashed ring with the seat number. */
+  .avatar.seat-open {
+    border: 2px dashed var(--color-espresso);
+    box-sizing: border-box;
+    color: var(--color-ink-muted);
+    font-size: 0.9375rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* One quiet line under the list: room left, and the host's Add bot. */
+  .seat-line {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-left: 8px;
+  }
+
+  .seat-line p,
+  .seat-reason {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
+    text-wrap: pretty;
+  }
+
+  .seat-reason {
+    margin-top: 6px;
+    padding-left: 8px;
+  }
+
+  .players .action-error {
+    margin-top: 8px;
   }
 
   .avatar {
@@ -849,16 +1009,6 @@
     cursor: not-allowed;
   }
 
-  .secondary {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .secondary.single {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .pill {
     height: 46px;
     padding: 0 18px;
@@ -881,6 +1031,14 @@
 
   .pill-wide {
     width: 100%;
+  }
+
+  /* Add bot inside a seat row or the seat line: a 44px target, row-sized type. */
+  .pill-row {
+    flex-shrink: 0;
+    height: 44px;
+    padding: 0 16px;
+    font-size: 0.875rem;
   }
 
   .pill-on-dark {
