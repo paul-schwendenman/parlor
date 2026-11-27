@@ -350,7 +350,6 @@ it.each(trials)('$gameId seed $seed plays legal moves and delivers recipient-saf
 	let clock = 0;
 	vi.spyOn(performance, 'now').mockImplementation(() => clock);
 	const game = await table(gameId);
-	const exhaustedStates = new Set<string>();
 	let scoresBeforePhase1: GameStateEnvelope<'quixx'>['view']['players'][number]['sheet'][] = [];
 
 	for (let step = 0; step < 750; step++) {
@@ -378,13 +377,6 @@ it.each(trials)('$gameId seed $seed plays legal moves and delivers recipient-saf
 		if (!move) {
 			expect(room.status).toBe('finished');
 			return;
-		}
-
-		if (spectator.gameId === 'kings-corner' && spectator.view.drawPileCount === 0) {
-			// Phase 3 already records the empty-pile cycle as a deferred rules question.
-			const position = JSON.stringify(views);
-			if (exhaustedStates.has(position)) return;
-			exhaustedStates.add(position);
 		}
 
 		expect(room.status).toBe('playing');

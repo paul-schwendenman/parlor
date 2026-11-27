@@ -402,7 +402,7 @@ The reasoning:
   - invariants hold (card count is conserved, turn order is valid)
   - no recipient **receives over the socket** anything hidden from them
   - Start from `docs/audit-repros/security/leakcheck.ts`.
-  - **Implemented:** `apps/parlor/src/lib/server/seededPlaythroughs.test.ts` runs eight seeds for each game. It checks actual Socket.IO deliveries to three players, a spectator and an unseated connection. Quixx runs in player-roll mode for reproducible timing. Kings Corner trials can stop at a repeated position with an empty draw pile, pending the rules decision below.
+  - **Implemented:** `apps/parlor/src/lib/server/seededPlaythroughs.test.ts` runs eight seeds for each game. It checks actual Socket.IO deliveries to three players, a spectator and an unseated connection. Quixx runs in player-roll mode for reproducible timing. Kings Corner trials must now reach a finished room, including games that end in an empty-stock impasse.
 - [x] **4.3 Lifecycle race suite**: randomized interleavings of reset, restart, switch, leave, grace expiry and reconnect against in-flight bot turns, on a virtual clock. Start from `docs/audit-repros/lifecycle/`.
   - **Implemented:** `apps/parlor/src/lib/server/lifecycleRaces.test.ts` runs 36 seeded cases through the Parlor socket handlers on a virtual clock. A held Kings Corner bot resumes after restart, reset, a switch to Quixx, or room deletion by leave or grace expiry. Reconnects land on both sides of the grace deadline. The suite checks that stale completions and rejections leave state and outbound traffic alone, that replacement games accept a move, and that a bot can still act when its instance survives.
 
@@ -412,7 +412,7 @@ Rules questions and smaller bugs found during the work. Come back to these once 
 
 - [x] **Liar’s Dice minimum-bid hint.** The view now checks the suggested bid against the engine rules and wire limit, then searches for a legal alternative when needed. After one wild one, it suggests two ones. When no bid fits the wire limit, the view sends a null hint. (Found in 4.2.)
 
-- [ ] **Kings Corner empty draw pile:** with the draw pile empty, turns can loop forever with everyone present. The user is checking the official rules; Crazy Eights reshuffles, but Kings Corner may differ. (Found in 3.9.)
+- [x] **Kings Corner empty draw pile.** Play continues without drawing. A full turn from each remaining seat with no card play or pile move ends the hand. The lowest penalty total wins, with 10 points per king and one per other card. Equal lowest totals tie. Mandatory kings still apply. (Found in 3.9.)
 - [x] **Kings Corner bot-timeout fallback.** When the bot wins by playing its last king, the fallback preserves `game-over`, marks the room finished through the normal broadcast, and sends the winning view. (Found in 3.9.)
 - [x] **`room:leave` and `lobby:spectate` UI.** Parlor has a Watch as spectator option using the room code and a Leave room button in the lobby and game. Spectators joining a live game receive the current public view immediately. Playwright covers late joins, leaving, host transfer, room closure and Quixx spectator rendering.
 - [x] **Booty Dice disconnect after rolling.** The stand-in resolves existing dice exactly once, including gains, losses and effects whose targets were already chosen. It passes unrolled turns and makes no targeting decisions. (Found in 3.9.)

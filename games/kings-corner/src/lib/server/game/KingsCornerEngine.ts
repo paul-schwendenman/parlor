@@ -16,7 +16,7 @@ import {
   ALL_POSITIONS,
 } from '../../types/game.js';
 import { createDeck } from '../../game/deck.js';
-import { cardEquals, canPlayCardOnPile, canMovePile, isCornerPosition } from '../../game/validation.js';
+import { cardEquals, canPlayCardOnPile, canMovePile } from '../../game/validation.js';
 
 interface Player {
   id: string;
@@ -36,6 +36,9 @@ export class KingsCornerEngine {
   private config: KingsCornerConfig;
   /** Seats whose player left for good: out of the turn order (plan 3.9). */
   private removed = new Set<string>();
+  private passed = new Set<string>();
+  private turnMadeProgress = false;
+  private penalties?: Record<string, number>;
 
   constructor(
     playerInfos: { id: string; name: string }[],
@@ -111,6 +114,7 @@ export class KingsCornerEngine {
 
     const drawn = this.drawPile.pop()!;
     player.hand.push(drawn);
+    this.recordProgress();
     this.phase = 'playing';
   }
 
@@ -140,6 +144,7 @@ export class KingsCornerEngine {
     // Remove from hand, add to pile
     player.hand.splice(cardIndex, 1);
     pile.push(handCard);
+    this.recordProgress();
 
     // Check win
     if (player.hand.length === 0) {
@@ -177,6 +182,7 @@ export class KingsCornerEngine {
     // Move all cards from source to destination
     toPile.push(...fromPile);
     fromPile.length = 0;
+    this.recordProgress();
   }
 
   endTurn(playerId: string): void {
@@ -194,7 +200,7 @@ export class KingsCornerEngine {
       throw new GameRuleError('You must play a King to an open corner before ending your turn');
     }
 
-    this.advanceTurn();
+    this.completeTurn();
   }
 
   getPlayerView(playerId: string): KingsCornerPlayerView {
@@ -234,6 +240,7 @@ export class KingsCornerEngine {
       phase: this.phase,
       winner: this.winner,
       gameOver: this.phase === 'game-over',
+      ...(this.penalties && { penalties: { ...this.penalties } }),
       playableCards,
       movablePiles,
       canEndTurn,
@@ -261,6 +268,7 @@ export class KingsCornerEngine {
       phase: this.phase,
       winner: this.winner,
       gameOver: this.phase === 'game-over',
+      ...(this.penalties && { penalties: { ...this.penalties } }),
       playableCards: [],
       movablePiles: [],
       canEndTurn: false,
@@ -289,14 +297,15 @@ export class KingsCornerEngine {
   }
 
   /**
-   * A player left for good (plan 3.9): stand in for their turn if it is theirs,
-   * then take the seat out of the turn order. With fewer than two seats left the
-   * game ends and the last seat wins.
+   * Remove a departing seat from the turn order and impasse scoring.
+   * With fewer than two seats left, the last seat wins by forfeit.
    */
   removePlayer(playerId: string): void {
-    if (this.removed.has(playerId) || !this.players.some((p) => p.id === playerId)) return;
-    this.handleDisconnect(playerId);
+    const player = this.players.find((p) => p.id === playerId);
+    if (!player || this.removed.has(playerId)) return;
+    player.connected = false;
     this.removed.add(playerId);
+    this.passed.delete(playerId);
     if (this.phase === 'game-over') return;
 
     const remaining = this.players.filter((p) => !this.removed.has(p.id));
@@ -307,13 +316,12 @@ export class KingsCornerEngine {
       return;
     }
     if (this.getActivePlayer().id === playerId) this.advanceTurn();
+    this.finishImpasseIfReady();
   }
 
   /**
-   * The stand-in turn for an absent active player (disconnected in grace, or
-   * leaving). It never penalises the seat: it does not draw (a drawn card only
-   * adds to their hand), plays any mandatory kings (which only shrinks it), and
-   * passes. Always ends their turn (or the game).
+   * Stand in for an active seat during disconnect grace. Play mandatory kings
+   * and pass without drawing. Always ends their turn (or the game).
    */
   takeAbsentTurn(playerId: string): void {
     if (this.phase === 'game-over') return;
@@ -322,7 +330,7 @@ export class KingsCornerEngine {
 
     this.phase = 'playing';
     this.autoPlayKings(activePlayer);
-    if (this.phase === 'playing') this.advanceTurn();
+    if (this.phase === 'playing') this.completeTurn();
   }
 
   /**
@@ -344,7 +352,7 @@ export class KingsCornerEngine {
 
     if (this.phase === 'playing') {
       this.autoPlayKings(activePlayer);
-      if (this.phase === 'playing') this.advanceTurn();
+      if (this.phase === 'playing') this.completeTurn();
     }
   }
 
@@ -361,6 +369,34 @@ export class KingsCornerEngine {
     return this.piles.get(position)!;
   }
 
+  private recordProgress(): void {
+    this.turnMadeProgress = true;
+    this.passed.clear();
+  }
+
+  private completeTurn(): void {
+    if (this.drawPile.length === 0 && !this.turnMadeProgress) {
+      this.passed.add(this.getActivePlayerId());
+      this.finishImpasseIfReady();
+    }
+    if (!this.isGameOver()) this.advanceTurn();
+  }
+
+  private finishImpasseIfReady(): void {
+    if (this.drawPile.length > 0) return;
+    const remaining = this.players.filter((player) => !this.removed.has(player.id));
+    if (!remaining.every((player) => this.passed.has(player.id))) return;
+
+    const penalties = Object.fromEntries(remaining.map(({ id, hand }) => [
+      id, hand.reduce((points, card) => points + (card.rank === 'K' ? 10 : 1), 0),
+    ]));
+    const lowest = Math.min(...Object.values(penalties));
+    const leaders = remaining.filter(({ id }) => penalties[id] === lowest);
+    this.penalties = penalties;
+    this.winner = leaders.length === 1 ? { id: leaders[0].id, name: leaders[0].name } : null;
+    this.phase = 'game-over';
+  }
+
   private advanceTurn(): void {
     // Skip seats that have left the game.
     let next = (this.activePlayerIndex + 1) % this.players.length;
@@ -368,6 +404,7 @@ export class KingsCornerEngine {
       next = (next + 1) % this.players.length;
     }
     this.activePlayerIndex = next;
+    this.turnMadeProgress = false;
 
     if (this.drawPile.length > 0) {
       this.phase = 'drawing';
@@ -399,6 +436,7 @@ export class KingsCornerEngine {
           const idx = player.hand.findIndex((c) => cardEquals(c, king));
           player.hand.splice(idx, 1);
           this.getPile(emptyCorner).push(king);
+          this.recordProgress();
           changed = true;
 
           if (player.hand.length === 0) {

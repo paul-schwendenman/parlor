@@ -55,6 +55,8 @@ export interface KingsCornerPlayerView {
   phase: KingsCornerPhase;
   winner: { id: string; name: string } | null;
   gameOver: boolean;
+  /** Revealed only when an empty-stock impasse ends the hand. */
+  penalties?: Record<string, number>;
   playableCards: PlayableCard[];
   movablePiles: MovablePile[];
   canEndTurn: boolean;

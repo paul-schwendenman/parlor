@@ -1,53 +1,64 @@
 <script lang="ts">
   import type { KingsCornerPlayerInfo } from '../../types/game.js';
-  import { getSocket } from '../../stores/socketClient.js';
+  import type { GameSocket } from '@parlor/multiplayer/client';
 
   let {
+    socket,
     winner,
     players,
+    penalties,
     myPlayerId,
   }: {
+    socket: GameSocket<'kings-corner'>;
     winner: { id: string; name: string } | null;
     players: KingsCornerPlayerInfo[];
+    penalties?: Record<string, number>;
     myPlayerId: string;
   } = $props();
 
   let sortedPlayers = $derived(
-    [...players].sort((a, b) => a.cardCount - b.cardCount),
+    players
+      .filter(({ id }) => !penalties || Object.hasOwn(penalties, id))
+      .map((player) => ({ ...player, score: penalties?.[player.id] ?? player.cardCount }))
+      .sort((a, b) => a.score - b.score),
   );
 
   function playAgain() {
-    getSocket().emit('lobby:restartGame');
+    socket.emit('lobby:restartGame');
   }
 
   function backToLobby() {
-    getSocket().emit('lobby:resetGame');
+    socket.emit('lobby:resetGame');
   }
 </script>
 
 <div class="game-over">
   <h2>Game Over!</h2>
 
-  {#if winner}
+  {#if penalties}<p>The stock ran out and every player passed.</p>{/if}
+  {#if winner || penalties}
     <p class="winner-text">
-      {winner.id === myPlayerId ? 'You win!' : `${winner.name} wins!`}
+      {winner ? (winner.id === myPlayerId ? 'You win!' : `${winner.name} wins!`) : 'Tie for the lowest penalty score.'}
     </p>
   {/if}
 
   <div class="rankings">
-    {#each sortedPlayers as player, i}
+    {#each sortedPlayers as player, i (player.id)}
+      {@const rank = penalties ? sortedPlayers.findIndex(({ score }) => score === player.score) : i}
       <div class="rank" class:winner={player.id === winner?.id} class:me={player.id === myPlayerId}>
-        <span class="position">{i + 1}{i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th'}</span>
+        <span class="position">{rank + 1}{rank === 0 ? 'st' : rank === 1 ? 'nd' : rank === 2 ? 'rd' : 'th'}</span>
         <span class="name">{player.name} {player.id === myPlayerId ? '(You)' : ''}</span>
-        <span class="cards">{player.cardCount} cards left</span>
+        <span class="cards">{penalties ? `${player.score} penalty points` : `${player.cardCount} cards left`}</span>
       </div>
     {/each}
   </div>
 
-  <div class="actions">
-    <button class="primary" onclick={playAgain}>Play Again</button>
-    <button class="secondary" onclick={backToLobby}>Back to Lobby</button>
-  </div>
+  {#if myPlayerId}
+    <div class="actions">
+      <button class="primary" onclick={playAgain}>Play Again</button>
+      <button class="secondary" onclick={backToLobby}>Back to Lobby</button>
+    </div>
+  {/if}
 </div>
 
 <style>
