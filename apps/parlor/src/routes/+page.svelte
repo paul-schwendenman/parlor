@@ -506,10 +506,9 @@
     gap: 14px;
   }
 
+  /* Spine colours (--spine-bg, --spine-fg, --spine-solid-*) come from the
+     shared .spine-{shelf} classes in app.css. */
   .game-card {
-    --spine-fg: var(--color-cream);
-    --spine-solid-bg: var(--color-cream);
-    --spine-solid-fg: var(--color-espresso);
     background: var(--spine-bg);
     color: var(--spine-fg);
     border: 2.5px solid var(--color-espresso);
@@ -527,12 +526,6 @@
       box-shadow: 0 4px 16px rgba(59, 47, 47, 0.12);
     }
   }
-
-  .spine-felt { --spine-bg: var(--color-forest-deep); --spine-solid-fg: var(--color-forest-deep); }
-  .spine-mustard { --spine-bg: var(--color-mustard); --spine-fg: var(--color-espresso); --spine-solid-bg: var(--color-espresso); --spine-solid-fg: var(--color-cream); }
-  .spine-clay { --spine-bg: var(--color-terracotta-deep); --spine-solid-fg: var(--color-terracotta-deep); }
-  .spine-ink { --spine-bg: var(--color-espresso); --spine-solid-bg: var(--color-mustard); }
-  .spine-linen { --spine-bg: var(--color-linen); --spine-fg: var(--color-espresso); --spine-solid-bg: var(--color-terracotta-deep); --spine-solid-fg: var(--color-cream); }
 
   .game-head {
     display: flex;

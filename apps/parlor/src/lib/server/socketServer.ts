@@ -50,11 +50,13 @@ export function setupParlorSocketHandlers(io: AppServer, roomManager = new RoomM
 			totals.set(gameId, (totals.get(gameId) ?? 0) + 1);
 		}
 		const counts = Object.fromEntries(totals);
+		const votes = Object.fromEntries(ballot.votes);
 		for (const socketId of io.sockets.adapter.rooms.get(roomCode) ?? []) {
 			const playerId = roomManager.getPlayerIdBySocket(socketId);
 			io.to(socketId).emit('lobby:ballot', roomCode, {
 				roundId: ballot.roundId,
 				totals: counts,
+				votes,
 				myVote: playerId ? ballot.votes.get(playerId) ?? null : null
 			});
 		}

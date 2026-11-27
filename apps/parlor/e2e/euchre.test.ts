@@ -8,7 +8,8 @@ test('a Euchre room with bots advances from dealer pickup and discard to the nex
 	await page.getByRole('dialog').getByLabel('Your name').fill('Alex');
 	await page.getByRole('dialog').getByRole('button', { name: 'Create Room' }).click();
 	await page.getByRole('button', { name: 'Vote for Euchre', exact: true }).click();
-	await page.getByRole('button', { name: 'Confirm Euchre', exact: true }).click();
+	// The host's one Play button follows the leading game.
+	await page.getByRole('button', { name: 'Play Euchre', exact: true }).click();
 
 	// Each open seat has its own "Add bot to seat N"; the host's START is their ready.
 	const addBot = page.getByRole('button', { name: /^Add bot to seat/ }).first();

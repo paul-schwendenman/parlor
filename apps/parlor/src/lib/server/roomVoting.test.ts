@@ -43,7 +43,7 @@ it('keeps one private vote per seat and rejects conflicting room changes', async
 	expect(await guest.request.emitWithAck('lobby:join', roomCode, 'Guest')).toMatchObject({ success: true });
 	const watcher = await participant();
 	expect(await watcher.request.emitWithAck('lobby:spectate', roomCode)).toBe(true);
-	await expect.poll(watcher.ballot).toMatchObject({ totals: {}, myVote: null });
+	await expect.poll(watcher.ballot).toMatchObject({ totals: {}, votes: {}, myVote: null });
 	const round = watcher.ballot()!.roundId;
 
 	expect(await watcher.request.emitWithAck('lobby:vote', round, 'quixx')).toBe(false);
@@ -80,11 +80,47 @@ it('keeps a disconnected host vote through migration and drops it on seat expiry
 	const round = guest.ballot()!.roundId;
 	expect(await host.request.emitWithAck('lobby:vote', round, 'quixx')).toBe(true);
 	await expect.poll(guest.ballot).toMatchObject({ totals: { quixx: 1 } });
+	const hostId = Object.keys(guest.ballot()!.votes)[0];
+	expect(guest.ballot()!.votes).toEqual({ [hostId]: 'quixx' });
 
 	const hostChanged = new Promise(resolve => guest.socket.once('lobby:hostChanged', resolve));
 	host.socket.close();
 	expect(await hostChanged).toBe(playerId);
 	expect(guest.ballot()?.totals).toEqual({ quixx: 1 });
 	await expect.poll(() => guest.ballot()?.totals).toEqual({});
+	expect(guest.ballot()?.votes).toEqual({});
 	expect(await guest.request.emitWithAck('lobby:confirmGame', round, 'quixx')).toBe(true);
+});
+
+it('shows every recipient who voted for what, and only their own vote as theirs', async () => {
+	const host = await participant();
+	const { roomCode, playerId: hostId } = await host.request.emitWithAck('lobby:create', 'Host');
+	const guest = await participant();
+	const { playerId: guestId } = await guest.request.emitWithAck('lobby:join', roomCode, 'Guest');
+	const friend = await participant();
+	const { playerId: friendId } = await friend.request.emitWithAck('lobby:join', roomCode, 'Friend');
+	const watcher = await participant();
+	expect(await watcher.request.emitWithAck('lobby:spectate', roomCode)).toBe(true);
+	await expect.poll(watcher.ballot).toMatchObject({ votes: {} });
+	const round = watcher.ballot()!.roundId;
+
+	expect(await host.request.emitWithAck('lobby:vote', round, 'hearts')).toBe(true);
+	expect(await guest.request.emitWithAck('lobby:vote', round, 'hearts')).toBe(true);
+	expect(await friend.request.emitWithAck('lobby:vote', round, 'quixx')).toBe(true);
+
+	const votes = { [hostId]: 'hearts', [guestId]: 'hearts', [friendId]: 'quixx' };
+	const totals = { hearts: 2, quixx: 1 };
+	await expect.poll(host.ballot).toEqual({ roundId: round, totals, votes, myVote: 'hearts' });
+	await expect.poll(guest.ballot).toEqual({ roundId: round, totals, votes, myVote: 'hearts' });
+	await expect.poll(friend.ballot).toEqual({ roundId: round, totals, votes, myVote: 'quixx' });
+	await expect.poll(watcher.ballot).toEqual({ roundId: round, totals, votes, myVote: null });
+
+	// Clearing a vote removes the voter, not just the count.
+	expect(await friend.request.emitWithAck('lobby:vote', round, null)).toBe(true);
+	await expect.poll(() => watcher.ballot()?.votes).toEqual({ [hostId]: 'hearts', [guestId]: 'hearts' });
+	expect(watcher.ballot()?.totals).toEqual({ hearts: 2 });
+
+	// The host can still play a game nobody voted for, which closes the ballot.
+	expect(await host.request.emitWithAck('lobby:confirmGame', round, 'quixx')).toBe(true);
+	await expect.poll(watcher.ballot).toBeNull();
 });

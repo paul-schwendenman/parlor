@@ -90,26 +90,33 @@ The main fix. Hearts, Spades and Euchre need exactly 4 players, and Oh Hell need
 
 Redesign the voting state. It should feel like pulling a box off the shelf, not filling in a form.
 
-- [ ] **3.1 Fix the "Leading" summary** (`:77-82`).
+- [x] **3.1 Fix the "Leading" summary** (`:77-82`).
   - Today it filters out games the room can't play, so Hearts on 2 votes loses to Quixx on 1. Rank all games by votes and add the constraint: "Leading · Hearts (needs 1 more player)".
   - Ties: "Tied · Hearts, Quixx".
-- [ ] **3.2 Players before the ballot.** The player and seat list must be visible while voting:
+  - **Done:** All nine are ranked. Constraints read "(needs 1 more player)", "(too many players)" or "(no bots)". With no votes the line is empty (the explainer above it covers that); it is `aria-live="polite"` + `aria-atomic`, so it only speaks when the standing changes.
+- [x] **3.2 Players before the ballot.** The player and seat list must be visible while voting:
   - Phone: compact avatars above the ballot.
   - Desktop: a side column.
   - Nobody should need to scroll past nine games to see who's in the room.
-- [ ] **3.3 Shelf-spine rows.** Each ballot row uses its game's catalogue colour (from 1.2) and shows its description and play time. Rows should be recognisable at a glance by colour, for kids and older relatives.
-- [ ] **3.4 Collapse games the room can't play.**
+  - **Done:** Phone: a paper "player strip" above the ballot with overlapping seat-coloured avatars (`seatTone`, names in sr-only text and `title`), "3 players" and the host's Add bot, with the disabled reason / bot error under it. The full list (with remove-bot) still follows the ballot, minus its Add bot line, so bots can be removed while voting. Desktop (≥900px): the page opens to 920px with the ballot left and the full list in a sticky 320px side column; the lid's wordmark and Leave room spread to match and the code tiles stay 440px. The lobby now uses `seatTone`/`initial` from `@parlor/ui` instead of its own copy.
+- [x] **3.3 Shelf-spine rows.** Each ballot row uses its game's catalogue colour (from 1.2) and shows its description and play time. Rows should be recognisable at a glance by colour, for kids and older relatives.
+  - **Done:** The home page's spine tokens moved to shared `.spine-{shelf}` classes in `app.css` (home shelf unchanged, checked by computed colours). Each row is the spine block (name, "4 · 25–40m" chip, description clamped to two lines, "?" in the corner) and the whole block is the vote button. The footer only appears when there's a fit note, your vote or voters. A phone first view shows the strip, heading, explainer, standing and three rows above the host's Play bar.
+- [x] **3.4 Collapse games the room can't play.**
   - Games the room has too many players for go into a muted group at the bottom: "Not for 6 players (3)". The group can be expanded.
   - Games that need more players stay in the main list, since a bot can fix that, but show "Needs 1 more player".
-- [ ] **3.5 Who voted, not just how many.**
+  - **Done:** Native `<details>` ("Not for 6 players (6)", drawn chevron), closed by default, holding one-line dashed linen rows with "Seats 4" / "Seats up to 5" and any votes. A crowded row stays a vote button only for someone whose vote is on it (so they can clear it); otherwise it's static with its "?".
+- [x] **3.5 Who voted, not just how many.**
   - Show small seat-colour avatars of the voters on each row instead of "N votes". This needs `GameBallotSnapshot` (in `packages/game-types`) to include `votes: Record<playerId, gameId>`, which is fine in a private room.
   - Label each row's count for screen readers with the game name ("Hearts: 2 votes, Margaret and Joe").
   - Add a small acknowledgement when a vote arrives, honouring reduced motion.
-- [ ] **3.6 One Confirm for the host.**
+  - **Done:** The ballot isn't in `packages/multiplayer`; it lives in `apps/parlor/src/lib/server/socketServer.ts`. `GameBallotSnapshot.votes: Partial<Record<playerId, gameId>>` is sent to every recipient, spectators included (stale votes are pruned first, as before); `myVote` stays per recipient. New test in `roomVoting.test.ts` asserts the exact snapshot host, two guests and a spectator receive, that clearing a vote removes the voter, and that the host can play a game nobody voted for; the migration test checks an expired seat's vote leaves `votes`. Rows show 26px voter avatars ringed in cream and a cream "Your vote" chip with a drawn SVG check (the "Voted ✓" glyph is gone). Each vote button has `aria-describedby` → "Hearts: 2 votes, Margaret and Joe. Needs 1 more player." New avatars pop in (0.32s overshoot), off under `prefers-reduced-motion`.
+- [x] **3.6 One Confirm for the host.**
   - Remove the nine per-row Confirm buttons. The host gets a single bottom main button, "Play Hearts", tied to the leading game (or the host's own vote if there's a tie), plus a way to pick any other playable game, for example a long-press or a "Play this" button inside the rules modal.
   - Guests only ever see Vote.
   - This also removes most of the "what's the difference between Vote and Confirm" confusion.
-- [ ] **3.7 How the lobby works.** Add one short line under the ballot heading: "Tap to vote. Margaret picks the game." No tour, no modal.
+  - **Done:** Per-row Confirm is gone. The host's PLAY HEARTS (the screen's one shouted action while voting) sits in a sticky bottom bar and follows the leader; a tie goes to the host's own vote if it's tied, else the first tied game the room fits. Disabled with a hint when nothing has votes ("Vote to pick a game.") or the leader can't be played ("Hearts seats 4. Remove a bot or vote for another game."); hints also explain ties ("Tied with Quixx. Your vote breaks the tie.") and short tables ("Hearts needs 1 more player. Invite someone or add a bot."). The rules sheet's footer gives the host Close / Vote / "Play this" (only for games the room fits); guests keep Close / Vote. `RulesModal` gained an optional outline `onsecondary`/`secondaryLabel`. The server's confirm handler needed no change (it already accepts any game the room fits).
+- [x] **3.7 How the lobby works.** Add one short line under the ballot heading: "Tap to vote. Margaret picks the game." No tour, no modal.
+  - **Done:** Guests: "Tap a game to vote. Margaret picks the game." Host: "Tap a game to vote, then play the winner." Spectators: "Margaret picks the game."
 
 ## Phase 4: Changing games safely (P2)
 
@@ -147,6 +154,7 @@ Redesign the voting state. It should feel like pulling a box off the shelf, not 
 | 2026-11-27 | — | Critique run (21/40); plan written | — |
 | 2026-11-27 | 1 | Quick fixes: touch-safe pill states, shared game catalogue with fixed shelf colours, player-count copy, sentence-case labels, GamePicker removed, 44px header targets, 20-char name limit shared with the server | uncommitted |
 | 2026-11-27 | 2 | Seats and the start hint: open-seat rows with per-seat Add bot, "N of M" count, "Room for N more", seat-first start hint and guest copy naming the host, Add bot while voting (server now allows it), Add bot limits with inline reasons, rewritten addBot errors, host no longer needs Ready | uncommitted |
+| 2026-11-27 | 3 | Ballot redesign: every game ranked with its constraint, player strip (phone) / side column (desktop), shelf-spine vote rows with shared spine classes, crowded games folded away, voter avatars from a new `votes` map on the ballot snapshot (server + test), one host PLAY button on the leader plus "Play this" in the rules sheet, one-line explainer; e2e moved off per-row Confirm | uncommitted |
 
 ## Notes
 
@@ -154,3 +162,4 @@ Redesign the voting state. It should feel like pulling a box off the shelf, not 
 - Open question from the critique, not decided: should "Ready" exist at all for guests in a private room, replaced by START plus a short "Margaret is starting Hearts…" countdown? Revisit after Phase 2.
 - Phase 1 deferrals: the standalone game apps' own `JoinForm.svelte` inputs still hard-code `maxlength="20"` (matches the server, but could import `PLAYER_NAME_MAX_LENGTH`). The "Voted ✓" label uses a Unicode glyph as an icon (craft floor); replace it during the Phase 3 ballot redesign. The trick-taking boards could set `--card-back` to their new shelf colour (design-full says a game's colour shows on its pieces); not done here. The design-full shelf spec says the solid shelf button reads "Start a room"; the UI says "Start game" — pick one. The `startHint` copy ("Need at least 2 players", "ready up") is left for Phase 2.
 - Phase 2 deferrals: the voting-time Add bot line still sits under the whole ballot (Phase 3.2 moves the player list up). The plan's "reminder to share the code" on open seats was left to the hint ("Invite 1 more…"); a per-row Copy link could follow with 6.3's share work. Guests now see a "Not ready" chip on their row and a "Not ready" button below; the button could read "I'm not ready" or "Cancel ready" if that confuses anyone. While voting the client caps Add bot at 6 (largest game) but the server room cap is still 8. The bot-name pool and `MAX_BOTS` are both 4; a human named "Bot Alice" shrinks the pool and the handler's message still says 4. `joinRoom`'s "Room is full" / "Game already in progress" weren't rewritten. The open question above (does Ready exist at all for guests?) is still open; the host side is settled.
+- Phase 3 deferrals: the rules sheet footer is still not pinned on a phone (6.1), and while the host's Vote there is an outline button beside the Deep Clay "Play this", a guest's Vote / Clear vote is still the filled button (6.1's "don't highlight Clear vote" is untouched). "Play this" doesn't name the game; with Close and Vote it fits one row at 390px. Descriptions are clamped to two lines in the ballot (the rules sheet has the rest). The strip's avatars wrap to a second line above about seven players at 390px. While voting on a wide screen, the side column still shows "Short on players? Bots can fill seats." when the room is at the six-seat voting cap (the disabled reason sits under it; Phase 2 copy). Voter avatars also pop on the ballot's first render (they're keyed per player, so not on later re-renders). The leading row has no marker of its own; the standing line and the Play button name it.

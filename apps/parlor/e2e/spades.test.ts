@@ -19,7 +19,8 @@ test('a player can bid and play a trick in a Spades room with bots', async ({ pa
 	await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
 
 	await page.getByRole('button', { name: 'Vote for Spades', exact: true }).click();
-	await page.getByRole('button', { name: 'Confirm Spades', exact: true }).click();
+	// The host's one Play button follows the leading game.
+	await page.getByRole('button', { name: 'Play Spades', exact: true }).click();
 
 	// Each open seat has its own "Add bot to seat N"; the host's START is their ready.
 	const addBot = page.getByRole('button', { name: /^Add bot to seat/ }).first();

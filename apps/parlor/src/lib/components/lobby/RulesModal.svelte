@@ -10,9 +10,12 @@
     /** Omitted mid-game, where there is nothing to start. */
     onplay?: () => void;
     playLabel?: string;
+    /** A second, outline action beside play (the host's Vote in the lobby). */
+    onsecondary?: () => void;
+    secondaryLabel?: string;
   }
 
-  let { open, gameId, gameName, onclose, onplay, playLabel = 'Play Now' }: Props = $props();
+  let { open, gameId, gameName, onclose, onplay, playLabel = 'Play Now', onsecondary, secondaryLabel = '' }: Props = $props();
 </script>
 
 {#if open}
@@ -312,6 +315,7 @@
 
   <div class="modal-footer">
     <button class="btn-close" onclick={onclose}>Close</button>
+    {#if onsecondary}<button class="btn-close" onclick={onsecondary}>{secondaryLabel}</button>{/if}
     {#if onplay}<button class="btn-play" onclick={onplay}>{playLabel}</button>{/if}
   </div>
 </Modal>
@@ -485,6 +489,7 @@
 
   .modal-footer {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 0.75rem;
     margin-top: 1.5rem;

@@ -136,6 +136,12 @@ export type GameStateEnvelope<K extends GameId = GameId> = {
 export interface GameBallotSnapshot {
   roundId: string;
   totals: Partial<Record<string, number>>;
+  /**
+   * Every seated player's current vote, by player id. Rooms are private, so
+   * the table sees who voted for what (the lobby draws voters on each game).
+   */
+  votes: Partial<Record<string, string>>;
+  /** The recipient's own vote; always null for a spectator. */
   myVote: string | null;
 }
 

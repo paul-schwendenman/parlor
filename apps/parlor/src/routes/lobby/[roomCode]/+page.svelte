@@ -9,14 +9,12 @@
   import { playerState } from '$lib/stores/playerStore.svelte.js';
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
   import { getSocket, ballotAction, readyAction, startGameAction } from '$lib/stores/socketClient.js';
-  import { catalog as games, findGame, minutesRange, playerCount, playersNeeded } from '$lib/games/catalog.js';
+  import { catalog as games, findGame, minutesRange, playerCount, playerRange, playersNeeded, type CatalogGame } from '$lib/games/catalog.js';
   import { MAX_BOTS, type LobbyPlayer } from '@parlor/game-types';
+  import { seatTone, initial } from '@parlor/ui';
   import LeaveRoomButton from '$lib/components/LeaveRoomButton.svelte';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
-  // Seat colours cycle through the palette; the first is Deep Clay, not Kiln
-  // Terracotta, because a cream initial on #C4663A is below 4.5:1.
-  const seatColors = ['seat-clay', 'seat-felt', 'seat-mustard', 'seat-ink'];
   // While voting there is no game to size the room by, so Add bot stops at the
   // largest table any game in the catalogue can seat.
   const votingSeatCap = Math.max(...games.map(game => game.maxPlayers));
@@ -64,14 +62,84 @@
   let ballot = $derived(lobbyState.ballot);
   let seatCount = $derived(lobbyState.players.length);
   let hostName = $derived(lobbyState.players.find(p => p.id === lobbyState.hostId)?.name ?? 'the host');
-  let leaders = $derived.by(() => {
-    const playable = games.filter(game => seatCount >= game.minPlayers && seatCount <= game.maxPlayers
-      && (!hasBots || game.supportsBots));
-    const high = Math.max(0, ...playable.map(game => ballot?.totals[game.id] ?? 0));
-    return high ? playable.filter(game => ballot?.totals[game.id] === high) : [];
-  });
   let codeChars = $derived(roomCode.split(''));
 
+  // Ballot. Every game is ranked by votes, playable or not, so the summary
+  // never hides a leader; what stands in its way is said alongside it.
+  let votes = $derived(ballot?.votes ?? {});
+  let leaders = $derived.by(() => {
+    const high = Math.max(0, ...games.map(game => ballot?.totals[game.id] ?? 0));
+    return high ? games.filter(game => (ballot?.totals[game.id] ?? 0) === high) : [];
+  });
+  /** Games the room fits (or could, with more players or a bot), in shelf order. */
+  let shelfGames = $derived(games.filter(game => seatCount <= game.maxPlayers));
+  /** Games with too many people in the room: muted, at the bottom. */
+  let crowdedGames = $derived(games.filter(game => seatCount > game.maxPlayers));
+
+  function canPlay(game: CatalogGame): boolean {
+    return seatCount <= game.maxPlayers && (!hasBots || !!game.supportsBots);
+  }
+
+  /** What stands between the room and this game, as a short note ('' if nothing). */
+  function fitNote(game: CatalogGame): string {
+    if (seatCount > game.maxPlayers) return `Seats ${seatsPhrase(game.minPlayers, game.maxPlayers)}`;
+    if (seatCount < game.minPlayers) return playersNeeded(game.minPlayers - seatCount);
+    if (hasBots && !game.supportsBots) return 'No bots';
+    return '';
+  }
+
+  let leadSummary = $derived.by(() => {
+    if (leaders.length > 1) return `Tied · ${leaders.map(game => game.name).join(', ')}`;
+    const lead = leaders[0];
+    if (!lead) return '';
+    const note = seatCount > lead.maxPlayers ? 'too many players' : fitNote(lead).toLowerCase();
+    return `Leading · ${lead.name}${note ? ` (${note})` : ''}`;
+  });
+
+  /** "Margaret", "Margaret and Joe", "Margaret, Joe and Ann". */
+  function nameList(list: { name: string }[]): string {
+    const names = list.map(p => p.name);
+    return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+  }
+
+  function votersFor(gameId: string): LobbyPlayer[] {
+    return lobbyState.players.filter(p => votes[p.id] === gameId);
+  }
+
+  /** "Hearts: 2 votes, Margaret and Joe. Needs 1 more player." */
+  function rowLabel(game: CatalogGame, voters: LobbyPlayer[]): string {
+    const count = voters.length === 0 ? 'no votes' : `${voters.length} ${voters.length === 1 ? 'vote' : 'votes'}, ${nameList(voters)}`;
+    const note = fitNote(game);
+    return `${game.name}: ${count}.${note ? ` ${note}.` : ''}`;
+  }
+
+  function seatOf(player: LobbyPlayer): string {
+    return player.isBot ? 'ink' : seatTone(lobbyState.players.indexOf(player));
+  }
+
+  // The host's one Play button follows the leader. A tie goes to the host's
+  // own vote if it is one of the tied games, else the first one the room can play.
+  let playTarget = $derived(leaders.find(game => game.id === ballot?.myVote)
+    ?? leaders.find(canPlay) ?? leaders[0]);
+  let playHint = $derived.by(() => {
+    const game = playTarget;
+    if (!game) return 'Vote to pick a game.';
+    if (seatCount > game.maxPlayers) {
+      return `${game.name} seats ${seatsPhrase(game.minPlayers, game.maxPlayers)}. ${hasBots ? 'Remove a bot or vote' : 'Vote'} for another game.`;
+    }
+    if (hasBots && !game.supportsBots) return `${game.name} doesn't use bots. Remove them or vote for another game.`;
+    if (leaders.length > 1) {
+      const others = nameList(leaders.filter(g => g !== game));
+      return ballot?.myVote === game.id ? `Tied with ${others}. Your vote breaks the tie.` : `Tied with ${others}. Vote to break the tie.`;
+    }
+    if (seatCount < game.minPlayers) {
+      return `${game.name} ${playersNeeded(game.minPlayers - seatCount).toLowerCase()}. Invite someone or add a bot.`;
+    }
+    return '';
+  });
+  let ballotIntro = $derived(spectator
+    ? `${hostName} picks the game.`
+    : isHost ? 'Tap a game to vote, then play the winner.' : `Tap a game to vote. ${hostName} picks the game.`);
   // Seats: once a game is confirmed, the list fills out to its minimum with
   // open seats, and says how much room is left up to its maximum.
   let openSeats = $derived(selectedGame ? Math.max(0, selectedGame.minPlayers - seatCount) : 0);
@@ -186,6 +254,11 @@
     void updateBallot('vote', ballot?.myVote === gameId ? null : gameId);
   }
 
+  function playGame(gameId: string) {
+    rulesGameId = null;
+    void updateBallot('confirm', gameId);
+  }
+
   function addBot() {
     botError = '';
     getSocket().emit('lobby:addBot', (success, error) => {
@@ -252,7 +325,7 @@
     <a href={resolve('/')} class="btn btn-accent">Back to home</a>
   </div>
 {:else}
-  <header class="lid">
+  <header class="lid" class:wide={!selectedGame && !!ballot}>
     <div class="lid-inner">
       <div class="lid-bar">
         <a href={resolve('/')} class="wordmark">PARLOR</a>
@@ -280,8 +353,64 @@
     </div>
   </header>
 
-  <div class="content">
-    <!-- Game selection -->
+  {#snippet addBotLine()}
+    {#if isHost && botsAllowed && botBlockReason && (seatsLeft > 0 || !selectedGame)}
+      <p class="seat-reason">{botBlockReason}</p>
+    {/if}
+    {#if botError}
+      <p class="action-error" role="alert">{botError}</p>
+    {/if}
+  {/snippet}
+
+  {#snippet rowFace(game: CatalogGame, voters: LobbyPlayer[], voted: boolean)}
+    {@const note = fitNote(game)}
+    <span class="row-head">
+      <span class="row-name">{game.name}</span>
+      <span class="row-meta">{playerRange(game)} · {minutesRange(game)}m</span>
+    </span>
+    <span class="row-desc">{game.description}</span>
+    {#if note || voters.length || voted}
+      <span class="row-foot">
+        {#if note}<span class="row-note">{note}</span>{/if}
+        <span class="row-votes">
+          {#if voted}
+            <span class="your-vote">
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+              Your vote
+            </span>
+          {/if}
+          {#if voters.length}
+            <span class="voters" aria-hidden="true">
+              {#each voters as voter (voter.id)}
+                <span class="voter seat-{seatOf(voter)}" title={voter.name}>{initial(voter.name)}</span>
+              {/each}
+            </span>
+          {/if}
+        </span>
+      </span>
+    {/if}
+  {/snippet}
+
+  {#snippet ballotRow(game: CatalogGame, crowded: boolean)}
+    {@const voters = votersFor(game.id)}
+    {@const voted = ballot?.myVote === game.id}
+    <li class="spine-row {crowded ? 'crowded' : `spine-${game.shelf}`}" class:voted>
+      {#if me && !spectator && (!crowded || voted)}
+        <button type="button" class="spine-face" aria-pressed={voted} aria-label="Vote for {game.name}"
+          aria-describedby="votes-{game.id}" aria-disabled={ballotPending || undefined} onclick={() => voteFor(game.id)}>
+          {@render rowFace(game, voters, voted)}
+        </button>
+      {:else}
+        <div class="spine-face">{@render rowFace(game, voters, voted)}</div>
+      {/if}
+      <span class="sr-only" id="votes-{game.id}">{rowLabel(game, voters)}</span>
+      <button type="button" class="icon-btn row-help" onclick={() => (rulesGameId = game.id)} aria-label="How to play {game.name}" title="How to play {game.name}">
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><path d="M12 17.5h.01"/></svg>
+      </button>
+    </li>
+  {/snippet}
+
+  <div class="content" class:voting={!selectedGame && !!ballot}>
     {#if selectedGame}
       <section class="game-panel" aria-label="Selected game">
         <div class="game-panel-text">
@@ -293,55 +422,62 @@
         {/if}
       </section>
     {:else if ballot}
+      <!-- Phone: who's here, at a glance, above the ballot. Desktop shows the
+           full list in the side column instead. -->
+      <section class="table-strip" aria-label="Players">
+        <div class="strip-bar">
+          <ul class="strip-avatars">
+            {#each lobbyState.players as player (player.id)}
+              <li class="avatar strip-avatar seat-{seatOf(player)}" title={player.name}>
+                {#if player.isBot}
+                  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg>
+                {:else}
+                  <span aria-hidden="true">{initial(player.name)}</span>
+                {/if}
+                <span class="sr-only">{player.name}{player.id === lobbyState.hostId ? ', host' : ''}{player.id === playerState.id ? ', you' : ''}{player.isBot ? ', bot' : ''}</span>
+              </li>
+            {/each}
+          </ul>
+          <p class="strip-count">{seatCount} {seatCount === 1 ? 'player' : 'players'}</p>
+          {#if isHost}
+            <button type="button" class="pill pill-row" onclick={addBot} disabled={!!botBlockReason}>Add bot</button>
+          {/if}
+        </div>
+        {@render addBotLine()}
+      </section>
+
       <section class="picker" aria-labelledby="ballot-title">
         <h2 id="ballot-title" class="section-title" tabindex="-1" bind:this={ballotHeading}>Vote on a game</h2>
-        <p class="ballot-summary" aria-live="polite">
-          {#if leaders.length > 1}
-            Tied for the lead · {leaders.map(game => game.name).join(', ')}
-          {:else if leaders[0]}
-            Leading · {leaders[0].name}
-          {:else if isHost}
-            Confirm a game when your group is ready.
-          {:else}
-            The host will confirm the game.
-          {/if}
-        </p>
+        <p class="ballot-intro">{ballotIntro}</p>
+        <p class="ballot-summary" aria-live="polite" aria-atomic="true">{leadSummary}</p>
         <ul class="picker-list">
-          {#each games as game (game.id)}
-            {@const voteCount = ballot.totals[game.id] ?? 0}
-            {@const voted = ballot.myVote === game.id}
-            {@const tooMany = seatCount > game.maxPlayers}
-            <li class="picker-row" class:voted>
-              <div class="picker-details">
-                <div>
-                  <h3 class="picker-name">{game.name}</h3>
-                  <p class="picker-meta">
-                    {playerCount(game)}
-                    {#if tooMany}
-                      · Too many players
-                    {:else if seatCount < game.minPlayers}
-                      · {playersNeeded(game.minPlayers - seatCount)}
-                    {/if}
-                  </p>
-                </div>
-                <span class="vote-count">{voteCount} {voteCount === 1 ? 'vote' : 'votes'}</span>
-                <button type="button" class="icon-btn" onclick={() => (rulesGameId = game.id)} aria-label="How to play {game.name}" title="How to play {game.name}">
-                  <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><path d="M12 17.5h.01"/></svg>
-                </button>
-              </div>
-              {#if me && !spectator}
-                <div class="vote-actions">
-                  <button type="button" class="pill" aria-pressed={voted} aria-label="Vote for {game.name}" aria-disabled={ballotPending || undefined} disabled={tooMany && !voted} onclick={() => voteFor(game.id)}>
-                    {voted ? 'Voted ✓' : 'Vote'}
-                  </button>
-                  {#if isHost}
-                    <button type="button" class="pill confirm-game" aria-label="Confirm {game.name}" aria-disabled={ballotPending || undefined} disabled={tooMany} onclick={() => updateBallot('confirm', game.id)}>Confirm</button>
-                  {/if}
-                </div>
-              {/if}
-            </li>
+          {#each shelfGames as game (game.id)}
+            {@render ballotRow(game, false)}
           {/each}
         </ul>
+        {#if crowdedGames.length}
+          <details class="crowded-group">
+            <summary>
+              <svg class="chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+              Not for {seatCount} players ({crowdedGames.length})
+            </summary>
+            <ul class="picker-list">
+              {#each crowdedGames as game (game.id)}
+                {@render ballotRow(game, true)}
+              {/each}
+            </ul>
+          </details>
+        {/if}
+        {#if isHost}
+          <!-- The one shouted action while voting: play the leader. Any other
+               game the room fits can be played from its "?" rules sheet. -->
+          <div class="play-bar">
+            {#if playHint}<p class="hint" aria-live="polite">{playHint}</p>{/if}
+            <button type="button" class="btn btn-primary" disabled={!playTarget || !canPlay(playTarget)}
+              aria-disabled={ballotPending || undefined}
+              onclick={() => playTarget && playGame(playTarget.id)}>{playTarget ? `Play ${playTarget.name}` : 'Play'}</button>
+          </div>
+        {/if}
       </section>
     {:else}
       <p class="waiting-game">Loading game choices…</p>
@@ -358,7 +494,7 @@
         {/if}
       </h2>
       <ul class="player-list">
-        {#each lobbyState.players as player, i (player.id)}
+        {#each lobbyState.players as player (player.id)}
           {@const isHostRow = player.id === lobbyState.hostId}
           <li class="player" class:bot={player.isBot}>
             {#if player.isBot}
@@ -366,7 +502,7 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg>
               </span>
             {:else}
-              <span class="avatar {seatColors[i % seatColors.length]}" aria-hidden="true">{player.name.trim().charAt(0).toUpperCase()}</span>
+              <span class="avatar seat-{seatOf(player)}" aria-hidden="true">{initial(player.name)}</span>
             {/if}
             <span class="player-name">
               <span class="name-text" title={player.name}>{player.name}</span>
@@ -408,22 +544,17 @@
           <div class="seat-line">
             <p>{seatsLeft > 0 ? `Room for ${seatsLeft} more` : `All ${seatCount} seats are taken`}</p>
             {#if isHost && gameSupportsAI}
-              <button type="button" class="pill pill-row" onclick={addBot} disabled={!!botBlockReason} aria-describedby={botBlockReason ? 'bot-block' : undefined}>Add bot</button>
+              <button type="button" class="pill pill-row" onclick={addBot} disabled={!!botBlockReason}>Add bot</button>
             {/if}
           </div>
         {/if}
       {:else if !selectedGame && ballot && isHost}
-        <div class="seat-line">
+        <div class="seat-line voting-bots">
           <p>Short on players? Bots can fill seats.</p>
-          <button type="button" class="pill pill-row" onclick={addBot} disabled={!!botBlockReason} aria-describedby={botBlockReason ? 'bot-block' : undefined}>Add bot</button>
+          <button type="button" class="pill pill-row" onclick={addBot} disabled={!!botBlockReason}>Add bot</button>
         </div>
       {/if}
-      {#if isHost && botsAllowed && botBlockReason && (seatsLeft > 0 || !selectedGame)}
-        <p class="seat-reason" id="bot-block">{botBlockReason}</p>
-      {/if}
-      {#if botError}
-        <p class="action-error" role="alert">{botError}</p>
-      {/if}
+      <div class:voting-bots={!selectedGame}>{@render addBotLine()}</div>
     </section>
 
     <!-- Actions -->
@@ -460,10 +591,18 @@
     gameId={rulesGameId}
     gameName={rulesGame?.name ?? ''}
     onclose={() => (rulesGameId = null)}
-    playLabel={ballot?.myVote === rulesGameId ? 'Clear vote' : 'Vote'}
-    onplay={ballot && me && rulesGame && (seatCount <= rulesGame.maxPlayers || ballot.myVote === rulesGameId)
+    secondaryLabel={ballot?.myVote === rulesGameId ? 'Clear vote' : 'Vote'}
+    onsecondary={isHost && ballot && rulesGame && (canPlay(rulesGame) || ballot.myVote === rulesGameId)
       ? () => { if (rulesGameId) voteFor(rulesGameId); rulesGameId = null; }
       : undefined}
+    playLabel={isHost ? 'Play this' : ballot?.myVote === rulesGameId ? 'Clear vote' : 'Vote'}
+    onplay={!ballot || !me || !rulesGame
+      ? undefined
+      : isHost
+        ? canPlay(rulesGame) ? () => { if (rulesGameId) playGame(rulesGameId); } : undefined
+        : seatCount <= rulesGame.maxPlayers || ballot.myVote === rulesGameId
+          ? () => { if (rulesGameId) voteFor(rulesGameId); rulesGameId = null; }
+          : undefined}
   />
 {/if}
 
@@ -669,7 +808,22 @@
     outline-color: var(--color-cream);
   }
 
-  /* Host game picker */
+  /* Ballot: each game is its shelf spine. Tap the box to vote for it. */
+  .ballot-intro,
+  .ballot-summary {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
+    text-wrap: pretty;
+  }
+
+  .ballot-summary {
+    margin: 2px 0 12px;
+    font-weight: 700;
+    color: var(--color-espresso);
+  }
+
   .picker-list {
     list-style: none;
     margin: 0;
@@ -679,79 +833,329 @@
     gap: 8px;
   }
 
-  .picker-row {
-    padding: 8px 10px 10px;
+  .spine-row {
+    position: relative;
+    border-radius: 16px;
+    color: var(--spine-fg);
+  }
+
+  .spine-face {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 8px 12px 10px 14px;
+    border: 2.5px solid var(--color-espresso);
+    border-radius: 16px;
+    background: var(--spine-bg);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease;
+  }
+
+  button.spine-face {
+    cursor: pointer;
+  }
+
+  button.spine-face:active {
+    transform: scale(0.99);
+  }
+
+  @media (hover: hover) {
+    button.spine-face:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(59, 47, 47, 0.12);
+    }
+  }
+
+  /* Your pick comes off the shelf: a heavier ink edge and the check chip. */
+  .spine-row.voted .spine-face {
+    box-shadow: 0 0 0 2px var(--color-espresso);
+  }
+
+  @media (hover: hover) {
+    .spine-row.voted button.spine-face:hover {
+      box-shadow: 0 0 0 2px var(--color-espresso), 0 4px 16px rgba(59, 47, 47, 0.12);
+    }
+  }
+
+  .row-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 28px;
+    /* Room for the "?" button in the corner. */
+    padding-right: 36px;
+  }
+
+  .row-name {
+    min-width: 0;
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.3125rem;
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+  }
+
+  .row-meta {
+    flex-shrink: 0;
+    margin-left: auto;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1.5px solid currentColor;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .row-desc {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.4;
+    text-wrap: pretty;
+    /* Two lines at most; the full rules are one tap away on "?". */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .row-foot {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    min-height: 28px;
+    margin-top: 4px;
+  }
+
+  .row-note {
+    font-size: 0.8125rem;
+    font-weight: 800;
+  }
+
+  .row-votes {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .your-vote {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 26px;
+    padding: 0 10px 0 7px;
+    border-radius: 999px;
+    border: 1.5px solid var(--color-espresso);
+    background: var(--color-cream);
+    color: var(--color-espresso);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .voters {
+    display: inline-flex;
+    padding-left: 6px;
+  }
+
+  /* Voters are their seat-coloured avatars; a cream ring keeps a clay voter
+     visible on the clay spine (and ink on ink). */
+  .voter {
+    width: 26px;
+    height: 26px;
+    margin-left: -6px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 2px solid var(--color-cream);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 0.75rem;
+    color: var(--color-cream);
+    animation: vote-land 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes vote-land {
+    from { transform: scale(0.3); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .voter { animation: none; }
+    .spine-face { transition: none; }
+  }
+
+  .spine-row .row-help {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    color: var(--spine-fg);
+  }
+
+  @media (hover: hover) {
+    .spine-row .row-help:hover {
+      background: color-mix(in srgb, var(--spine-fg) 14%, transparent);
+    }
+  }
+
+  .spine-row:not(.spine-mustard):not(.spine-linen):not(.crowded) .row-help:focus-visible {
+    outline-color: var(--color-cream);
+  }
+
+  /* Too many people for these: muted, folded away at the bottom. */
+  .crowded-group {
+    margin-top: 14px;
+  }
+
+  .crowded-group summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 8px;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--color-ink-muted);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .crowded-group summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .chevron {
+    transition: transform 0.2s ease;
+  }
+
+  .crowded-group[open] .chevron {
+    transform: rotate(90deg);
+  }
+
+  .crowded-group .picker-list {
+    margin-top: 4px;
+  }
+
+  .spine-row.crowded {
+    --spine-fg: var(--color-espresso);
+  }
+
+  /* One line each: name, why not, and any votes left on it. */
+  .crowded .spine-face {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    column-gap: 10px;
+    min-height: 52px;
+    background: var(--color-linen);
+    border-style: dashed;
+    border-width: 2px;
+    padding: 6px 48px 6px 14px;
+  }
+
+  .crowded .row-head {
+    padding-right: 0;
+  }
+
+  .crowded .row-name {
+    font-size: 1.0625rem;
+  }
+
+  .crowded .row-meta,
+  .crowded .row-desc {
+    display: none;
+  }
+
+  .crowded .row-foot {
+    flex: 1;
+    margin-top: 0;
+  }
+
+  .crowded .row-note {
+    color: var(--color-ink-muted);
+    font-weight: 700;
+  }
+
+  .crowded .row-help {
+    top: 4px;
+  }
+
+  /* The host's one Play button rides the bottom of the screen while voting. */
+  .play-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin: 16px -20px 0;
+    padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+    background: var(--color-cream);
+    box-shadow: 0 -6px 16px rgba(59, 47, 47, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .play-bar .btn {
+    width: 100%;
+  }
+
+  /* Phone: a strip of who's here above the ballot. */
+  .strip-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 56px;
+    box-sizing: border-box;
+    padding: 6px 6px 6px 12px;
     border: 2px solid var(--color-espresso);
     border-radius: 14px;
     background: var(--color-paper);
   }
 
-  .picker-row.voted {
-    background: var(--color-mustard-tint);
-  }
-
-  .picker-details,
-  .vote-actions {
+  .strip-avatars {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 8px;
     display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .picker-details > div {
-    flex: 1;
+    flex-wrap: wrap;
+    row-gap: 4px;
     min-width: 0;
   }
 
-  .vote-actions {
-    margin-top: 4px;
-    flex-wrap: wrap;
+  .avatar.strip-avatar {
+    width: 32px;
+    height: 32px;
+    margin-left: -8px;
+    box-sizing: border-box;
+    border: 2px solid var(--color-paper);
+    font-size: 0.9375rem;
   }
 
-  .vote-actions .pill {
-    height: 44px;
-    font-size: 0.875rem;
-  }
-
-  /* Pressed (voted) and Confirm are solid ink. Pill hover below is wrapped in
-     :where() so it can never outrank these, and it only exists on devices
-     that really hover, so a tap on a phone doesn't leave a sticky fill. */
-  .vote-actions .pill[aria-pressed='true'],
-  .vote-actions .confirm-game:not(:disabled) {
-    background: var(--color-espresso);
-    color: var(--color-cream);
-  }
-
-  @media (hover: hover) {
-    .vote-actions .pill[aria-pressed='true']:hover,
-    .vote-actions .confirm-game:not(:disabled):hover {
-      background: #2E2727;
-    }
-  }
-
-  .picker-name {
-    margin: 0;
+  .strip-count {
+    margin: 0 auto 0 0;
     font-family: var(--font-heading);
     font-weight: 800;
-    font-size: 1.0625rem;
-  }
-
-  .picker-meta,
-  .ballot-summary {
-    margin: 0;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--color-ink-muted);
-  }
-
-  .ballot-summary {
-    margin-bottom: 10px;
-  }
-
-  .vote-count {
-    font-weight: 700;
-    font-size: 0.875rem;
+    font-size: 1rem;
     white-space: nowrap;
-    font-variant-numeric: tabular-nums;
+    color: var(--color-espresso);
+  }
+
+  .table-strip .seat-reason {
+    margin-top: 6px;
+  }
+
+  .table-strip .action-error {
+    margin-top: 6px;
   }
 
   .waiting-game {
@@ -1095,6 +1499,65 @@
 
     .actions {
       margin-top: 8px;
+    }
+  }
+
+  /* While voting: phone keeps the strip on top and the full list (with
+     remove-bot) below the ballot, so Add bot lives only in the strip. */
+  @media (max-width: 899px) {
+    .content.voting .voting-bots {
+      display: none;
+    }
+  }
+
+  /* Desktop: the ballot and a side column with the full player list. */
+  @media (min-width: 900px) {
+    .content.voting {
+      max-width: 920px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      grid-template-areas: 'ballot players' 'actions players';
+      align-items: start;
+      column-gap: 32px;
+      row-gap: 20px;
+    }
+
+    .content.voting .table-strip {
+      display: none;
+    }
+
+    /* The lid lines up with the wider page; the code keeps its phone size. */
+    .lid.wide .lid-inner {
+      max-width: 920px;
+    }
+
+    .lid.wide .code-tiles {
+      max-width: 440px;
+    }
+
+    /* Wide enough to cover a voted row's heavier edge as it scrolls under. */
+    .content.voting .play-bar {
+      margin: 16px -6px 0;
+      padding: 12px 6px 16px;
+    }
+
+    .content.voting .picker {
+      grid-area: ballot;
+    }
+
+    .content.voting .players {
+      grid-area: players;
+      position: sticky;
+      top: 20px;
+    }
+
+    .content.voting .actions {
+      grid-area: actions;
+      margin-top: 0;
+    }
+
+    .content.voting .actions:empty {
+      display: none;
     }
   }
 

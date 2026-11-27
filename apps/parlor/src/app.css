@@ -21,3 +21,14 @@ body {
   background: var(--color-mustard-tint);
   color: var(--color-espresso);
 }
+
+/*
+ * Game spines (DESIGN.md: Game shelf). Each game keeps one block colour, the
+ * same on the home shelf and the lobby ballot. A spine sets its fill and the
+ * text colour that passes on it, plus a contrasting solid for its main pill.
+ */
+.spine-felt { --spine-bg: var(--color-forest-deep); --spine-fg: var(--color-cream); --spine-solid-bg: var(--color-cream); --spine-solid-fg: var(--color-forest-deep); }
+.spine-mustard { --spine-bg: var(--color-mustard); --spine-fg: var(--color-espresso); --spine-solid-bg: var(--color-espresso); --spine-solid-fg: var(--color-cream); }
+.spine-clay { --spine-bg: var(--color-terracotta-deep); --spine-fg: var(--color-cream); --spine-solid-bg: var(--color-cream); --spine-solid-fg: var(--color-terracotta-deep); }
+.spine-ink { --spine-bg: var(--color-espresso); --spine-fg: var(--color-cream); --spine-solid-bg: var(--color-mustard); --spine-solid-fg: var(--color-espresso); }
+.spine-linen { --spine-bg: var(--color-linen); --spine-fg: var(--color-espresso); --spine-solid-bg: var(--color-terracotta-deep); --spine-solid-fg: var(--color-cream); }
