@@ -15,6 +15,14 @@
     "./client": {
       "types": "./dist/client.d.ts",
       "import": "./dist/client.js"
+    },
+    "./random": {
+      "types": "./dist/random.d.ts",
+      "import": "./dist/random.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
     }
   },
   "scripts": {

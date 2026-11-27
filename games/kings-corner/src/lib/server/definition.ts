@@ -1,248 +1,136 @@
-import type { Server, Socket } from 'socket.io';
-import type {
-  ClientToServerEvents,
-  ServerToClientEvents,
-  InterServerEvents,
-  SocketData,
-} from '@parlor/game-types';
-import type { ServerGameDefinition } from '@parlor/multiplayer';
-import { RoomManager } from '@parlor/multiplayer';
+import {
+  defineGame,
+  isGameRuleError,
+  RoomManager,
+  scheduleAbsentTurn,
+  type GameContext,
+  type TypedGameDefinition,
+} from '@parlor/multiplayer';
 import { KingsCornerEngine } from './game/KingsCornerEngine.js';
 import { AIPlayer } from './ai/AIPlayer.js';
 import { DEFAULT_CONFIG } from '../types/game.js';
-import type { KingsCornerAction } from '../types/game.js';
+import { validateKingsCornerAction } from './validateAction.js';
+import { kingsCornerMeta } from '../../meta.js';
 
-type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
+type Game = GameContext<KingsCornerEngine>;
 
 const AI_TURN_TIMEOUT = 30_000;
 
-function broadcastViews(
-  io: AppServer,
-  roomCode: string,
-  engine: KingsCornerEngine,
-  roomManager: RoomManager,
-): void {
-  const players = roomManager.getPlayersInRoom(roomCode);
-  for (const player of players) {
-    if (RoomManager.isBotPlayer(player.id)) continue;
-    const view = engine.getPlayerView(player.id);
-    io.to(player.id).emit('game:state', view as never);
+/**
+ * After any change of turn: a bot's turn is scheduled; a disconnected player's
+ * turn gets its stand-in (plan 3.9). Removed seats are skipped by the engine.
+ */
+function driveTurn(game: Game): void {
+  const { state: engine, instance } = game;
+  if (!instance.isCurrent() || engine.isGameOver()) return;
+
+  // The active seat comes from the engine's own seat order (CORE-AUDIT E-10 / C-05):
+  // the lobby list shrinks when someone leaves, the engine's does not.
+  const activeId = engine.getActivePlayerId();
+  if (RoomManager.isBotPlayer(activeId)) {
+    instance.schedule(() => handleAITurn(game, activeId), 0, 'bot-turn');
+    return;
   }
 
-  const spectators = roomManager.getSpectatorsInRoom(roomCode);
-  if (spectators.length > 0) {
-    const spectatorView = engine.getSpectatorView();
-    for (const spectatorId of spectators) {
-      io.to(spectatorId).emit('game:state', spectatorView as never);
-    }
-  }
-}
-
-function scheduleAITurnIfNeeded(
-  io: AppServer,
-  roomCode: string,
-  engine: KingsCornerEngine,
-  roomManager: RoomManager,
-): void {
-  if (engine.isGameOver()) return;
-
-  const activeIndex = engine.getActivePlayerIndex();
-  const players = roomManager.getPlayersInRoom(roomCode);
-  const activePlayer = players[activeIndex];
-  if (!activePlayer || !RoomManager.isBotPlayer(activePlayer.id)) return;
-
-  setImmediate(() => {
-    handleAITurn(io, roomCode, engine, roomManager, activePlayer.id).catch((err) => {
-      console.error('[Kings Corner AI] Error:', err);
-    });
+  scheduleAbsentTurn(game, {
+    activePlayer: () => (engine.isGameOver() ? null : engine.getActivePlayerId()),
+    isAbsent: (playerId) => !engine.isConnected(playerId),
+    anyonePresent: () => engine.hasConnectedPlayer(),
+    takeTurn: (playerId) => engine.takeAbsentTurn(playerId),
+    afterTurn: () => {
+      if (RoomManager.isBotPlayer(engine.getActivePlayerId())) driveTurn(game);
+    },
   });
 }
 
-async function handleAITurn(
-  io: AppServer,
-  roomCode: string,
-  engine: KingsCornerEngine,
-  roomManager: RoomManager,
-  botId: string,
-): Promise<void> {
-  if (engine.isGameOver()) return;
+async function handleAITurn(game: Game, botId: string): Promise<void> {
+  const { state: engine, instance } = game;
+  if (!instance.isCurrent() || engine.isGameOver()) return;
 
   const aiPlayer = new AIPlayer();
-
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('AI turn timed out')), AI_TURN_TIMEOUT),
-  );
-
-  try {
-    await Promise.race([
-      aiPlayer.takeTurn({
-        onDrawCard: () => {
-          if (engine.isGameOver()) return;
-          try {
-            engine.drawCard(botId);
-            broadcastViews(io, roomCode, engine, roomManager);
-          } catch {
-            // Phase changed
-          }
-        },
-        onPlayCard: (card, target) => {
-          if (engine.isGameOver()) return;
-          try {
-            engine.playCard(botId, card, target);
-            broadcastViews(io, roomCode, engine, roomManager);
-          } catch {
-            // Invalid move
-          }
-        },
-        onMovePile: (from, to) => {
-          if (engine.isGameOver()) return;
-          try {
-            engine.movePile(botId, from, to);
-            broadcastViews(io, roomCode, engine, roomManager);
-          } catch {
-            // Invalid move
-          }
-        },
-        onEndTurn: () => {
-          if (engine.isGameOver()) return;
-          try {
-            engine.endTurn(botId);
-            broadcastViews(io, roomCode, engine, roomManager);
-            scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-          } catch {
-            // Turn already ended
-          }
-        },
-        getView: () => engine.getPlayerView(botId),
-      }),
-      timeoutPromise,
-    ]);
-  } catch (err) {
-    console.error('[Kings Corner AI] Error/timeout:', err);
-    // Force end turn on timeout
-    if (!engine.isGameOver()) {
+  const result = await instance.runWithTimeout((signal) => {
+    function applyMove(move: () => void): boolean {
+      if (signal.aborted || !instance.isCurrent() || engine.isGameOver()) return false;
       try {
-        // Auto-play mandatory kings then end turn
-        engine.handleDisconnect(botId);
-        engine.handleReconnect(botId);
-        broadcastViews(io, roomCode, engine, roomManager);
-        scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-      } catch {
-        // Already handled
+        move();
+      } catch (err) {
+        if (!isGameRuleError(err)) throw err;
+        return false;
       }
+      game.broadcast();
+      return true;
     }
-  }
+
+    return aiPlayer.takeTurn({
+      onDrawCard: () => applyMove(() => engine.drawCard(botId)),
+      onPlayCard: (card, target) => applyMove(() => engine.playCard(botId, card, target)),
+      onMovePile: (from, to) => applyMove(() => engine.movePile(botId, from, to)),
+      onEndTurn: () => {
+        if (applyMove(() => engine.endTurn(botId))) driveTurn(game);
+      },
+      getView: () => engine.getPlayerView(botId),
+    }, signal, instance);
+  }, AI_TURN_TIMEOUT);
+
+  if (result !== 'timed-out' || !instance.isCurrent() || engine.isGameOver()) return;
+
+  // Draw, auto-play mandatory kings, then advance the turn.
+  engine.takeTimedOutTurn(botId);
+  game.broadcast();
+  driveTurn(game);
 }
 
-export const kingsCornerDefinition: ServerGameDefinition = {
-  meta: {
-    id: 'kings-corner',
-    name: 'Kings Corner',
-    description: 'Build descending sequences of alternating colors — be first to empty your hand',
-    minPlayers: 2,
-    maxPlayers: 4,
-    estimatedMinutes: '15-25',
-    tags: ['cards', 'classic', 'strategy'],
-    displayModes: ['peer'],
-    supportsBots: true,
+/** Kings Corner on the typed game contract (plan 3.1b). Servers use `kingsCornerDefinition`. */
+export const kingsCornerGame: TypedGameDefinition<'kings-corner', KingsCornerEngine> = {
+  meta: kingsCornerMeta,
+
+  validateAction: validateKingsCornerAction,
+
+  createState: (roomCode, players) =>
+    new KingsCornerEngine(
+      players.map((p) => ({ id: p.id, name: p.name })),
+      roomCode,
+      DEFAULT_CONFIG,
+    ),
+
+  onGameStart: driveTurn,
+
+  actions: {
+    'draw-card': (game) => game.state.drawCard(game.playerId),
+    'play-card': (game, action) => {
+      game.state.playCard(game.playerId, action.card, action.target);
+      driveTurn(game);
+    },
+    'move-pile': (game, action) => game.state.movePile(game.playerId, action.from, action.to),
+    'end-turn': (game) => {
+      game.state.endTurn(game.playerId);
+      driveTurn(game);
+    },
   },
 
-  createLobbyCallbacks: (roomManager: RoomManager, io: AppServer) => ({
-    onGameStart: (roomCode, players, io) => {
-      const engine = new KingsCornerEngine(
-        players.map((p) => ({ id: p.id, name: p.name })),
-        roomCode,
-        DEFAULT_CONFIG,
-      );
-      roomManager.setGameData(roomCode, engine);
+  getPlayerView: (engine, playerId) => engine.getPlayerView(playerId),
+  getSpectatorView: (engine) => engine.getSpectatorView(),
+  isGameOver: (engine) => engine.isGameOver(),
 
-      for (const player of players) {
-        if (RoomManager.isBotPlayer(player.id)) continue;
-        const view = engine.getPlayerView(player.id);
-        io.to(player.id).emit('game:state', view as never);
-      }
-
-      const spectators = roomManager.getSpectatorsInRoom(roomCode);
-      if (spectators.length > 0) {
-        const spectatorView = engine.getSpectatorView();
-        for (const spectatorId of spectators) {
-          io.to(spectatorId).emit('game:state', spectatorView as never);
-        }
-      }
-
-      // If first player is a bot, start AI turn
-      scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-    },
-
-    onGameReset: (roomCode) => {
-      roomManager.setGameData(roomCode, null);
-    },
-
-    onPlayerDisconnect: (roomCode, playerId) => {
-      const engine = roomManager.getGameData<KingsCornerEngine>(roomCode);
-      if (!engine) return;
-
-      engine.handleDisconnect(playerId);
-      broadcastViews(io, roomCode, engine, roomManager);
-      scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-    },
-
-    onPlayerReconnect: (roomCode, playerId) => {
-      const engine = roomManager.getGameData<KingsCornerEngine>(roomCode);
-      if (!engine) return;
-
-      engine.handleReconnect(playerId);
-      const view = engine.getPlayerView(playerId);
-      io.to(playerId).emit('game:state', view as never);
-    },
-  }),
-
-  handleGameAction: (
-    io: AppServer,
-    socket: AppSocket,
-    roomManager: RoomManager,
-    rawAction: Record<string, unknown>,
-  ) => {
-    const roomCode = socket.data.roomCode;
-    if (!roomCode) return;
-
-    const engine = roomManager.getGameData<KingsCornerEngine>(roomCode);
-    if (!engine) return;
-
-    const action = rawAction as unknown as KingsCornerAction;
-
-    try {
-      switch (action.type) {
-        case 'draw-card': {
-          engine.drawCard(socket.data.playerId);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'play-card': {
-          engine.playCard(socket.data.playerId, action.card, action.target);
-          broadcastViews(io, roomCode, engine, roomManager);
-          scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'move-pile': {
-          engine.movePile(socket.data.playerId, action.from, action.to);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'end-turn': {
-          engine.endTurn(socket.data.playerId);
-          broadcastViews(io, roomCode, engine, roomManager);
-          scheduleAITurnIfNeeded(io, roomCode, engine, roomManager);
-          break;
-        }
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      socket.emit('error', message);
-    }
+  onPlayerDisconnect: (game) => {
+    game.state.handleDisconnect(game.playerId);
+    driveTurn(game);
   },
+  onPlayerReconnect: (game) => {
+    game.state.handleReconnect(game.playerId);
+    // Stand-ins pause while nobody is connected; a return resumes them.
+    driveTurn(game);
+  },
+
+  // The seat is gone for good: stand in for this turn if it is theirs, then
+  // take it out of the turn order (the game ends if one seat is left).
+  onPlayerRemoved: (game) => {
+    game.state.removePlayer(game.playerId);
+    driveTurn(game);
+  },
+
+  // Bot turns live on the game instance, which the core has already invalidated.
+  onRoomDestroyed: () => undefined,
 };
+
+export const kingsCornerDefinition = defineGame(kingsCornerGame);

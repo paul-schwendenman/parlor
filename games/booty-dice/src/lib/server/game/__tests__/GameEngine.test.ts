@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { MAX_GAME_LOG_ENTRIES } from '@parlor/multiplayer';
 import { GameEngine } from '../GameEngine.js';
 import { createTestPlayers, resetPlayerIdCounter } from './factories/player.js';
+
+vi.mock(import('@parlor/multiplayer/random'), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, secureRandomInt: (max: number) => Math.floor(Math.random() * max) };
+});
 
 // DICE_FACES order: ['doubloon', 'x_marks_spot', 'jolly_roger', 'cutlass', 'walk_plank', 'shield']
 // Math.floor(random * 6) mapping:
@@ -36,6 +42,26 @@ const WALK_PLANK = 0.7;
 const SHIELD = 0.85;
 
 describe('GameEngine', () => {
+	it('keeps only the newest log entries and advances the unread cursor after eviction', () => {
+		const engine = new GameEngine(createTestPlayers(2), 'TEST');
+		const first = engine.getNewLogEntries()[0];
+
+		for (let turn = 0; turn < MAX_GAME_LOG_ENTRIES - 1; turn++) engine.endTurn();
+
+		const filledLog = engine.getPlayerView(engine.getCurrentPlayer().id).gameLog;
+		expect(filledLog).toHaveLength(MAX_GAME_LOG_ENTRIES);
+		expect(filledLog[0]).toBe(first);
+		engine.getNewLogEntries();
+
+		engine.endTurn();
+
+		const retainedLog = engine.getSpectatorView().gameLog;
+		expect(retainedLog).toHaveLength(MAX_GAME_LOG_ENTRIES);
+		expect(retainedLog.slice(0, -1)).toEqual(filledLog.slice(1));
+		expect(engine.getNewLogEntries()).toEqual(retainedLog.slice(-1));
+		expect(engine.getNewLogEntries()).toEqual([]);
+	});
+
 	beforeEach(() => {
 		resetPlayerIdCounter();
 	});
@@ -532,8 +558,7 @@ describe('GameEngine', () => {
 			engine.finishRolling();
 			engine.resolveTurn();
 
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(engine as any).state.players.forEach((p: { isEliminated: boolean }) => {
+			engine['state'].players.forEach((p) => {
 				p.isEliminated = true;
 			});
 

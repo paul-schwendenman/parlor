@@ -1,157 +1,101 @@
-import type { Server, Socket } from 'socket.io';
-import type {
-  ClientToServerEvents,
-  ServerToClientEvents,
-  InterServerEvents,
-  SocketData,
-} from '@parlor/game-types';
-import type { ServerGameDefinition } from '@parlor/multiplayer';
-import { RoomManager } from '@parlor/multiplayer';
+import {
+  defineGame,
+  RoomManager,
+  scheduleAbsentTurn,
+  type GameContext,
+  type TypedGameDefinition,
+} from '@parlor/multiplayer';
 import { CrazyEightsEngine } from './game/CrazyEightsEngine.js';
 import { DEFAULT_CONFIG } from '../types/game.js';
-import type { CrazyEightsAction } from '../types/game.js';
+import { takeBotStep } from './game/takeBotStep.js';
+import { validateCrazyEightsAction } from './validateAction.js';
+import { crazyEightsMeta } from '../../meta.js';
 
-type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
+function driveTurn(game: GameContext<CrazyEightsEngine>): void {
+  const { state: engine, instance } = game;
+  if (!instance.isCurrent() || engine.isGameOver()) return;
 
-const roomTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-function clearRoomTimer(roomCode: string): void {
-  const existing = roomTimers.get(roomCode);
-  if (existing) {
-    clearTimeout(existing);
-    roomTimers.delete(roomCode);
-  }
-}
-
-export function cleanupRoomTimers(roomCode: string): void {
-  clearRoomTimer(roomCode);
-}
-
-function broadcastViews(
-  io: AppServer,
-  roomCode: string,
-  engine: CrazyEightsEngine,
-  roomManager: RoomManager,
-): void {
-  const players = roomManager.getPlayersInRoom(roomCode);
-  for (const player of players) {
-    if (RoomManager.isBotPlayer(player.id)) continue;
-    const view = engine.getPlayerView(player.id);
-    io.to(player.id).emit('game:state', view as never);
+  const activeId = engine.getActivePlayerId();
+  if (RoomManager.isBotPlayer(activeId)) {
+    instance.schedule(() => {
+      if (engine.isGameOver() || engine.getActivePlayerId() !== activeId) return;
+      takeBotStep(engine, activeId);
+      game.broadcast();
+      driveTurn(game);
+    }, 450, 'bot-turn');
+    return;
   }
 
-  const spectators = roomManager.getSpectatorsInRoom(roomCode);
-  if (spectators.length > 0) {
-    const spectatorView = engine.getSpectatorView();
-    for (const spectatorId of spectators) {
-      io.to(spectatorId).emit('game:state', spectatorView as never);
-    }
-  }
+  scheduleAbsentTurn(game, {
+    activePlayer: () => (engine.isGameOver() ? null : engine.getActivePlayerId()),
+    isAbsent: (playerId) => !engine.isConnected(playerId),
+    anyonePresent: () => engine.hasConnectedPlayer(),
+    takeTurn: (playerId) => engine.takeAbsentTurn(playerId),
+    afterTurn: () => {
+      if (RoomManager.isBotPlayer(engine.getActivePlayerId())) driveTurn(game);
+    },
+  });
 }
 
-export const crazyEightsDefinition: ServerGameDefinition = {
-  meta: {
-    id: 'crazy-eights',
-    name: 'Crazy Eights',
-    description: 'Classic card game - match suits or ranks, play eights to change the suit',
-    minPlayers: 2,
-    maxPlayers: 5,
-    estimatedMinutes: '10-15',
-    tags: ['cards', 'classic', 'quick'],
-    displayModes: ['peer'],
+/** Crazy Eights on the typed game contract (plan 3.1b). Exported for tests; servers use `crazyEightsDefinition`. */
+export const crazyEightsGame: TypedGameDefinition<'crazy-eights', CrazyEightsEngine> = {
+  meta: crazyEightsMeta,
+
+  validateAction: validateCrazyEightsAction,
+
+  createState: (roomCode, players) =>
+    new CrazyEightsEngine(
+      players.map((p) => ({ id: p.id, name: p.name })),
+      roomCode,
+      DEFAULT_CONFIG,
+    ),
+
+  onGameStart: driveTurn,
+
+  actions: {
+    'play-card': (game, action) => {
+      game.state.playCard(game.playerId, action.card);
+      driveTurn(game);
+    },
+    'draw-card': (game) => {
+      game.state.drawCard(game.playerId);
+      driveTurn(game);
+    },
+    pass: (game) => {
+      game.state.pass(game.playerId);
+      driveTurn(game);
+    },
+    'choose-suit': (game, action) => {
+      game.state.chooseSuit(game.playerId, action.suit);
+      driveTurn(game);
+    },
   },
 
-  createLobbyCallbacks: (roomManager: RoomManager, io: AppServer) => ({
-    onGameStart: (roomCode, players, io) => {
-      const engine = new CrazyEightsEngine(
-        players.map((p) => ({ id: p.id, name: p.name })),
-        roomCode,
-        DEFAULT_CONFIG,
-      );
-      roomManager.setGameData(roomCode, engine);
+  getPlayerView: (engine, playerId) => engine.getPlayerView(playerId),
+  getSpectatorView: (engine) => engine.getSpectatorView(),
+  isGameOver: (engine) => engine.isGameOver(),
 
-      for (const player of players) {
-        if (RoomManager.isBotPlayer(player.id)) continue;
-        const view = engine.getPlayerView(player.id);
-        io.to(player.id).emit('game:state', view as never);
-      }
-
-      const spectators = roomManager.getSpectatorsInRoom(roomCode);
-      if (spectators.length > 0) {
-        const spectatorView = engine.getSpectatorView();
-        for (const spectatorId of spectators) {
-          io.to(spectatorId).emit('game:state', spectatorView as never);
-        }
-      }
-    },
-
-    onGameReset: (roomCode) => {
-      cleanupRoomTimers(roomCode);
-      roomManager.setGameData(roomCode, null);
-    },
-
-    onPlayerDisconnect: (roomCode, playerId) => {
-      const engine = roomManager.getGameData<CrazyEightsEngine>(roomCode);
-      if (!engine) return;
-
-      engine.handleDisconnect(playerId);
-      broadcastViews(io, roomCode, engine, roomManager);
-    },
-
-    onPlayerReconnect: (roomCode, playerId) => {
-      const engine = roomManager.getGameData<CrazyEightsEngine>(roomCode);
-      if (!engine) return;
-
-      engine.handleReconnect(playerId);
-      const view = engine.getPlayerView(playerId);
-      io.to(playerId).emit('game:state', view as never);
-    },
-  }),
-
-  handleGameAction: (
-    io: AppServer,
-    socket: AppSocket,
-    roomManager: RoomManager,
-    rawAction: Record<string, unknown>,
-  ) => {
-    const roomCode = socket.data.roomCode;
-    if (!roomCode) return;
-
-    const engine = roomManager.getGameData<CrazyEightsEngine>(roomCode);
-    if (!engine) return;
-
-    const action = rawAction as unknown as CrazyEightsAction;
-
-    try {
-      switch (action.type) {
-        case 'play-card': {
-          engine.playCard(socket.data.playerId, action.card);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'draw-card': {
-          engine.drawCard(socket.data.playerId);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'pass': {
-          engine.pass(socket.data.playerId);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'choose-suit': {
-          engine.chooseSuit(socket.data.playerId, action.suit);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      socket.emit('error', message);
-    }
+  // A disconnected player keeps their seat for the grace window: their turn
+  // gets a stand-in move now and each time it comes round until they return.
+  onPlayerDisconnect: (game) => {
+    game.state.handleDisconnect(game.playerId);
+    driveTurn(game);
   },
+  onPlayerReconnect: (game) => {
+    game.state.handleReconnect(game.playerId);
+    // Stand-ins pause while nobody is connected; a return resumes them.
+    driveTurn(game);
+  },
+
+  // The seat is gone for good: stand in for this turn if it is theirs, then
+  // take it out of the turn order (the game ends if one seat is left).
+  onPlayerRemoved: (game) => {
+    game.state.removePlayer(game.playerId);
+    driveTurn(game);
+  },
+
+  // The game instance cancels pending bot and stand-in turns on destruction.
+  onRoomDestroyed: () => undefined,
 };
+
+export const crazyEightsDefinition = defineGame(crazyEightsGame);

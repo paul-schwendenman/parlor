@@ -1,0 +1,169 @@
+<script lang="ts">
+  import { cardEquals, type Card } from '@parlor/cards';
+  import type { GameSocket } from '@parlor/multiplayer/client';
+  import { Button, CardBoard, CardHand, Felt, GameOver, PlayingCard, SeatChip, TrickTable, TurnBanner, cardName, SUIT_NAMES } from '@parlor/ui';
+  import { PASS_OFFSET } from './rules.js';
+  import type { HeartsAction, HeartsView } from './types.js';
+
+  let { view, socket, playerId, isHost }: {
+    view: HeartsView;
+    socket: GameSocket<'hearts'>;
+    playerId: string;
+    isHost: boolean;
+  } = $props();
+
+  let selected = $state<Card[]>([]);
+  let picked = $state<Card | null>(null);
+  let pending = $state(false);
+  let error = $state('');
+  let activeName = $derived(view.players.find((player) => player.id === view.activePlayerId)?.name);
+  let trickWinner = $derived(view.players.find((player) => player.id === view.trickWinnerId)?.name);
+  let moonShooter = $derived(view.players.find((player) => player.id === view.moonShooterId)?.name);
+  let winners = $derived(view.players.filter((player) => view.winnerIds.includes(player.id)));
+  let playing = $derived(!!playerId && view.activePlayerId === playerId);
+
+  let passing = $derived(view.phase === 'passing');
+  let scoring = $derived(view.phase === 'round-scoring');
+  let lead = $derived(view.trick[0]?.card.suit);
+  let playableSelection = $derived(playing && picked && includes(view.playableCards, picked) ? picked : null);
+  let passTarget = $derived.by(() => {
+    const me = view.players.findIndex((player) => player.id === playerId);
+    if (me < 0) return undefined;
+    return view.players[(me + PASS_OFFSET[view.passDirection]) % view.players.length]?.name;
+  });
+  let seats = $derived(view.players.map((player) => ({ id: player.id, label: player.id === playerId ? 'You' : player.name })));
+  let standings = $derived(view.players.map((player, seat) => ({
+    id: player.id,
+    name: player.name,
+    detail: `${player.totalScore} pts`,
+    seat,
+    bot: player.bot,
+    place: 1 + view.players.filter((other) => other.totalScore < player.totalScore).length,
+    winner: view.winnerIds.includes(player.id),
+    you: player.id === playerId,
+  })).sort((a, b) => a.place - b.place));
+
+  // A card lifted on a previous turn doesn't stay lifted into the next one.
+  $effect(() => { if (!playing) picked = null; });
+
+  function isPlayable(card: Card): boolean {
+    return view.canPass
+      ? selected.length < 3 || includes(selected, card)
+      : includes(view.playableCards, card);
+  }
+
+  function includes(cards: Card[], card: Card): boolean {
+    return cards.some((other) => cardEquals(other, card));
+  }
+
+  async function send(action: HeartsAction) {
+    if (pending) return;
+    pending = true;
+    error = '';
+    try {
+      const result = await socket.timeout(5000).emitWithAck('game:action', action);
+      if (!result.ok) error = result.message;
+      else if (action.type === 'pass-cards') selected = [];
+      else picked = null;
+    } catch {
+      error = 'The table did not respond. Try again.';
+    } finally {
+      pending = false;
+    }
+  }
+
+  function choose(card: Card) {
+    if (!view.canPass) {
+      if (playableSelection && cardEquals(card, playableSelection)) void send({ type: 'play-card', card });
+      else picked = card;
+      return;
+    }
+    if (includes(selected, card)) selected = selected.filter((other) => !cardEquals(other, card));
+    else if (selected.length < 3) selected = [...selected, card];
+  }
+</script>
+
+<CardBoard label="Hearts game">
+  {#if view.phase === 'game-over'}
+    <GameOver
+      headline={winners.length === 1 ? standings[0].you ? 'You win!' : `${winners[0].name} wins!` : 'Shared win!'}
+      detail={moonShooter ? `${moonShooter} shot the moon!` : undefined}
+      {standings}
+      onplayagain={isHost ? () => socket.emit('lobby:restartGame') : undefined}
+      onlobby={isHost ? () => socket.emit('lobby:resetGame') : undefined}
+    />
+  {:else}
+    {#if passing}
+      <TurnBanner mine={view.canPass}
+        title={view.canPass ? `Pass three cards ${view.passDirection}` : 'Passing cards'}
+        detail={view.canPass
+          ? `${passTarget ? `To ${passTarget} · ` : ''}${selected.length} of 3 picked`
+          : 'Waiting for everyone to finish choosing.'} />
+    {:else if scoring}
+      <TurnBanner mine={false} title={`Round ${view.round} complete`}
+        detail={moonShooter ? `${moonShooter} shot the moon!` : undefined} />
+    {:else}
+      <TurnBanner mine={playing}
+        title={trickWinner ? `${trickWinner} took the trick` : playing ? 'Your turn' : `${activeName} to play`}
+        detail={playableSelection
+          ? `Tap the ${cardName(playableSelection.rank, playableSelection.suit)} again to play it.`
+          : playing && lead ? `Follow ${SUIT_NAMES[lead].toLowerCase()} if you can.` : undefined} />
+    {/if}
+
+    <ul class="seats" aria-label="Scores">
+      {#each view.players as player, seat (player.id)}
+        {@const progress = passing ? player.passed ? 'Ready' : 'Choosing' : `+${player.roundScore} this round`}
+        <li><SeatChip name={player.name} {seat} you={player.id === playerId} bot={player.bot} connected={player.connected}
+          active={player.id === view.activePlayerId} stat={`${player.totalScore} pts · ${progress}`} /></li>
+      {/each}
+    </ul>
+
+    {#if passing}
+      <Felt label="Hearts pass table">
+        <div class="pass-slots" aria-label="Cards selected to pass" role="group">
+          {#each [0, 1, 2] as index (index)}
+            {#if selected[index]}
+              <PlayingCard rank={selected[index].rank} suit={selected[index].suit} />
+            {:else}
+              <div class="card-slot" aria-hidden="true"></div>
+            {/if}
+          {/each}
+        </div>
+      </Felt>
+    {:else if !scoring}
+      <Felt label="Hearts table">
+        <TrickTable {seats} plays={view.trick} winnerId={view.trickWinnerId} title={`Trick ${view.trickNumber} of 13`}>
+          {#snippet aside()}Hearts {view.heartsBroken ? 'broken' : 'unbroken'}{/snippet}
+        </TrickTable>
+      </Felt>
+    {/if}
+
+    {#if view.myHand.length}
+      <CardHand cards={view.myHand} active={(view.canPass || playing) && !pending}
+        {isPlayable} selected={view.canPass ? selected : playableSelection}
+        isMarked={(card) => view.trickNumber === 1 && includes(view.receivedCards, card)}
+        onpick={choose} />
+      {#if view.canPass}
+        <div class="pass">
+          <Button shout disabled={selected.length !== 3 || pending}
+            onclick={() => { void send({ type: 'pass-cards', cards: $state.snapshot(selected) }); }}>Confirm pass</Button>
+        </div>
+      {:else if view.trickNumber === 1 && view.receivedCards.length}
+        <p class="note">Outlined cards were passed to you</p>
+      {/if}
+    {/if}
+    <p class="note">Round {view.round} · Low score wins at {view.goal}</p>
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
+  {/if}
+</CardBoard>
+
+<style>
+  .seats { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .seats li { max-width: 100%; }
+  .card-slot { box-sizing: border-box; width: var(--card-w); height: calc(var(--card-w) * 1.4); border: 1.5px dashed var(--color-cream); border-radius: 8px; opacity: .45; }
+  .pass-slots { display: flex; justify-content: center; gap: 8px; }
+  .pass { display: flex; justify-content: center; }
+  .note, .error { text-align: center; margin: 0; }
+  .note { font-size: .85rem; color: var(--color-ink-muted); }
+  .error { color: var(--color-danger); }
+</style>

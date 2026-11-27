@@ -1,7 +1,7 @@
 <script lang="ts">
   import { lobbyState } from '../../stores/lobbyStore.svelte.js';
   import { playerState } from '../../stores/playerStore.svelte.js';
-  import { readyAction, startGameAction } from '../../stores/socketClient.js';
+  import { getSocket, readyAction, startGameAction } from '../../stores/socketClient.js';
   import { connectionState } from '../../stores/connectionStore.svelte.js';
 
   let { roomCode }: { roomCode: string } = $props();
@@ -18,6 +18,18 @@
 
   function startGame() {
     startGameAction();
+  }
+
+  function addBot() {
+    getSocket().emit('lobby:addBot', (success, error) => {
+      connectionState.setActionError(success ? null : error ?? 'Could not add bot.');
+    });
+  }
+
+  function removeBot(botId: string) {
+    getSocket().emit('lobby:removeBot', botId, (success, error) => {
+      connectionState.setActionError(success ? null : error ?? 'Could not remove bot.');
+    });
   }
 
   async function copyCode() {
@@ -46,7 +58,7 @@
   <div class="players-section">
     <h3 class="players-heading">Players <span class="count">{lobbyState.players.length}</span></h3>
     <div class="player-list">
-      {#each lobbyState.players as player}
+      {#each lobbyState.players as player (player.id)}
         <div class="player" class:ready={player.isReady} class:me={player.id === playerState.id}>
           <div class="player-info">
             <span class="player-name">{player.name}</span>
@@ -57,12 +69,19 @@
               {#if player.id === playerState.id}
                 <span class="badge badge-you">You</span>
               {/if}
+              {#if player.isBot}
+                <span class="badge badge-bot">Bot</span>
+              {/if}
             </div>
           </div>
           <div class="player-actions">
-            <span class="ready-status" class:is-ready={player.isReady}>
-              {player.isReady ? 'Ready' : 'Waiting'}
-            </span>
+            {#if player.isBot && isHost}
+              <button class="btn-remove-bot" aria-label={`Remove ${player.name}`} onclick={() => removeBot(player.id)}>Remove</button>
+            {:else}
+              <span class="ready-status" class:is-ready={player.isReady}>
+                {player.isReady ? 'Ready' : 'Waiting'}
+              </span>
+            {/if}
           </div>
         </div>
       {/each}
@@ -75,6 +94,9 @@
     </button>
 
     {#if isHost}
+      {#if lobbyState.players.length < 5}
+        <button class="btn btn-bot" onclick={addBot}>Add Bot</button>
+      {/if}
       <button class="btn btn-start" onclick={startGame} disabled={!lobbyState.canStart}>
         Start Game
       </button>
@@ -248,6 +270,24 @@
     color: #9a3412;
   }
 
+  .badge-bot {
+    background: #f5f5f4;
+    color: #57534e;
+  }
+
+  .btn-remove-bot {
+    border: 1px solid #e7e5e4;
+    border-radius: 6px;
+    padding: 0.25rem 0.5rem;
+    background: white;
+    color: #57534e;
+    cursor: pointer;
+  }
+
+  .btn-remove-bot:hover {
+    border-color: #d97706;
+  }
+
   .player-actions {
     display: flex;
     align-items: center;
@@ -312,6 +352,15 @@
 
   .btn-ready.is-ready:hover:not(:disabled) {
     background: #d6d3d1;
+  }
+
+  .btn-bot {
+    background: #f5f5f4;
+    color: #292524;
+  }
+
+  .btn-bot:hover {
+    background: #e7e5e4;
   }
 
   .btn-start {

@@ -1,3 +1,5 @@
+import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
+import { appendGameLog, GameRuleError } from '@parlor/multiplayer';
 import type {
   GameState,
   BootyDicePlayer,
@@ -8,10 +10,11 @@ import type {
   ResolvedEffect,
   ComboType,
   BootyDicePlayerView,
+  DiceFace,
 } from '../../types/game.js';
+import { FACE_NAMES } from '../../types/game.js';
 import { DiceRoller } from './DiceRoller.js';
 import { ActionResolver } from './ActionResolver.js';
-import { fisherYatesShuffle } from './shuffle.js';
 
 export class GameEngine {
   private state: GameState;
@@ -19,12 +22,16 @@ export class GameEngine {
   private actionResolver: ActionResolver;
   private lastBroadcastLogIndex = 0;
 
-  constructor(players: BootyDicePlayer[], roomCode: string) {
-    this.diceRoller = new DiceRoller();
+  constructor(
+    players: BootyDicePlayer[],
+    roomCode: string,
+    randomInt: RandomInt = secureRandomInt,
+  ) {
+    this.diceRoller = new DiceRoller(randomInt);
     this.actionResolver = new ActionResolver();
 
     // Shuffle player order
-    const shuffledPlayers = fisherYatesShuffle(players);
+    const shuffledPlayers = fisherYatesShuffle(players, randomInt);
 
     this.state = {
       roomCode,
@@ -44,7 +51,11 @@ export class GameEngine {
   }
 
   getState(): GameState {
-    return { ...this.state, players: this.state.players.map((p) => ({ ...p })) };
+    return {
+      ...this.state,
+      players: this.state.players.map((p) => ({ ...p })),
+      gameLog: [...this.state.gameLog],
+    };
   }
 
   getNewLogEntries(): LogEntry[] {
@@ -80,6 +91,41 @@ export class GameEngine {
     return this.state.players[this.state.currentPlayerIndex];
   }
 
+  /** Track a player's connection (shown in views as `isConnected`). */
+  setConnected(playerId: string, connected: boolean): void {
+    const player = this.state.players.find((p) => p.id === playerId);
+    if (player) player.isConnected = connected;
+  }
+
+  /** A seat still in the game whose player is connected, or a bot. */
+  hasPresentPlayer(): boolean {
+    return this.state.players.some((p) => !p.isEliminated && (p.isAI || p.isConnected));
+  }
+
+  /**
+   * A player left for good (plan 3.9): the seat is eliminated, the same way
+   * losing every life eliminates it, so turn order already skips it and the
+   * last pirate standing wins. If it was their turn, the turn ends unscored.
+   */
+  forfeit(playerId: string): void {
+    const player = this.state.players.find((p) => p.id === playerId);
+    if (!player || player.isEliminated) return;
+    player.isConnected = false;
+    player.isEliminated = true;
+    this.addLog(playerId, `${player.name} left the game`, 'elimination');
+    if (this.state.phase === 'ended') return;
+
+    const winner = this.checkWinCondition();
+    if (winner) {
+      this.state.winnerId = winner;
+      this.state.phase = 'ended';
+      const winnerPlayer = this.state.players.find((p) => p.id === winner);
+      this.addLog(winner, `${winnerPlayer?.name} wins by last standing!`, 'win');
+      return;
+    }
+    if (this.getCurrentPlayer().id === playerId) this.endTurn();
+  }
+
   lockDice(diceIndices: number[]): void {
     this.state.dice = this.state.dice.map((die, i) => ({
       ...die,
@@ -87,9 +133,14 @@ export class GameEngine {
     }));
   }
 
+  /** True once the current player has rolled at least once this turn. */
+  hasRolledThisTurn(): boolean {
+    return this.state.rollsRemaining < 3;
+  }
+
   roll(): { dice: Die[]; combo: ComboType; canRollAgain: boolean } {
     if (this.state.rollsRemaining <= 0) {
-      throw new Error('No rolls remaining');
+      throw new GameRuleError('No rolls remaining');
     }
 
     const result = this.diceRoller.roll(this.state.dice);
@@ -135,7 +186,12 @@ export class GameEngine {
 
   selectTarget(dieIndex: number, targetPlayerId: string): void {
     const action = this.state.pendingActions.find((a) => a.dieIndex === dieIndex);
-    if (!action) throw new Error('Invalid action');
+    if (!action) throw new GameRuleError('Invalid action', 'INVALID_ACTION');
+    const current = this.getCurrentPlayer();
+    const target = this.state.players.find((p) => p.id === targetPlayerId);
+    if (!target || target.isEliminated || target.id === current.id) {
+      throw new GameRuleError('Invalid target', 'INVALID_ACTION');
+    }
 
     action.targetPlayerId = targetPlayerId;
     action.resolved = true;
@@ -288,7 +344,7 @@ export class GameEngine {
   }
 
   private addLog(playerId: string, message: string, type: LogEntry['type']): void {
-    this.state.gameLog.push({
+    this.lastBroadcastLogIndex = appendGameLog(this.state.gameLog, this.lastBroadcastLogIndex, {
       timestamp: Date.now(),
       playerId,
       message,
@@ -387,7 +443,7 @@ export class GameEngine {
       faceCounts[d.face] = (faceCounts[d.face] || 0) + 1;
     });
     return Object.entries(faceCounts)
-      .map(([face, count]) => `${count}x ${face.replace('_', ' ')}`)
+      .map(([face, count]) => `${count} ${FACE_NAMES[face as DiceFace]}`)
       .join(', ');
   }
 

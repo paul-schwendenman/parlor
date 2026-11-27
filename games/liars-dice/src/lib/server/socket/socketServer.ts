@@ -5,7 +5,12 @@ import type {
   InterServerEvents,
   SocketData,
 } from '@parlor/game-types';
-import { RoomManager, setupLobbyHandlers } from '@parlor/multiplayer';
+import {
+  RoomManager,
+  dispatchGameAction,
+  returnRoomToLobby,
+  setupLobbyHandlers,
+} from '@parlor/multiplayer';
 import { liarsDiceDefinition } from '../definition.js';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -15,9 +20,17 @@ const roomManager = new RoomManager();
 export function setupLiarsDiceSocketHandlers(io: AppServer): void {
   const callbacks = liarsDiceDefinition.createLobbyCallbacks(roomManager, io);
   io.on('connection', (socket) => {
-    setupLobbyHandlers(io, socket, roomManager, callbacks, { defaultMaxPlayers: liarsDiceDefinition.meta.maxPlayers });
-    socket.on('game:action', (action) => {
-      liarsDiceDefinition.handleGameAction(io, socket, roomManager, action);
+    setupLobbyHandlers(io, socket, roomManager, callbacks, { defaultGame: liarsDiceDefinition.meta });
+    socket.on('game:action', (action, ack) => {
+      void dispatchGameAction({
+        io,
+        socket,
+        roomManager,
+        definition: liarsDiceDefinition,
+        action,
+        ack,
+        onRoomFailure: (roomCode) => returnRoomToLobby(io, roomManager, roomCode, callbacks),
+      });
     });
   });
 }

@@ -1,11 +1,19 @@
 import { io, type Socket } from 'socket.io-client';
 import type {
-  ClientToServerEvents,
+  GameClientEvents,
+  GameId,
   ServerToClientEvents,
   SessionData,
 } from '@parlor/game-types';
 
-export type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
+/**
+ * A client socket. `game:action` accepts only game `Id`'s actions (plan 3.5):
+ * the multi-game parlor client uses the default (every game), and each GameView
+ * takes `GameSocket<'its-game-id'>`, so it cannot send another game's action.
+ * Handing the parlor client's every-game socket to a GameView is sound: a socket
+ * that accepts any game's action accepts that game's.
+ */
+export type GameSocket<Id extends GameId = GameId> = Socket<ServerToClientEvents, GameClientEvents<Id>>;
 
 export {
   createParlorRuntime,
@@ -60,9 +68,10 @@ export function clearSession(): void {
 }
 
 export function createRoom(socket: GameSocket, playerName: string): Promise<string> {
-  return new Promise((resolve) => {
-    socket.emit('lobby:create', playerName, (result) => {
-      resolve(result.roomCode);
+  return new Promise((resolve, reject) => {
+    socket.emit('lobby:create', playerName, (result, error) => {
+      if (result) resolve(result.roomCode);
+      else reject(new Error(error ?? 'Failed to create room'));
     });
   });
 }

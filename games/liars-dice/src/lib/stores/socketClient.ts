@@ -5,19 +5,20 @@ import { connectionState } from './connectionStore.svelte.js';
 import { lobbyState } from './lobbyStore.svelte.js';
 import { gameState } from './gameStore.svelte.js';
 import { playerState } from './playerStore.svelte.js';
-import type { LiarsDicePlayerView } from '../types/game.js';
 
-const runtime = createParlorRuntime({
+const runtime = createParlorRuntime<'liars-dice'>({
   browser,
   connectionState,
   lobbyState,
   gameState,
   playerState,
   restorePlayerOnReconnect: true,
-  onView: (state) => gameState.setView(state as unknown as LiarsDicePlayerView),
+  onGameState: (state) => {
+    if (state.gameId === 'liars-dice') gameState.setView(state.view);
+  },
 });
 
-export function getSocket(): GameSocket {
+export function getSocket(): GameSocket<'liars-dice'> {
   return runtime.getSocket();
 }
 

@@ -1,3 +1,6 @@
+import { cardEquals, createDeck } from '@parlor/cards';
+import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
+import { GameRuleError, RoomManager } from '@parlor/multiplayer';
 import type {
   Card,
   Suit,
@@ -7,8 +10,7 @@ import type {
   CrazyEightsConfig,
 } from '../../types/game.js';
 import { DEFAULT_CONFIG, SUITS } from '../../types/game.js';
-import { createDeck, shuffle } from '../../game/deck.js';
-import { canPlayCard, getPlayableCards, cardEquals } from '../../game/validation.js';
+import { canPlayCard, getPlayableCards } from '../../game/validation.js';
 
 interface Player {
   id: string;
@@ -29,11 +31,14 @@ export class CrazyEightsEngine {
   private winner: { id: string; name: string } | null = null;
   private roomCode: string;
   private config: CrazyEightsConfig;
+  /** Seats whose player left for good: out of the turn order (plan 3.9). */
+  private removed = new Set<string>();
 
   constructor(
     playerInfos: { id: string; name: string }[],
     roomCode: string,
     config: CrazyEightsConfig = DEFAULT_CONFIG,
+    private readonly randomInt: RandomInt = secureRandomInt,
   ) {
     this.roomCode = roomCode;
     this.config = config;
@@ -41,7 +46,7 @@ export class CrazyEightsEngine {
     const numPlayers = playerInfos.length;
     const cardsPerPlayer = numPlayers >= 5 ? 5 : 7;
 
-    let deck = shuffle(createDeck());
+    const deck = fisherYatesShuffle(createDeck(), randomInt);
 
     this.players = playerInfos.map((p) => ({
       id: p.id,
@@ -99,33 +104,35 @@ export class CrazyEightsEngine {
 
   playCard(playerId: string, card: Card): void {
     if (this.phase !== 'playing') {
-      throw new Error('Cannot play card outside of playing phase');
+      throw new GameRuleError('Cannot play card outside of playing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     // If player drew a card this turn, they can only play the drawn card
     if (this.drawnThisTurn && this.drewCard) {
       if (!cardEquals(card, this.drewCard)) {
-        throw new Error('After drawing, you can only play the drawn card');
+        throw new GameRuleError('After drawing, you can only play the drawn card');
       }
     }
 
     const cardIndex = player.hand.findIndex((c) => cardEquals(c, card));
     if (cardIndex === -1) {
-      throw new Error('Card not in hand');
+      throw new GameRuleError('Card not in hand');
     }
 
-    if (!canPlayCard(card, this.getTopDiscard(), this.declaredSuit)) {
-      throw new Error('Cannot play this card');
+    // From here on use the server's own card, never the client's object (CORE-AUDIT A-05).
+    const handCard = player.hand[cardIndex];
+    if (!canPlayCard(handCard, this.getTopDiscard(), this.declaredSuit)) {
+      throw new GameRuleError('Cannot play this card');
     }
 
     // Remove from hand, add to discard
     player.hand.splice(cardIndex, 1);
-    this.discardPile.push(card);
+    this.discardPile.push(handCard);
     this.declaredSuit = null;
 
     // Check win
@@ -136,7 +143,7 @@ export class CrazyEightsEngine {
     }
 
     // If played an 8, need to choose suit
-    if (card.rank === '8') {
+    if (handCard.rank === '8') {
       this.phase = 'choosing-suit';
       return;
     }
@@ -146,16 +153,16 @@ export class CrazyEightsEngine {
 
   chooseSuit(playerId: string, suit: Suit): void {
     if (this.phase !== 'choosing-suit') {
-      throw new Error('Not in choosing-suit phase');
+      throw new GameRuleError('Not in choosing-suit phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     if (!SUITS.includes(suit)) {
-      throw new Error('Invalid suit');
+      throw new GameRuleError('Invalid suit', 'INVALID_ACTION');
     }
 
     this.declaredSuit = suit;
@@ -164,23 +171,27 @@ export class CrazyEightsEngine {
 
   drawCard(playerId: string): void {
     if (this.phase !== 'playing') {
-      throw new Error('Cannot draw outside of playing phase');
+      throw new GameRuleError('Cannot draw outside of playing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     if (this.drawnThisTurn) {
-      throw new Error('Already drew this turn');
+      throw new GameRuleError('Already drew this turn');
     }
 
     this.ensureDrawPile();
 
     if (this.drawPile.length === 0) {
-      // No cards to draw even after reshuffle — check for stalemate
+      // Both piles are exhausted (only the top discard is left). If nobody can
+      // play, that is a stalemate; otherwise this player cannot draw, so their
+      // turn passes. Before, the turn stayed with them and they could neither
+      // draw nor pass, which stalled the game.
       this.checkStalemate();
+      if (this.phase === 'playing') this.advanceTurn();
       return;
     }
 
@@ -197,16 +208,16 @@ export class CrazyEightsEngine {
 
   pass(playerId: string): void {
     if (this.phase !== 'playing') {
-      throw new Error('Cannot pass outside of playing phase');
+      throw new GameRuleError('Cannot pass outside of playing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     if (!this.drawnThisTurn) {
-      throw new Error('Must draw before passing');
+      throw new GameRuleError('Must draw before passing');
     }
 
     this.advanceTurn();
@@ -244,6 +255,7 @@ export class CrazyEightsEngine {
         name: p.name,
         cardCount: p.hand.length,
         connected: p.connected,
+        isBot: RoomManager.isBotPlayer(p.id),
       })),
       myIndex,
       activePlayerIndex: this.activePlayerIndex,
@@ -269,6 +281,7 @@ export class CrazyEightsEngine {
         name: p.name,
         cardCount: p.hand.length,
         connected: p.connected,
+        isBot: RoomManager.isBotPlayer(p.id),
       })),
       myIndex: -1,
       activePlayerIndex: this.activePlayerIndex,
@@ -291,30 +304,58 @@ export class CrazyEightsEngine {
     if (player) player.connected = false;
 
     if (this.phase === 'game-over') return;
+    if (this.getActivePlayer().id !== playerId) return;
+    this.takeAbsentTurn(playerId);
+  }
 
-    const activePlayer = this.getActivePlayer();
-    if (activePlayer.id !== playerId) return;
+  getActivePlayerId(): string {
+    return this.getActivePlayer().id;
+  }
 
-    // Auto-action for disconnected active player
+  isConnected(playerId: string): boolean {
+    return this.players.find((p) => p.id === playerId)?.connected ?? false;
+  }
+
+  /** At least one seat still in the game has its player connected. */
+  hasConnectedPlayer(): boolean {
+    return this.players.some((p) => p.connected && !this.removed.has(p.id));
+  }
+
+  /**
+   * A player left for good (plan 3.9). Their turn, if it is theirs, gets the
+   * disconnect stand-in; then the seat leaves the turn order. With fewer than
+   * two seats left the game ends and the last seat wins.
+   */
+  removePlayer(playerId: string): void {
+    if (this.removed.has(playerId) || !this.players.some((p) => p.id === playerId)) return;
+    this.handleDisconnect(playerId);
+    this.removed.add(playerId);
+    if (this.phase === 'game-over') return;
+
+    const remaining = this.players.filter((p) => !this.removed.has(p.id));
+    if (remaining.length < 2) {
+      const last = remaining[0];
+      this.winner = last ? { id: last.id, name: last.name } : null;
+      this.phase = 'game-over';
+      return;
+    }
+    if (this.getActivePlayer().id === playerId) this.advanceTurn();
+  }
+
+  /**
+   * The stand-in turn for an absent active player (disconnected in grace, or
+   * leaving). It never penalises the seat: in the suit-choosing phase it picks
+   * a suit for the eight they played; otherwise it passes without drawing.
+   * Always ends their turn (or the game).
+   */
+  takeAbsentTurn(playerId: string): void {
+    if (this.phase === 'game-over' || this.getActivePlayer().id !== playerId) return;
+
     if (this.phase === 'choosing-suit') {
-      // Pick a random suit
-      const randomSuit = SUITS[Math.floor(Math.random() * SUITS.length)];
+      const randomSuit = SUITS[this.randomInt(SUITS.length)];
       this.chooseSuit(playerId, randomSuit);
     } else if (this.phase === 'playing') {
-      if (this.drawnThisTurn) {
-        // Already drew, just pass
-        this.advanceTurn();
-      } else {
-        // Draw then pass
-        try {
-          this.drawCard(playerId);
-        } catch {
-          // Can't draw — pass/stalemate
-        }
-        if (this.phase === 'playing' && this.drawnThisTurn) {
-          this.advanceTurn();
-        }
-      }
+      this.advanceTurn();
     }
   }
 
@@ -328,7 +369,12 @@ export class CrazyEightsEngine {
   }
 
   private advanceTurn(): void {
-    this.activePlayerIndex = (this.activePlayerIndex + 1) % this.players.length;
+    // Skip seats that have left the game.
+    let next = (this.activePlayerIndex + 1) % this.players.length;
+    for (let i = 0; i < this.players.length && this.removed.has(this.players[next].id); i++) {
+      next = (next + 1) % this.players.length;
+    }
+    this.activePlayerIndex = next;
     this.drawnThisTurn = false;
     this.drewCard = null;
     this.phase = 'playing';
@@ -353,12 +399,14 @@ export class CrazyEightsEngine {
     const topCard = this.discardPile.pop()!;
     const toReshuffle = this.discardPile.splice(0);
     this.discardPile = [topCard];
-    this.drawPile = shuffle(toReshuffle);
+    this.drawPile = fisherYatesShuffle(toReshuffle, this.randomInt);
   }
 
   private checkStalemate(): void {
+    const seated = this.players.filter((p) => !this.removed.has(p.id));
+
     // Check if any player can play
-    for (const player of this.players) {
+    for (const player of seated) {
       const playable = getPlayableCards(player.hand, this.getTopDiscard(), this.declaredSuit);
       if (playable.length > 0) return; // Not a stalemate, someone can play
     }
@@ -366,7 +414,7 @@ export class CrazyEightsEngine {
     // True stalemate — fewest cards wins
     let minCards = Infinity;
     let stalemateWinner: Player | null = null;
-    for (const player of this.players) {
+    for (const player of seated) {
       if (player.hand.length < minCards) {
         minCards = player.hand.length;
         stalemateWinner = player;

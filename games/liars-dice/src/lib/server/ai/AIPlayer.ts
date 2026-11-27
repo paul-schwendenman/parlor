@@ -1,5 +1,5 @@
-import type { LiarsDiceGameState } from '../../types/game.js';
-import { AIStrategy } from './AIStrategy.js';
+import { abortableDelay, type GameScheduling } from '@parlor/multiplayer';
+import { AIStrategy, type LiarsDiceBotView } from './AIStrategy.js';
 
 export interface AICallbacks {
   onBid: (quantity: number, faceValue: number) => void;
@@ -9,18 +9,21 @@ export interface AICallbacks {
 
 const THINKING_DELAY = 1500;
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export class AIPlayer {
   private strategy = new AIStrategy();
 
-  async takeTurn(state: LiarsDiceGameState, callbacks: AICallbacks): Promise<void> {
+  /** `view` is the bot's own view only (see `LiarsDiceBotView`). */
+  async takeTurn(
+    view: LiarsDiceBotView,
+    callbacks: AICallbacks,
+    signal?: AbortSignal,
+    scheduler?: GameScheduling,
+  ): Promise<void> {
     // Add a realistic thinking delay
-    await delay(THINKING_DELAY + Math.random() * 1000);
+    const completed = await abortableDelay(THINKING_DELAY + Math.random() * 1000, signal, scheduler);
+    if (!completed || signal?.aborted) return;
 
-    const decision = this.strategy.decide(state);
+    const decision = this.strategy.decide(view);
 
     switch (decision.action) {
       case 'bid':

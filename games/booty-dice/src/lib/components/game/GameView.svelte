@@ -1,478 +1,233 @@
 <script lang="ts">
-  import { Modal } from '@parlor/ui';
-  import RulesDrawer from '../ui/RulesDrawer.svelte';
-  import DiceBoard from './DiceBoard.svelte';
-  import PlayerCard from './PlayerCard.svelte';
-  import GameLog from './GameLog.svelte';
-  import type { BootyDicePlayerView, PendingAction } from '../../types/game.js';
   import type { GameSocket } from '@parlor/multiplayer/client';
+  import { TurnBanner, SeatChip, GameOver, Button, Felt } from '@parlor/ui';
+  import type { BootyDicePlayerView } from '../../types/game.js';
+  import BootyDie from './BootyDie.svelte';
+  import FaceIcon from './FaceIcon.svelte';
+  import GameLog from './GameLog.svelte';
 
-  interface Props {
+  let {
+    view,
+    socket,
+    playerId,
+  }: {
     view: BootyDicePlayerView;
-    socket: GameSocket;
+    socket: GameSocket<'booty-dice'>;
     playerId: string;
-    onBackToLobby: () => void;
-  }
+  } = $props();
 
-  let { view, socket, playerId, onBackToLobby }: Props = $props();
+  let current = $derived(view.players[view.currentPlayerIndex] ?? null);
+  let me = $derived(view.players[view.myIndex] ?? null);
+  let mine = $derived(view.isMyTurn);
+  let hasRolled = $derived(view.rollsRemaining < 3);
 
-  let showRules = $state(false);
-  let showWinner = $state(false);
-  let selectingTargetFor = $state<PendingAction | null>(null);
+  let unresolved = $derived(view.pendingActions.filter((a) => !a.resolved));
+  // Targets are picked one die at a time, in die order.
+  let targeting = $derived(mine && view.turnPhase === 'selecting_targets' ? (unresolved[0] ?? null) : null);
 
-  // Show winner modal when game ends
-  $effect(() => {
-    if (view?.phase === 'ended' && view.winnerId) {
-      showWinner = true;
+  let canRoll = $derived(mine && view.turnPhase === 'rolling' && view.rollsRemaining > 0);
+  let canKeep = $derived(mine && view.turnPhase === 'rolling' && hasRolled);
+  let canEndTurn = $derived(mine && hasRolled && unresolved.length === 0 && view.turnPhase !== 'rolling');
+
+  let banner = $derived.by(() => {
+    const name = current?.name ?? 'Someone';
+    if (!mine) {
+      if (view.turnPhase === 'selecting_targets') return { title: `${name} is picking a target`, detail: undefined };
+      return { title: `${name}'s turn`, detail: hasRolled ? `${view.rollsRemaining} ${view.rollsRemaining === 1 ? 'roll' : 'rolls'} left` : undefined };
     }
-  });
-
-  let currentPlayer = $derived(view ? view.players[view.currentPlayerIndex] ?? null : null);
-  let isMyTurn = $derived(view?.isMyTurn ?? false);
-  let targets = $derived(
-    view
-      ? view.players.filter(
-          (p) => p.id !== view.players[view.myIndex]?.id && !p.isEliminated,
-        )
-      : [],
-  );
-
-  let unresolvedActions = $derived(
-    view ? view.pendingActions.filter((a) => !a.resolved) : [],
-  );
-  let canRoll = $derived(
-    isMyTurn && view && view.rollsRemaining > 0 && view.turnPhase === 'rolling',
-  );
-  let hasRolled = $derived(view && view.rollsRemaining < 3);
-  let canFinishRolling = $derived(
-    isMyTurn && view && view.turnPhase === 'rolling' && hasRolled,
-  );
-  let needsTargetSelection = $derived(
-    isMyTurn && view && view.turnPhase === 'selecting_targets' && unresolvedActions.length > 0,
-  );
-  let canEndTurn = $derived(
-    isMyTurn && view && hasRolled && unresolvedActions.length === 0 && view.turnPhase !== 'rolling',
-  );
-
-  let winnerName = $derived.by(() => {
-    if (!view || !view.winnerId) return '';
-    return view.players.find((p) => p.id === view!.winnerId)?.name ?? 'Unknown';
-  });
-
-  let winReason = $derived.by(() => {
-    if (!view || !view.winnerId) return '';
-    const winner = view.players.find((p) => p.id === view!.winnerId);
-    return winner && winner.doubloons >= 25
-      ? 'riches'
-      : 'being the last pirate standing';
-  });
-
-  function toggleDiceLock(index: number) {
-    if (!view || !isMyTurn || view.turnPhase !== 'rolling') return;
-
-    const currentLocked = view.dice.filter((d) => d.locked).map((d) => d.id);
-    let newLocked: number[];
-    if (currentLocked.includes(index)) {
-      newLocked = currentLocked.filter((i) => i !== index);
-    } else {
-      newLocked = [...currentLocked, index];
+    if (targeting) {
+      const total = view.pendingActions.length;
+      const done = total - unresolved.length;
+      const what = targeting.face === 'cutlass' ? 'Tap the pirate your cutlass hits.' : 'Tap the pirate your Jolly Roger robs.';
+      return { title: 'Pick a target', detail: total > 1 ? `${what} ${done + 1} of ${total}.` : what };
     }
+    if (view.turnPhase === 'rolling') {
+      if (!hasRolled) return { title: 'Your turn', detail: 'Roll the dice. You get three rolls.' };
+      if (view.rollsRemaining === 0) return { title: 'Your turn', detail: 'Out of rolls. Keep this roll.' };
+      return { title: 'Your turn', detail: `Tap dice to keep them, then roll again (${view.rollsRemaining} left) or keep this roll.` };
+    }
+    return { title: 'Your turn', detail: 'Done plundering. End your turn.' };
+  });
 
-    socket.emit('game:action', { type: 'lockDice', diceIndices: newLocked });
+  function toggleKeep(index: number) {
+    if (!mine || view.turnPhase !== 'rolling' || !hasRolled) return;
+    const kept = view.dice.filter((d) => d.locked).map((d) => d.id);
+    const next = kept.includes(index) ? kept.filter((i) => i !== index) : [...kept, index];
+    socket.emit('game:action', { type: 'lockDice', diceIndices: next });
   }
 
-  function roll() {
-    socket.emit('game:action', { type: 'roll' });
+  function target(id: string) {
+    if (!targeting) return;
+    socket.emit('game:action', { type: 'selectTarget', dieIndex: targeting.dieIndex, targetPlayerId: id });
   }
 
-  function finishRolling() {
-    socket.emit('game:action', { type: 'finishRolling' });
-  }
+  const roll = () => socket.emit('game:action', { type: 'roll' });
+  const keep = () => socket.emit('game:action', { type: 'finishRolling' });
+  const endTurn = () => socket.emit('game:action', { type: 'endTurn' });
+  const playAgain = () => socket.emit('lobby:restartGame');
+  const backToLobby = () => socket.emit('lobby:resetGame');
 
-  function selectTarget(targetId: string) {
-    if (!selectingTargetFor) return;
-    socket.emit('game:action', {
-      type: 'selectTarget',
-      dieIndex: selectingTargetFor.dieIndex,
-      targetPlayerId: targetId,
-    });
-    selectingTargetFor = null;
-  }
+  let winner = $derived(view.players.find((p) => p.id === view.winnerId) ?? null);
 
-  function endTurn() {
-    socket.emit('game:action', { type: 'endTurn' });
-  }
-
-  function startTargetSelection(action: PendingAction) {
-    selectingTargetFor = action;
-  }
-
-  function backToLobby() {
-    onBackToLobby();
-  }
+  let standings = $derived(
+    view.players
+      .map((p, seat) => ({ p, seat }))
+      .sort((a, b) =>
+        (b.p.id === view.winnerId ? 1 : 0) - (a.p.id === view.winnerId ? 1 : 0) ||
+        Number(a.p.isEliminated) - Number(b.p.isEliminated) ||
+        b.p.doubloons - a.p.doubloons,
+      )
+      .map(({ p, seat }) => ({
+        id: p.id,
+        name: p.name,
+        seat,
+        detail: p.isEliminated ? 'Sunk' : `${p.doubloons} doubloons`,
+        winner: p.id === view.winnerId,
+        you: p.id === playerId,
+        bot: p.isAI,
+      })),
+  );
 </script>
 
-<main class="container">
-  <div class="game-header">
-    <div class="header-spacer"></div>
-    <div class="turn-info">
-      {#if currentPlayer}
-        <span class="turn-label">
-          {isMyTurn ? "Your Turn" : `${currentPlayer.name}'s Turn`}
-        </span>
-        <span class="rolls-left">Rolls left: {view.rollsRemaining}</span>
-      {/if}
-    </div>
-    <button class="rules-btn" onclick={() => (showRules = true)} aria-label="Show rules">
-      ?
-    </button>
-  </div>
+<div class="board">
+  {#if view.phase === 'ended'}
+    <GameOver
+      headline={winner ? (winner.id === playerId ? 'You win!' : `${winner.name} wins!`) : 'Game over'}
+      detail={winner && winner.doubloons >= 25 ? 'Rich enough to retire: 25 doubloons.' : 'Last pirate standing.'}
+      {standings}
+      onplayagain={playerId ? playAgain : undefined}
+      onlobby={playerId ? backToLobby : undefined}
+    />
+  {:else}
+    <TurnBanner {mine} title={banner.title} detail={banner.detail} />
 
-  <div class="game-layout">
-    <div class="main-area">
-      <DiceBoard
-        dice={view.dice}
-        canSelect={isMyTurn && view.turnPhase === 'rolling' && view.rollsRemaining < 3}
-        onToggleLock={toggleDiceLock}
-      />
-
-      {#if isMyTurn}
-        <div class="action-buttons">
-          {#if canRoll}
-            <button class="btn btn-primary" onclick={roll}>
-              {view.rollsRemaining === 3 ? 'Roll Dice!' : 'Roll Again'}
-            </button>
-          {/if}
-
-          {#if canFinishRolling}
-            <button class="btn btn-secondary" onclick={finishRolling}>
-              Resolve Dice
-            </button>
-          {/if}
-
-          {#if needsTargetSelection}
-            <div class="target-prompt">
-              <p>Select targets for your attacks/steals:</p>
-              {#each unresolvedActions as action (action.dieIndex)}
-                <button
-                  class="btn btn-secondary"
-                  onclick={() => startTargetSelection(action)}
-                >
-                  {action.face === 'cutlass' ? '\u2694\uFE0F Attack' : '\u2620\uFE0F Steal'} (Die #{action.dieIndex + 1})
-                </button>
-              {/each}
-            </div>
-          {/if}
-
-          {#if canEndTurn}
-            <button class="btn btn-primary" onclick={endTurn}>End Turn</button>
-          {/if}
-        </div>
-      {:else if currentPlayer}
-        <p class="waiting-msg">Waiting for {currentPlayer.name}...</p>
-      {/if}
-    </div>
-
-    <div class="sidebar">
-      <div class="players-section">
-        <h3>Pirates</h3>
-        <div class="players-list">
-          {#each view.players as gamePlayer (gamePlayer.id)}
-            <PlayerCard
-              player={gamePlayer}
-              isCurrentTurn={gamePlayer.id === currentPlayer?.id}
-              isMe={gamePlayer.id === view.players[view.myIndex]?.id}
-              isTargetable={selectingTargetFor !== null &&
-                gamePlayer.id !== view.players[view.myIndex]?.id &&
-                !gamePlayer.isEliminated}
-              onSelect={() => selectTarget(gamePlayer.id)}
-            />
+    <Felt tone="night" label="Dice">
+      <div class="tray">
+        <div class="dice" role="group" aria-label="Dice">
+          {#each view.dice as die, i (die.id)}
+            <BootyDie {die} blank={!hasRolled} selectable={canKeep} current={targeting?.dieIndex === i} onclick={() => toggleKeep(i)} />
           {/each}
         </div>
+        <p class="rolls">
+          {hasRolled ? `${view.rollsRemaining} of 3 rolls left` : 'Three rolls a turn'}
+        </p>
       </div>
+    </Felt>
 
-      <GameLog entries={view.gameLog} />
-    </div>
-  </div>
-
-  {#if selectingTargetFor}
-    <div class="target-overlay" onclick={() => (selectingTargetFor = null)} role="presentation">
-      <!-- svelte-ignore a11y_interactive_supports_focus a11y_click_events_have_key_events -->
-      <div class="target-modal" onclick={(e) => e.stopPropagation()} role="dialog">
-        <h3>
-          Select target for {selectingTargetFor.face === 'cutlass' ? '\u2694\uFE0F Cutlass Attack' : '\u2620\uFE0F Jolly Roger Steal'}
-        </h3>
-        <div class="target-list">
-          {#each targets as target (target.id)}
-            <button class="target-btn" onclick={() => selectTarget(target.id)}>
-              <span class="target-name">{target.name}</span>
-              <span class="target-stats">
-                {'\u{1FA99}'}{target.doubloons} {'\u2764\uFE0F'}{target.lives} {'\u{1F6E1}\uFE0F'}{target.shields}
-              </span>
-            </button>
-          {/each}
-        </div>
-        <button class="btn btn-secondary" onclick={() => (selectingTargetFor = null)}>
-          Cancel
-        </button>
+    {#if canRoll || canKeep || canEndTurn}
+      <div class="actions">
+        {#if canRoll}
+          <Button shout onclick={roll}>{hasRolled ? 'Roll again' : 'Roll dice'}</Button>
+        {/if}
+        {#if canKeep}
+          <Button variant={canRoll ? 'secondary' : 'primary'} shout={!canRoll} onclick={keep}>Keep this roll</Button>
+        {/if}
+        {#if canEndTurn}
+          <Button shout onclick={endTurn}>End turn</Button>
+        {/if}
       </div>
-    </div>
+    {/if}
+
+    <ul class="seats" aria-label="Pirates">
+      {#each view.players as p, seat (p.id)}
+        {@const canTarget = !!targeting && p.id !== me?.id && !p.isEliminated}
+        <li>
+          <SeatChip
+            wide
+            name={p.name}
+            {seat}
+            stat="{p.doubloons} doubloons, {p.lives} lives, {p.shields} shields"
+            active={p.id === current?.id}
+            connected={p.isConnected}
+            you={p.id === me?.id}
+            bot={p.isAI}
+            out={p.isEliminated}
+            targetable={canTarget}
+            onclick={targeting ? () => target(p.id) : undefined}
+          >
+            <span class="stat"><FaceIcon face="doubloon" size={16} />{p.doubloons}</span>
+            <span class="stat"><FaceIcon face="heart" size={16} />{p.lives}</span>
+            <span class="stat"><FaceIcon face="shield" size={16} />{p.shields}</span>
+          </SeatChip>
+        </li>
+      {/each}
+    </ul>
+
+    <GameLog entries={view.gameLog} />
   {/if}
-
-  <Modal bind:open={showWinner} title="Victory!">
-    <div class="winner-content">
-      <p class="winner-name">{winnerName}</p>
-      <p class="winner-reason">wins by {winReason}!</p>
-      <button class="btn btn-primary" onclick={backToLobby}>Play Again</button>
-    </div>
-  </Modal>
-
-  <RulesDrawer open={showRules} onclose={() => (showRules = false)} />
-</main>
+</div>
 
 <style>
-  .container {
-    max-width: 1000px;
+  /* Booty Dice prints its dice in Deep Clay, its shelf colour, on the
+     pirates' night table. */
+  .board {
+    --die-size: 48px;
+    max-width: 560px;
     margin: 0 auto;
-    padding: 1rem;
-    min-height: 100vh;
-  }
-
-  .game-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 1.5rem;
-  }
-
-  .header-spacer {
-    width: 36px;
-    flex-shrink: 0;
-  }
-
-  .turn-info {
+    padding: 4px 16px 32px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    flex: 1;
-    text-align: center;
+    gap: 14px;
+    color: var(--color-espresso);
+    font-family: var(--font-body);
   }
 
-  .turn-label {
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: #d4a574;
-  }
-
-  .rolls-left {
-    color: #888;
-  }
-
-  .rules-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: #333;
-    border: 2px solid #444;
-    color: #d4a574;
-    font-size: 1.25rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.2s;
-    flex-shrink: 0;
-  }
-
-  .rules-btn:hover {
-    background: #3a3a3a;
-    border-color: #d4a574;
-  }
-
-  .game-layout {
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    gap: 2rem;
-  }
-
-  @media (max-width: 800px) {
-    .game-layout {
-      grid-template-columns: 1fr;
+  @media (min-width: 600px) {
+    .board {
+      --die-size: 60px;
+      gap: 18px;
     }
   }
 
-  .main-area {
+  .tray {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1.5rem;
+    gap: 14px;
   }
 
-  .action-buttons {
+  .dice {
+    display: grid;
+    grid-template-columns: repeat(6, var(--die-size));
+    gap: 8px;
+    padding-top: 4px;
+  }
+
+  @media (max-width: 400px) {
+    .dice {
+      grid-template-columns: repeat(3, var(--die-size));
+      gap: 12px 14px;
+    }
+  }
+
+  .rolls {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .actions {
+    width: 100%;
+    max-width: 360px;
+    margin: 0 auto;
+    display: grid;
+    gap: 10px;
+  }
+
+  .seats {
+    list-style: none;
+    margin: 0;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 8px;
+  }
+
+  .stat {
+    display: inline-flex;
     align-items: center;
-  }
-
-  .btn {
-    padding: 0.75rem 2rem;
-    border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-  }
-
-  .btn:active { transform: scale(0.98); }
-
-  .btn-primary {
-    background: #d97706;
-    color: white;
-  }
-
-  .btn-primary:hover {
-    background: #b45309;
-  }
-
-  .btn-secondary {
-    background: #333;
-    color: #eee;
-    border: 1px solid #444;
-  }
-
-  .btn-secondary:hover {
-    background: #3a3a3a;
-  }
-
-  .target-prompt {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    align-items: center;
-    padding: 1rem;
-    background: #2a2a2a;
-    border-radius: 8px;
-  }
-
-  .target-prompt p {
-    color: #888;
-    margin-bottom: 0.5rem;
-  }
-
-  .waiting-msg {
-    color: #888;
-    font-style: italic;
-  }
-
-  .sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    min-height: 0;
-  }
-
-  .players-section {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    flex-shrink: 1;
-  }
-
-  .players-section h3 {
-    font-size: 0.9rem;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 0.5rem;
-    flex-shrink: 0;
-  }
-
-  .players-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    overflow-y: auto;
-    max-height: 50vh;
-  }
-
-  .target-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-
-  .target-modal {
-    background: #2a2a2a;
-    padding: 2rem;
-    border-radius: 12px;
-    max-width: 400px;
-    width: 90%;
-  }
-
-  .target-modal h3 {
-    text-align: center;
-    margin-bottom: 1.5rem;
-    color: #d4a574;
-  }
-
-  .target-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-    max-height: 50vh;
-    overflow-y: auto;
-  }
-
-  .target-btn {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem;
-    background: #333;
-    border: 2px solid #444;
-    border-radius: 8px;
-    color: #eee;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .target-btn:hover {
-    border-color: #c44;
-    background: #3a2a2a;
-  }
-
-  .target-name {
-    font-weight: 600;
-  }
-
-  .target-stats {
-    font-size: 0.9rem;
-    color: #888;
-  }
-
-  :global(.modal) {
-    background: #2a2a2a !important;
-    color: #eee !important;
-  }
-
-  .winner-content {
-    text-align: center;
-  }
-
-  .winner-name {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #d4a574;
-    margin-bottom: 0.5rem;
-  }
-
-  .winner-reason {
-    color: #888;
-    margin-bottom: 1.5rem;
+    gap: 3px;
   }
 </style>

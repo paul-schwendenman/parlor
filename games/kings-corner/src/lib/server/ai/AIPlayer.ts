@@ -1,3 +1,4 @@
+import { abortableDelay, type GameScheduling } from '@parlor/multiplayer';
 import type { Card, PilePosition, KingsCornerPlayerView } from '../../types/game.js';
 import { AIStrategy } from './AIStrategy.js';
 
@@ -9,22 +10,21 @@ interface AICallbacks {
   getView: () => KingsCornerPlayerView;
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 const THINK_DELAY = 1000;
 const ACTION_DELAY = 700;
 
 export class AIPlayer {
   private strategy = new AIStrategy();
 
-  async takeTurn(callbacks: AICallbacks): Promise<void> {
+  async takeTurn(callbacks: AICallbacks, signal: AbortSignal, scheduler: GameScheduling): Promise<void> {
+    if (signal.aborted) return;
+    const wait = async (ms: number) =>
+      await abortableDelay(ms, signal, scheduler) && !signal.aborted;
     let view = callbacks.getView();
 
     // Draw phase
     if (view.phase === 'drawing' && view.drawPileCount > 0) {
-      await delay(THINK_DELAY);
+      if (!await wait(THINK_DELAY)) return;
       callbacks.onDrawCard();
       view = callbacks.getView();
     }
@@ -35,7 +35,7 @@ export class AIPlayer {
     let moveMade = true;
     let consecutivePileMoves = 0;
     while (moveMade && !view.gameOver && view.phase === 'playing') {
-      await delay(ACTION_DELAY);
+      if (!await wait(ACTION_DELAY)) return;
       // Disable pile moves if we've done one without a card play following
       const allowPileMove = consecutivePileMoves === 0;
       const decision = this.strategy.decide(view, allowPileMove);
@@ -62,7 +62,7 @@ export class AIPlayer {
     }
 
     if (!view.gameOver && view.phase === 'playing') {
-      await delay(ACTION_DELAY);
+      if (!await wait(ACTION_DELAY)) return;
       callbacks.onEndTurn();
     }
   }

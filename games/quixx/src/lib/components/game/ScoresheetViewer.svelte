@@ -1,8 +1,9 @@
 <script lang="ts">
+  import './inks.css';
   import type { Scoresheet as ScoresheetType, RowColor, PlayerScore } from '../../types/game.js';
   import { ROW_COLORS } from '../../types/game.js';
+  import { Modal, Button } from '@parlor/ui';
   import Scoresheet from './Scoresheet.svelte';
-  import { Modal } from '@parlor/ui';
 
   interface PlayerData {
     id: string;
@@ -28,207 +29,166 @@
     onclose?: () => void;
   } = $props();
 
-  let selectedPlayerId = $state(initialPlayerId);
+  let selectedPlayerId = $state('');
 
   $effect(() => {
-    if (open) {
-      selectedPlayerId = initialPlayerId;
-    }
+    if (open) selectedPlayerId = initialPlayerId;
   });
 
   let selectedPlayer = $derived(players.find((p) => p.id === selectedPlayerId) ?? players[0]);
-  let selectedScore = $derived(scores.find((s) => s.playerId === selectedPlayerId) ?? scores[0]);
+  let selectedScore = $derived(scores.find((s) => s.playerId === selectedPlayer?.id));
 
-  const ROW_DISPLAY_COLORS: Record<RowColor, string> = {
-    red: '#dc2626',
-    yellow: '#ca8a04',
-    green: '#16a34a',
-    blue: '#2563eb',
-  };
+  const ROW_NAMES: Record<RowColor, string> = { red: 'Red', yellow: 'Yellow', green: 'Green', blue: 'Blue' };
 
-  function isWinner(playerId: string): boolean {
-    return scores[0]?.playerId === playerId;
+  function close() {
+    open = false;
+    onclose?.();
   }
 </script>
 
-<Modal bind:open {onclose}>
-  <div class="viewer">
-    <div class="header">
-      <h3>Scoresheets</h3>
-      <button class="close-btn" onclick={() => { open = false; onclose?.(); }} aria-label="Close">✕</button>
-    </div>
-
-    <div class="tabs">
-      {#each players as player}
+<Modal bind:open {onclose} title="Scoresheets">
+  <div class="viewer quixx-inks">
+    <div class="tabs" role="tablist" aria-label="Players">
+      {#each players as player (player.id)}
         <button
+          type="button"
+          role="tab"
           class="tab"
-          class:active={player.id === selectedPlayerId}
-          class:me={player.id === myPlayerId}
+          aria-selected={player.id === selectedPlayer?.id}
           onclick={() => (selectedPlayerId = player.id)}
         >
-          {isWinner(player.id) ? '★ ' : ''}{player.name}{player.id === myPlayerId ? ' (You)' : ''}
+          {player.name}{player.id === myPlayerId ? ' · you' : ''}
         </button>
       {/each}
     </div>
 
-    {#if selectedPlayer}
-      <div class="scoresheet-container">
+    {#if selectedPlayer && selectedScore}
+      <div role="tabpanel" aria-label="{selectedPlayer.name}'s scoresheet">
         <Scoresheet
           sheet={selectedPlayer.sheet}
           penalties={selectedPlayer.penalties}
-          score={selectedScore?.total ?? 0}
+          score={selectedScore.total}
           lockedRows={selectedPlayer.lockedRows}
-          availableMoves={[]}
         />
-      </div>
 
-      {#if selectedScore}
-        <div class="breakdown">
-          <h4>Score Breakdown</h4>
-          <table>
-            <tbody>
-              {#each ROW_COLORS as color}
-                <tr>
-                  <td class="row-label" style="color: {ROW_DISPLAY_COLORS[color]}">{color[0].toUpperCase() + color.slice(1)}</td>
-                  <td class="row-score">{selectedScore.rowScores[color]}</td>
-                </tr>
-              {/each}
-              {#if selectedScore.penalties > 0}
-                <tr class="penalty-row">
-                  <td class="row-label">Penalties ({selectedScore.penalties}×)</td>
-                  <td class="row-score">-{selectedScore.penalties * 5}</td>
-                </tr>
-              {/if}
-              <tr class="total-row">
-                <td class="row-label">Total</td>
-                <td class="row-score">{selectedScore.total}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      {/if}
+        <dl class="breakdown">
+          {#each ROW_COLORS as row (row)}
+            <div class="line"><dt><span class="swatch swatch-{row}" aria-hidden="true"></span>{ROW_NAMES[row]}</dt><dd>{selectedScore.rowScores[row]}</dd></div>
+          {/each}
+          {#if selectedScore.penalties > 0}
+            <div class="line penalty"><dt>Penalties ×{selectedScore.penalties}</dt><dd>−{selectedScore.penalties * 5}</dd></div>
+          {/if}
+          <div class="line total"><dt>Total</dt><dd>{selectedScore.total}</dd></div>
+        </dl>
+      </div>
     {/if}
+
+    <div class="footer">
+      <Button variant="secondary" onclick={close}>Close</Button>
+    </div>
   </div>
 </Modal>
 
 <style>
   .viewer {
-    min-width: 320px;
-  }
-
-  .header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-  }
-
-  .header h3 {
-    margin: 0;
-    font-size: 1.25rem;
-  }
-
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 1.25rem;
-    cursor: pointer;
-    padding: 4px 8px;
-    color: #6b7280;
-    border-radius: 4px;
-  }
-
-  .close-btn:hover {
-    background: #f3f4f6;
-    color: #111827;
+    flex-direction: column;
+    gap: 14px;
   }
 
   .tabs {
     display: flex;
     gap: 8px;
     overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    padding-bottom: 8px;
-    margin-bottom: 12px;
+    padding: 2px 2px 4px;
   }
 
   .tab {
-    scroll-snap-align: start;
     flex-shrink: 0;
-    padding: 6px 14px;
-    border-radius: 9999px;
-    border: 2px solid #e5e7eb;
-    background: #f9fafb;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
+    min-height: 40px;
+    padding: 0 16px;
+    border: 2px solid var(--color-espresso);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-espresso);
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: 0.9375rem;
     white-space: nowrap;
-    transition: all 0.15s;
+    cursor: pointer;
+    transition: background 0.2s ease;
   }
 
   .tab:hover {
-    background: #e5e7eb;
+    background: rgba(59, 47, 47, 0.06);
   }
 
-  .tab.active {
-    background: #3b82f6;
-    border-color: #3b82f6;
-    color: white;
-  }
-
-  .tab.me:not(.active) {
-    border-color: #93c5fd;
-  }
-
-  .scoresheet-container {
-    margin-bottom: 16px;
+  .tab[aria-selected='true'] {
+    background: var(--color-espresso);
+    color: var(--color-cream);
   }
 
   .breakdown {
-    background: #f9fafb;
-    border-radius: 8px;
-    padding: 12px 16px;
+    margin: 14px 0 0;
+    padding: 0 4px;
   }
 
-  .breakdown h4 {
-    margin: 0 0 8px;
-    font-size: 14px;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+  .line {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1.5px solid var(--color-linen);
   }
 
-  .breakdown table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .breakdown td {
-    padding: 4px 0;
-  }
-
-  .row-label {
+  dt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-weight: 600;
-    text-transform: capitalize;
   }
 
-  .row-score {
-    text-align: right;
-    font-weight: 700;
+  dd {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-weight: 900;
     font-variant-numeric: tabular-nums;
   }
 
-  .penalty-row {
-    color: #dc2626;
+  .swatch {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--color-espresso);
+    border-radius: 4px;
   }
 
-  .total-row {
-    border-top: 2px solid #d1d5db;
+  .swatch-red { background: var(--row-red); }
+  .swatch-yellow { background: var(--row-yellow); }
+  .swatch-green { background: var(--row-green); }
+  .swatch-blue { background: var(--row-blue); }
+
+  .penalty dd {
+    color: var(--color-danger);
   }
 
-  .total-row td {
-    padding-top: 8px;
-    font-size: 18px;
-    font-weight: 700;
+  .total {
+    border-bottom: 0;
+    border-top: 2px solid var(--color-espresso);
+    margin-top: 4px;
+    padding-top: 10px;
+  }
+
+  .total dt {
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.125rem;
+  }
+
+  .total dd {
+    font-size: 1.375rem;
+  }
+
+  .footer {
+    display: flex;
+    justify-content: flex-end;
   }
 </style>

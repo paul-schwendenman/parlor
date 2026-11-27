@@ -3,14 +3,20 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "outputs": ["dist/**", "build/**"]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "check": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "outputs": [
+        ".svelte-kit/tsconfig.json",
+        ".svelte-kit/ambient.d.ts",
+        ".svelte-kit/non-ambient.d.ts",
+        ".svelte-kit/types/**"
+      ]
     },
     "test": {
       "dependsOn": ["^build"]

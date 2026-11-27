@@ -1,0 +1,33 @@
+const M = '../../../packages/multiplayer/node_modules/';
+const { Server } = await import(M + 'socket.io/dist/index.js');
+const { io: ioc } = await import(M + 'socket.io-client/build/cjs/index.js');
+const { createServer } = await import('node:http');
+const { RoomManager, setupLobbyHandlers } = await import('../../../packages/multiplayer/dist/index.js');
+const http = createServer();
+const io = new Server(http);
+const rm = new RoomManager(200);
+io.on('connection', (s) => setupLobbyHandlers(io, s, rm, {}));
+http.listen(0, async () => {
+  const port = http.address().port;
+  const c = ioc(`http://localhost:${port}`, { transports: ['websocket'] });
+  await new Promise(r => c.on('connect', r));
+  const N = 2000;
+  let t = Date.now();
+  await Promise.all(Array.from({length:N}, (_, i) => new Promise(r => c.emit('lobby:create', 'x'+i, r))));
+  console.log('rooms after', N, 'creates from one socket:', rm['rooms'].size, 'in', Date.now()-t, 'ms');
+  // ghost seats: join one victim room many times from one socket
+  const victim = rm.createRoom('victim-sock', 'Host', 8).roomCode;
+  for (let i = 0; i < 7; i++) await new Promise(r => c.emit('lobby:join', victim, 'g'+i, r));
+  const big = 'A'.repeat(900_000);
+  c.disconnect();
+  await new Promise(r => setTimeout(r, 600));
+  console.log('rooms 400ms after disconnect+grace(200ms):', rm['rooms'].size);
+  console.log('victim room players:', rm.getPlayersInRoom(victim).map(p => p.name + (p.connected?'(connected)':'(dc)')).join(','));
+  const r = rm.joinRoom(victim, 'other', 'Real');
+  console.log('real join to victim:', r);
+  const c2 = ioc(`http://localhost:${port}`, { transports: ['websocket'] });
+  await new Promise(r => c2.on('connect', r));
+  const res = await new Promise(r => c2.emit('lobby:create', big, r));
+  console.log('900KB name accepted, room', res.roomCode, 'name len', rm.getPlayersInRoom(res.roomCode)[0].name.length);
+  process.exit(0);
+});

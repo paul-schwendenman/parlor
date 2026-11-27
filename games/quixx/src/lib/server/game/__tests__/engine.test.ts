@@ -2,6 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createTestEngine } from './factories.js';
 import type { QuixxEngine } from '../QuixxEngine.js';
 
+vi.mock(import('@parlor/multiplayer/random'), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, secureRandomInt: (max: number) => Math.floor(Math.random() * max) };
+});
+
 describe('QuixxEngine', () => {
   let engine: QuixxEngine;
 

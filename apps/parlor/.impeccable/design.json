@@ -1,0 +1,446 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-27T15:49:12Z",
+  "title": "Design System: Parlor",
+  "extensions": {
+    "colorMeta": {
+      "terracotta": {
+        "role": "primary",
+        "displayName": "Kiln Terracotta",
+        "canonical": "oklch(61.2% 0.133 44.4)",
+        "tonalRamp": [
+          "#270400",
+          "#491700",
+          "#6D2C08",
+          "#9B471D",
+          "#C16C45",
+          "#DF9777",
+          "#FBBEA4",
+          "#FFE2CE"
+        ]
+      },
+      "terracotta-deep": {
+        "role": "primary",
+        "displayName": "Deep Clay",
+        "canonical": "oklch(54.1% 0.124 43.1)",
+        "tonalRamp": [
+          "#260500",
+          "#471803",
+          "#6B2E12",
+          "#984A27",
+          "#BE6E4C",
+          "#DD987C",
+          "#F8BFA8",
+          "#FFE3D1"
+        ]
+      },
+      "terracotta-press": {
+        "role": "primary",
+        "displayName": "Fired Clay",
+        "canonical": "oklch(47.9% 0.110 42.3)",
+        "tonalRamp": [
+          "#240700",
+          "#441B09",
+          "#67311B",
+          "#934D31",
+          "#B87155",
+          "#D79A82",
+          "#F4C1AD",
+          "#FFE4D5"
+        ]
+      },
+      "forest-deep": {
+        "role": "secondary",
+        "displayName": "Card-Table Felt",
+        "canonical": "oklch(42.8% 0.067 154.0)",
+        "tonalRamp": [
+          "#05160B",
+          "#172F1F",
+          "#2B4B36",
+          "#466E53",
+          "#699175",
+          "#93B59D",
+          "#BBD6C2",
+          "#E0F5E5"
+        ]
+      },
+      "forest": {
+        "role": "secondary",
+        "displayName": "Garden Forest",
+        "canonical": "oklch(54.1% 0.077 152.7)",
+        "tonalRamp": [
+          "#031609",
+          "#14301D",
+          "#284C33",
+          "#416F4F",
+          "#659372",
+          "#90B69A",
+          "#B8D7C0",
+          "#DEF6E3"
+        ]
+      },
+      "mustard": {
+        "role": "tertiary",
+        "displayName": "Dice Mustard",
+        "canonical": "oklch(75.3% 0.127 84.9)",
+        "tonalRamp": [
+          "#1E0E00",
+          "#3B2400",
+          "#5A3C00",
+          "#825C00",
+          "#A68022",
+          "#C6A663",
+          "#E5CB95",
+          "#FFECC3"
+        ]
+      },
+      "mustard-tint": {
+        "role": "tertiary",
+        "displayName": "Butter",
+        "canonical": "oklch(91.6% 0.060 89.4)",
+        "tonalRamp": [
+          "#171103",
+          "#302812",
+          "#4C4125",
+          "#70623D",
+          "#938560",
+          "#B6AA8B",
+          "#D7CDB4",
+          "#F6EEDA"
+        ]
+      },
+      "espresso": {
+        "role": "neutral",
+        "displayName": "Espresso Ink",
+        "canonical": "oklch(31.8% 0.018 18.1)",
+        "tonalRamp": [
+          "#151010",
+          "#2E2727",
+          "#494040",
+          "#6C6060",
+          "#908382",
+          "#B3A8A8",
+          "#D4CBCB",
+          "#F4ECEC"
+        ]
+      },
+      "cream": {
+        "role": "neutral",
+        "displayName": "Cream Stock",
+        "canonical": "oklch(97.6% 0.015 77.1)",
+        "tonalRamp": [
+          "#13110E",
+          "#2C2824",
+          "#46423C",
+          "#68625A",
+          "#8B857D",
+          "#AFAAA3",
+          "#D1CDC7",
+          "#F1EEE9"
+        ]
+      },
+      "linen": {
+        "role": "neutral",
+        "displayName": "Linen",
+        "canonical": "oklch(94.9% 0.019 80.1)",
+        "tonalRamp": [
+          "#14110D",
+          "#2C2822",
+          "#47423A",
+          "#696258",
+          "#8C857B",
+          "#B0AAA1",
+          "#D2CDC6",
+          "#F2EEE8"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "oklch(100% 0 0)",
+        "tonalRamp": [
+          "#121212",
+          "#292929",
+          "#424242",
+          "#636363",
+          "#868686",
+          "#ABABAB",
+          "#CECECE",
+          "#EEEEEE"
+        ]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Faded Ink",
+        "canonical": "oklch(50.8% 0.023 49.9)",
+        "tonalRamp": [
+          "#16100D",
+          "#2F2723",
+          "#4B403A",
+          "#6E6059",
+          "#91837B",
+          "#B4A8A1",
+          "#D6CBC6",
+          "#F5EDE8"
+        ]
+      },
+      "danger": {
+        "role": "neutral",
+        "displayName": "Spilled Wine",
+        "canonical": "oklch(44.4% 0.161 26.9)",
+        "tonalRamp": [
+          "#2C0000",
+          "#500909",
+          "#771D1A",
+          "#A83631",
+          "#CF5E54",
+          "#ED8C82",
+          "#FFB6AC",
+          "#FFDDD4"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The PARLOR wordmark on the home lid, uppercase. Once per app."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headings that open a region."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card and panel headings; shelf game names run one step larger at 1.75rem."
+      },
+      "name": {
+        "displayName": "Name",
+        "purpose": "Player names in rows."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Room-code letters in mustard tiles."
+      },
+      "button": {
+        "displayName": "Button",
+        "purpose": "The single uppercase primary action per screen."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Rules and long descriptions, 65ch max."
+      },
+      "body-sm": {
+        "displayName": "Body small",
+        "purpose": "Game descriptions and hints."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Form labels, chips, status, metadata."
+      }
+    },
+    "shadows": [
+      {
+        "name": "raised-sheet",
+        "value": "0 10px 24px rgba(59, 47, 47, 0.16)",
+        "purpose": "A panel that physically overlaps another, like the join sheet over the lid."
+      },
+      {
+        "name": "modal",
+        "value": "0 8px 32px rgba(59, 47, 47, 0.15)",
+        "purpose": "Dialogs, over an espresso scrim rgba(59, 47, 47, 0.5)."
+      },
+      {
+        "name": "lift",
+        "value": "0 4px 16px rgba(59, 47, 47, 0.12)",
+        "purpose": "Hover/touch on pickable surfaces, paired with translateY(-2px)."
+      },
+      {
+        "name": "felt-well",
+        "value": "inset 0 2px 10px rgba(0, 0, 0, 0.25)",
+        "purpose": "Optional recess on felt surfaces only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state",
+        "value": "200ms ease",
+        "purpose": "Color, border and shadow changes on hover and focus."
+      },
+      {
+        "name": "press",
+        "value": "transform 100ms ease; scale(0.98)",
+        "purpose": "Button press feedback."
+      },
+      {
+        "name": "toast-in",
+        "value": "200ms ease-out, translateY(1rem) → 0 with fade",
+        "purpose": "Toast entrance."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "stack",
+        "value": "600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one uppercase action per screen: JOIN, START GAME.",
+      "html": "<button class=\"ds-btn-primary\">START GAME</button>",
+      "css": ".ds-btn-primary { height: 56px; padding: 0 28px; border-radius: 999px; border: 2px solid var(--color-espresso, #3B2F2F); background: var(--color-espresso, #3B2F2F); color: var(--color-cream, #FDF6EC); font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 19px; letter-spacing: 0.02em; cursor: pointer; transition: background 200ms ease, transform 100ms ease; } .ds-btn-primary:hover { background: #2A2020; } .ds-btn-primary:active { transform: scale(0.98); } .ds-btn-primary:focus-visible { outline: 3px solid var(--color-espresso, #3B2F2F); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Accent Button",
+      "kind": "button",
+      "refersTo": "button-accent",
+      "description": "Deep Clay pill for positive actions on light surfaces, like Start a room.",
+      "html": "<button class=\"ds-btn-accent\">Start a room</button>",
+      "css": ".ds-btn-accent { height: 52px; padding: 0 24px; border-radius: 999px; border: 2px solid #A9532D; background: #A9532D; color: var(--color-cream, #FDF6EC); font-family: 'DM Sans', system-ui, sans-serif; font-weight: 800; font-size: 15px; cursor: pointer; transition: background 200ms ease, border-color 200ms ease, transform 100ms ease; } .ds-btn-accent:hover { background: #8F4526; border-color: #8F4526; } .ds-btn-accent:active { transform: scale(0.98); } .ds-btn-accent:focus-visible { outline: 3px solid var(--color-espresso, #3B2F2F); outline-offset: 2px; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary pill: Not ready, Add bot, How to play, Leave room.",
+      "html": "<button class=\"ds-btn-outline\">Add bot</button>",
+      "css": ".ds-btn-outline { height: 46px; padding: 0 18px; border-radius: 999px; border: 2px solid var(--color-espresso, #3B2F2F); background: transparent; color: var(--color-espresso, #3B2F2F); font-family: 'DM Sans', system-ui, sans-serif; font-weight: 700; font-size: 15px; cursor: pointer; transition: background 200ms ease, transform 100ms ease; } .ds-btn-outline:hover { background: rgba(59, 47, 47, 0.06); } .ds-btn-outline:active { transform: scale(0.98); } .ds-btn-outline:focus-visible { outline: 3px solid var(--color-espresso, #3B2F2F); outline-offset: 2px; }"
+    },
+    {
+      "name": "Room Code Tiles",
+      "kind": "custom",
+      "refersTo": "room-code-tile",
+      "description": "Signature: the room code as six mustard letter tiles with a copy-link pill.",
+      "html": "<div class=\"ds-code\"><div class=\"ds-code-tiles\" aria-label=\"Room code KQ7MPD\"><span>K</span><span>Q</span><span>7</span><span>M</span><span>P</span><span>D</span></div><button class=\"ds-code-copy\"><svg aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1\"/><path d=\"M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1\"/></svg>Copy invite link</button></div>",
+      "css": ".ds-code { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px; background: var(--color-terracotta, #C4663A); max-width: 360px; } .ds-code-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; width: 100%; } .ds-code-tiles span { height: 58px; border-radius: 10px; background: var(--color-mustard, #D4A843); border: 2px solid var(--color-espresso, #3B2F2F); color: var(--color-espresso, #3B2F2F); display: flex; align-items: center; justify-content: center; font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 30px; } .ds-code-copy { height: 44px; padding: 0 18px; border-radius: 999px; border: 2px solid var(--color-espresso, #3B2F2F); background: var(--color-cream, #FDF6EC); color: var(--color-espresso, #3B2F2F); font-family: 'DM Sans', system-ui, sans-serif; font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: background 200ms ease; } .ds-code-copy:hover { background: #FFFFFF; } .ds-code-copy:focus-visible { outline: 3px solid var(--color-espresso, #3B2F2F); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "Labelled paper field with ink outline; the code variant fills with butter.",
+      "html": "<div class=\"ds-fields\"><label class=\"ds-field\">Room code<input class=\"ds-input ds-input-code\" placeholder=\"ABCDEF\" maxlength=\"6\"></label><label class=\"ds-field\">Your name<input class=\"ds-input\" placeholder=\"What should the table call you?\"></label></div>",
+      "css": ".ds-fields { display: flex; flex-direction: column; gap: 12px; max-width: 340px; } .ds-field { display: flex; flex-direction: column; gap: 6px; font-family: 'DM Sans', system-ui, sans-serif; font-size: 13px; font-weight: 700; color: var(--color-espresso, #3B2F2F); } .ds-input { height: 50px; padding: 0 14px; border-radius: 12px; border: 2px solid var(--color-espresso, #3B2F2F); background: #FFFFFF; color: var(--color-espresso, #3B2F2F); font-family: 'DM Sans', system-ui, sans-serif; font-size: 16px; box-sizing: border-box; } .ds-input::placeholder { color: #71625A; } .ds-input:focus-visible { outline: 3px solid var(--color-espresso, #3B2F2F); outline-offset: 2px; } .ds-input-code { height: 56px; background: #F3E2B6; font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 26px; letter-spacing: 0.32em; text-transform: uppercase; text-align: center; }"
+    },
+    {
+      "name": "Player Row",
+      "kind": "card",
+      "refersTo": "player-row",
+      "description": "Outlined seat with initial avatar, name, roles and status chip.",
+      "html": "<div class=\"ds-players\"><div class=\"ds-player\"><span class=\"ds-avatar\">M</span><span class=\"ds-player-name\">Maya <span>· host · you</span></span><span class=\"ds-chip-ready\">Ready</span></div><div class=\"ds-player\"><span class=\"ds-avatar ds-avatar-mustard\">L</span><span class=\"ds-player-name\">Grandpa Lou</span><span class=\"ds-chip-waiting\">Waiting</span></div></div>",
+      "css": ".ds-players { display: flex; flex-direction: column; gap: 8px; max-width: 350px; } .ds-player { display: flex; align-items: center; gap: 12px; padding: 8px 12px 8px 8px; border: 2px solid var(--color-espresso, #3B2F2F); border-radius: 14px; background: #FFFFFF; color: var(--color-espresso, #3B2F2F); } .ds-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--color-terracotta, #C4663A); color: var(--color-cream, #FDF6EC); display: flex; align-items: center; justify-content: center; font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 17px; } .ds-avatar-mustard { background: var(--color-mustard, #D4A843); color: var(--color-espresso, #3B2F2F); } .ds-player-name { flex: 1; font-family: Nunito, system-ui, sans-serif; font-weight: 800; font-size: 17px; } .ds-player-name span { font-family: 'DM Sans', system-ui, sans-serif; font-weight: 600; font-size: 13px; color: #71625A; } .ds-chip-ready { font-family: 'DM Sans', system-ui, sans-serif; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #2F5A3E; color: var(--color-cream, #FDF6EC); } .ds-chip-waiting { font-family: 'DM Sans', system-ui, sans-serif; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; border: 1.5px solid var(--color-espresso, #3B2F2F); color: var(--color-espresso, #3B2F2F); }"
+    },
+    {
+      "name": "Game Shelf Block",
+      "kind": "card",
+      "refersTo": "game-panel",
+      "description": "A color-blocked game 'box spine' with meta chip and two pills.",
+      "html": "<article class=\"ds-box\"><div class=\"ds-box-head\"><h3>Kings Corner</h3><span>2–4 · 15–25m</span></div><p>Build descending sequences of alternating colors — be first to empty your hand.</p><div class=\"ds-box-actions\"><button class=\"ds-box-ghost\">How to play</button><button class=\"ds-box-solid\">Start a room</button></div></article>",
+      "css": ".ds-box { max-width: 350px; background: #2F5A3E; color: var(--color-cream, #FDF6EC); border: 2.5px solid var(--color-espresso, #3B2F2F); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 8px; font-family: 'DM Sans', system-ui, sans-serif; transition: transform 200ms ease, box-shadow 200ms ease; } .ds-box:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(59, 47, 47, 0.12); } .ds-box-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; } .ds-box h3 { margin: 0; font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 28px; line-height: 1; letter-spacing: -0.02em; } .ds-box-head span { flex-shrink: 0; font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 999px; border: 1.5px solid currentColor; font-variant-numeric: tabular-nums; } .ds-box p { margin: 0; font-size: 14px; line-height: 1.45; font-weight: 500; } .ds-box-actions { display: flex; gap: 8px; margin-top: 6px; } .ds-box-ghost, .ds-box-solid { flex: 1; height: 44px; border-radius: 999px; font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; cursor: pointer; } .ds-box-ghost { border: 2px solid var(--color-cream, #FDF6EC); background: transparent; color: var(--color-cream, #FDF6EC); font-weight: 700; } .ds-box-ghost:hover { background: rgba(253, 246, 236, 0.12); } .ds-box-solid { border: 2px solid var(--color-cream, #FDF6EC); background: var(--color-cream, #FDF6EC); color: #2F5A3E; font-weight: 800; } .ds-box-solid:hover { background: #FFFFFF; } .ds-box-ghost:focus-visible, .ds-box-solid:focus-visible { outline: 3px solid var(--color-cream, #FDF6EC); outline-offset: 2px; }"
+    },
+    {
+      "name": "Lid Header",
+      "kind": "nav",
+      "refersTo": "lid-header",
+      "description": "Full-bleed terracotta lid with wordmark and a cream-filled Leave room pill.",
+      "html": "<header class=\"ds-lid\"><a class=\"ds-lid-mark\" href=\"#\">PARLOR</a><button class=\"ds-lid-leave\">Leave room</button></header>",
+      "css": ".ds-lid { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px; background: var(--color-terracotta, #C4663A); border-bottom: 3px solid var(--color-espresso, #3B2F2F); } .ds-lid-mark { font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 26px; letter-spacing: -0.02em; color: var(--color-cream, #FDF6EC); text-decoration: none; } .ds-lid-mark:hover { color: #F3E2B6; } .ds-lid-mark:focus-visible, .ds-lid-leave:focus-visible { outline: 3px solid var(--color-cream, #FDF6EC); outline-offset: 2px; } .ds-lid-leave { height: 40px; padding: 0 16px; border-radius: 999px; border: 2px solid var(--color-espresso, #3B2F2F); background: var(--color-cream, #FDF6EC); color: var(--color-espresso, #3B2F2F); font-family: 'DM Sans', system-ui, sans-serif; font-weight: 700; font-size: 14px; cursor: pointer; transition: background 200ms ease; } .ds-lid-leave:hover { background: #FFFFFF; }"
+    },
+    {
+      "name": "Turn Banner",
+      "kind": "custom",
+      "refersTo": "turn-banner",
+      "description": "The first thing on every game board: felt with cream text when it's your move, paper while you wait (TurnBanner in @parlor/ui).",
+      "html": "<div class=\"ds-turn ds-turn-mine\" role=\"status\"><p class=\"ds-turn-title\">Your turn</p><p class=\"ds-turn-detail\">Play a heart or the Queen of Spades.</p></div><div class=\"ds-turn\" role=\"status\"><p class=\"ds-turn-title\">Margaret's turn</p></div>",
+      "css": ".ds-turn { min-height: 60px; padding: 12px 18px; margin-bottom: 12px; border: 2.5px solid var(--color-espresso, #3B2F2F); border-radius: 18px; background: var(--color-paper, #FFFFFF); color: var(--color-espresso, #3B2F2F); display: flex; flex-direction: column; justify-content: center; gap: 2px; text-align: center; } .ds-turn-mine { background: var(--color-forest-deep, #2F5A3E); color: var(--color-cream, #FDF6EC); } .ds-turn-title { margin: 0; font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 22px; line-height: 1.1; letter-spacing: -0.01em; } .ds-turn-detail { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; font-weight: 500; font-size: 15px; line-height: 1.4; color: var(--color-ink-muted, #71625A); } .ds-turn-mine .ds-turn-detail { color: var(--color-cream, #FDF6EC); }"
+    },
+    {
+      "name": "Seat Chip",
+      "kind": "chip",
+      "refersTo": "seat-chip",
+      "description": "A player on a game board: outlined pill with the seat-coloured avatar from the lobby, name and one stat. Felt when it's their turn, mustard ring when you can target them (SeatChip in @parlor/ui).",
+      "html": "<div class=\"ds-seats\"><div class=\"ds-seat ds-seat-active\"><span class=\"ds-seat-av ds-tone-clay\">M</span><span class=\"ds-seat-name\">Margaret</span><span class=\"ds-seat-stat\">7 cards</span></div><button class=\"ds-seat ds-seat-target\" type=\"button\"><span class=\"ds-seat-av ds-tone-felt\">J</span><span class=\"ds-seat-name\">Joe</span><span class=\"ds-seat-stat\">5 cards</span></button><div class=\"ds-seat ds-seat-away\"><span class=\"ds-seat-av ds-tone-mustard\">B</span><span class=\"ds-seat-name\">Bea</span><span class=\"ds-seat-stat\">6 cards</span></div></div>",
+      "css": ".ds-seats { display: flex; flex-wrap: wrap; gap: 10px; } .ds-seat { min-height: 44px; padding: 4px 14px 4px 4px; border: 2px solid var(--color-espresso, #3B2F2F); border-radius: 999px; background: var(--color-paper, #FFFFFF); color: var(--color-espresso, #3B2F2F); display: inline-flex; align-items: center; gap: 8px; font: inherit; transition: background 0.25s ease, color 0.25s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1); } .ds-seat-active { background: var(--color-forest-deep, #2F5A3E); color: var(--color-cream, #FDF6EC); } .ds-seat-away { border-style: dashed; background: var(--color-linen, #F5EDE0); } button.ds-seat-target { cursor: pointer; outline: 3px solid var(--color-mustard, #D4A843); outline-offset: 3px; } button.ds-seat-target:hover { transform: translateY(-2px); } button.ds-seat-target:active { transform: scale(0.98); } button.ds-seat:focus-visible { outline: 3px solid var(--color-espresso, #3B2F2F); outline-offset: 3px; } .ds-seat-av { width: 32px; height: 32px; flex-shrink: 0; border-radius: 999px; border: 2px solid var(--color-espresso, #3B2F2F); display: inline-flex; align-items: center; justify-content: center; font-family: Nunito, system-ui, sans-serif; font-weight: 900; font-size: 15px; color: var(--color-cream, #FDF6EC); } .ds-tone-clay { background: var(--color-terracotta-deep, #A9532D); } .ds-tone-felt { background: var(--color-forest-deep, #2F5A3E); } .ds-tone-mustard { background: var(--color-mustard, #D4A843); color: var(--color-espresso, #3B2F2F); } .ds-seat-name { font-family: Nunito, system-ui, sans-serif; font-weight: 800; font-size: 15px; } .ds-seat-stat { font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; font-weight: 600; } .ds-seat-active .ds-seat-av { box-shadow: 0 0 0 2px var(--color-cream, #FDF6EC); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Game Box Lid",
+    "overview": "Parlor should feel like the lid of a well-made board game: printed in flat colors, outlined in ink, with lettering you can read from across the room. Each screen is a box you open. A terracotta lid sits on top and carries the wordmark and the room code. Below it, the contents are laid out on cream: outlined player rows, a felt-green panel for tonight's game, and colored blocks for each game on the shelf. It's warm because the palette is earthy (clay, felt, mustard, espresso ink on cream stock), and it's playful because the type is heavy and the shapes are chunky and round.\n\nDensity is low and the targets are large. Parlor is played on phones held at arm's length and on laptops propped on a kitchen table, usually while people are also talking to each other. So everything is generous and every action is a big, obvious pill. Hierarchy comes from weight and color blocks, not from fine grey type or subtle depth. Expression sits in a few signature moves: the lid, the letter-tile room code, the ink outline and the color-blocked game shelf. Everything else stays plain so those moves read clearly.\n\n**Implementation status.** The Parlor app shell (home, lobby, game frame) and the shared `@parlor/ui` components follow this system. Game boards under `games/*` are migrated to the shared board kit one game at a time (all nine done 2026-11-27: Crazy Eights, Kings Corner, Quixx, Booty Dice, Liar's Dice, then the trick-taking four: Hearts, Spades, Euchre, Oh Hell); where a board and this file disagree, this file wins. See Game boards.",
+    "keyCharacteristics": [
+      "Terracotta \"lid\" header on every main screen, outlined at the bottom in ink.",
+      "A 2–2.5px espresso outline on every surface that holds content; none on the cream ground.",
+      "Pill-shaped buttons; Nunito 900 for anything that names a thing or an action.",
+      "The room code is always shown as individual mustard letter tiles.",
+      "Flat at rest. Shadows only for things that physically sit on top of the page.",
+      "Each game gets a solid color block of its own, like box spines on a shelf."
+    ],
+    "rules": [
+      {
+        "name": "The Deep Clay Rule",
+        "body": "Text smaller than 24px (or 19px bold) never sits on Kiln Terracotta. Use Deep Clay for anything text-bearing that needs to read as terracotta.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Lid Rule",
+        "body": "Each screen has at most one Kiln Terracotta block, and it sits at the top. Terracotta further down the page is Deep Clay, used on buttons and the shelf.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink-Only Text Rule",
+        "body": "Text is espresso, cream, or Faded Ink. No stone greys (#a8a29e, #c7c2be, #78716c) and no Tailwind slates.",
+        "section": "colors"
+      },
+      {
+        "name": "The Shout Once Rule",
+        "body": "Uppercase Nunito 900 is reserved for the wordmark and the single primary action on a screen (JOIN, START GAME). Everything else is sentence case.",
+        "section": "typography"
+      },
+      {
+        "name": "The No-Eyebrow Rule",
+        "body": "No small uppercase kicker above a heading or value (\"ROOM CODE\", \"PLAYING\"). The thing speaks for itself. Add a plain sentence below it if context is needed.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Box Rule",
+        "body": "Nothing casts a shadow at rest unless it overlaps something. No ambient shadows on ordinary cards.",
+        "section": "elevation"
+      },
+      {
+        "name": "The No Block Shadow Rule",
+        "body": "Outlines are ink, shadows are soft. No zero-blur offset shadows (4px 4px 0). The printed look comes from the outline, not a fake neo-brutalist drop.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Ink Outline Rule",
+        "body": "If it holds content, it has a full outline in espresso. If it's the ground, it has none. A bar down one side of a box is never the answer: use a full outline, a fill, or a leading icon.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Collection Rule",
+        "body": "If two games show the same kind of thing (whose turn it is, who's at the table, how it ended), they show it with the same component. A game's own identity goes into its pieces and its surface, never into the chrome around them.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do outline every content surface in espresso (2–2.5px) and leave the cream ground un-outlined.",
+      "Do use Deep Clay (#A9532D) for any terracotta surface carrying text under 24px; Kiln Terracotta is for the lid.",
+      "Do show the room code as six mustard letter tiles, everywhere it appears.",
+      "Do keep one uppercase Nunito 900 primary pill per screen, with a hint above it when it's disabled.",
+      "Do use Faded Ink (#71625A) for all secondary text; it passes 4.5:1 on every light surface in the palette.",
+      "Do use an espresso scrim (rgba(59, 47, 47, 0.5)) behind modals.",
+      "Do draw icons as inline stroke SVG (2–2.5px stroke, round caps) and give icon-only buttons an aria-label."
+    ],
+    "donts": [
+      "Don't use Tailwind-default indigo, slate, red or green anywhere.",
+      "Don't put a bar down one side of a box; use a full outline or a fill.",
+      "Don't put small uppercase labels above headings or values (\"ROOM CODE\", \"PLAYING\").",
+      "Don't use stone greys for text (#a8a29e, #c7c2be fail contrast on cream); use Faded Ink.",
+      "Don't put cream or white text under 24px on Kiln Terracotta (#C4663A, 3.69:1).",
+      "Don't use zero-blur offset shadows, gradients, glass, or emoji as icons.",
+      "Don't hide actions behind hover without showing them on (hover: none) devices."
+    ]
+  }
+}

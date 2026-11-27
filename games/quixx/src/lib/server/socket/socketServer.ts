@@ -5,7 +5,12 @@ import type {
   InterServerEvents,
   SocketData,
 } from '@parlor/game-types';
-import { RoomManager, setupLobbyHandlers } from '@parlor/multiplayer';
+import {
+  RoomManager,
+  dispatchGameAction,
+  returnRoomToLobby,
+  setupLobbyHandlers,
+} from '@parlor/multiplayer';
 import { quixxDefinition } from '../definition.js';
 
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -16,10 +21,18 @@ export function setupQuixxSocketHandlers(io: AppServer): void {
   const callbacks = quixxDefinition.createLobbyCallbacks(roomManager, io);
 
   io.on('connection', (socket) => {
-    setupLobbyHandlers(io, socket, roomManager, callbacks, { defaultMaxPlayers: quixxDefinition.meta.maxPlayers });
+    setupLobbyHandlers(io, socket, roomManager, callbacks, { defaultGame: quixxDefinition.meta });
 
-    socket.on('game:action', (action) => {
-      quixxDefinition.handleGameAction(io, socket, roomManager, action);
+    socket.on('game:action', (action, ack) => {
+      void dispatchGameAction({
+        io,
+        socket,
+        roomManager,
+        definition: quixxDefinition,
+        action,
+        ack,
+        onRoomFailure: (roomCode) => returnRoomToLobby(io, roomManager, roomCode, callbacks),
+      });
     });
   });
 }

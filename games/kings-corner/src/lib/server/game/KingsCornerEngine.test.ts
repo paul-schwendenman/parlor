@@ -273,3 +273,88 @@ describe('KingsCornerEngine', () => {
     });
   });
 });
+
+describe('empty-stock impasse', () => {
+  function emptyStock(...hands: Card[][]) {
+    const engine = new KingsCornerEngine(makePlayers(hands.length), 'EMPTY');
+    engine['drawPile'] = [];
+    engine['phase'] = 'playing';
+    engine['players'].forEach((player, index) => { player.hand = hands[index]; });
+    return engine;
+  }
+
+  const card: Card = { rank: '2', suit: 'hearts' };
+
+  it('finishes after every player passes and ranks kings at ten points', () => {
+    const engine = emptyStock([{ rank: 'K', suit: 'hearts' }], [card, { rank: '3', suit: 'clubs' }], [
+      { rank: '4', suit: 'diamonds' }, { rank: '5', suit: 'spades' }, { rank: '6', suit: 'clubs' },
+    ]);
+    for (const corner of CORNER_POSITIONS) {
+      engine['piles'].set(corner, [{ rank: 'A', suit: 'spades' }]);
+    }
+    engine.endTurn('player-0');
+    engine.endTurn('player-1');
+    expect(engine.getSpectatorView()).not.toHaveProperty('penalties');
+
+    engine.endTurn('player-2');
+
+    expect(engine.getSpectatorView()).toMatchObject({
+      phase: 'game-over',
+      winner: { id: 'player-1' },
+      penalties: { 'player-0': 10, 'player-1': 2, 'player-2': 3 },
+    });
+  });
+
+  it.each(['card', 'pile'])('starts a fresh pass round after a %s play', (move) => {
+    const engine = emptyStock([card], [{ rank: '2', suit: 'clubs' }, { rank: 'Q', suit: 'clubs' }]);
+    engine['piles'].set('north', []);
+    engine.endTurn('player-0');
+    if (move === 'card') engine.playCard('player-1', { rank: '2', suit: 'clubs' }, 'north');
+    else engine.movePile('player-1', 'south', 'north');
+    engine.endTurn('player-1');
+    engine.endTurn('player-0');
+    expect(engine.isGameOver()).toBe(false);
+
+    engine.endTurn('player-1');
+    expect(engine.isGameOver()).toBe(true);
+  });
+
+  it('starts counting passes after the last draw', () => {
+    const engine = emptyStock([card], [{ rank: '4', suit: 'clubs' }]);
+    engine['drawPile'].push({ rank: '3', suit: 'spades' });
+    engine['phase'] = 'drawing';
+
+    engine.drawCard('player-0');
+    engine.endTurn('player-0');
+    engine.endTurn('player-1');
+    expect(engine.isGameOver()).toBe(false);
+    engine.endTurn('player-0');
+    expect(engine.isGameOver()).toBe(true);
+  });
+
+  it('keeps mandatory kings in force and records tied hands as a tie', () => {
+    const engine = emptyStock(
+      [{ rank: 'K', suit: 'hearts' }, card],
+      [{ rank: '3', suit: 'spades' }],
+    );
+    expect(() => engine.endTurn('player-0')).toThrow('You must play a King');
+    engine.playCard('player-0', { rank: 'K', suit: 'hearts' }, CORNER_POSITIONS[0]);
+    engine.endTurn('player-0');
+    engine.takeTimedOutTurn('player-1');
+    expect(engine.isGameOver()).toBe(false);
+    engine.endTurn('player-0');
+    expect(engine.getSpectatorView()).toMatchObject({
+      gameOver: true, winner: null, penalties: { 'player-0': 1, 'player-1': 1 },
+    });
+  });
+
+  it('scores only the remaining seats if a seat leaves before passing', () => {
+    const engine = emptyStock([card], [card, card], [card]);
+    engine.endTurn('player-0');
+    engine.endTurn('player-1');
+    engine.removePlayer('player-2');
+    expect(engine.getSpectatorView()).toMatchObject({
+      gameOver: true, winner: { id: 'player-0' }, penalties: { 'player-0': 1, 'player-1': 2 },
+    });
+  });
+});

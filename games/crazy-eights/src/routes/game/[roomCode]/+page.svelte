@@ -35,7 +35,7 @@
       hadView = true;
     } else if (hadView) {
       const roomCode = $page.params.roomCode;
-      goto(`/lobby/${roomCode}`);
+      goto(`/lobby/${roomCode}`).catch(console.error);
     }
   });
 </script>

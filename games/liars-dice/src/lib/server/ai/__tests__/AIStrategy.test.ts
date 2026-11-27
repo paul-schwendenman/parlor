@@ -1,42 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { AIStrategy } from '../AIStrategy.js';
-import type { LiarsDiceGameState, LiarsDicePlayer } from '../../../types/game.js';
+import { AIStrategy, type LiarsDiceBotView } from '../AIStrategy.js';
 
-function makePlayer(id: string, dice: number[], diceCount?: number): LiarsDicePlayer {
+/** The bot's own view (CORE-AUDIT F-30): its dice and the public table only. */
+function makeView(overrides: Partial<LiarsDiceBotView> = {}): LiarsDiceBotView {
   return {
-    id,
-    name: `Player ${id}`,
-    connected: true,
-    dice,
-    diceCount: diceCount ?? dice.length,
-    eliminated: false,
-    isAI: id.startsWith('ai'),
-  };
-}
-
-function makeState(overrides: Partial<LiarsDiceGameState> = {}): LiarsDiceGameState {
-  return {
-    roomCode: 'TEST',
-    players: [
-      makePlayer('ai1', [1, 3, 3, 5, 2]),
-      makePlayer('p2', [4, 4, 6, 2, 1]),
-      makePlayer('p3', [3, 5, 1, 6, 4]),
-    ],
-    activePlayerIndex: 0,
-    phase: 'bidding',
-    currentBid: null,
-    previousBidderId: null,
+    myDice: [1, 3, 3, 5, 2],
     totalDiceInPlay: 15,
-    round: 1,
-    gameOver: false,
-    winner: null,
+    currentBid: null,
     wildOnes: true,
     spotOnEnabled: true,
-    revealedDice: null,
-    challengeResult: null,
-    spotOnResult: null,
-    gameLog: [],
-    bidHistory: [],
     ...overrides,
   };
 }
@@ -78,7 +50,7 @@ describe('AIStrategy', () => {
 
   describe('decide - opening bid', () => {
     it('should make a valid opening bid when no current bid', () => {
-      const state = makeState();
+      const state = makeView();
       const decision = strategy.decide(state);
 
       expect(decision.action).toBe('bid');
@@ -92,7 +64,7 @@ describe('AIStrategy', () => {
 
   describe('decide - challenge', () => {
     it('should challenge when bid is very high', () => {
-      const state = makeState({
+      const state = makeView({
         currentBid: { playerId: 'p2', quantity: 12, faceValue: 6 },
       });
 
@@ -103,7 +75,7 @@ describe('AIStrategy', () => {
     });
 
     it('should challenge when bid exceeds total dice', () => {
-      const state = makeState({
+      const state = makeView({
         currentBid: { playerId: 'p2', quantity: 16, faceValue: 3 },
       });
 
@@ -114,7 +86,7 @@ describe('AIStrategy', () => {
 
   describe('decide - raise bid', () => {
     it('should raise bid when current bid is reasonable', () => {
-      const state = makeState({
+      const state = makeView({
         currentBid: { playerId: 'p2', quantity: 2, faceValue: 3 },
       });
 
@@ -131,11 +103,8 @@ describe('AIStrategy', () => {
 
   describe('decide - with few dice left', () => {
     it('should make reasonable decisions with low dice count', () => {
-      const state = makeState({
-        players: [
-          makePlayer('ai1', [3, 5]),
-          makePlayer('p2', [4, 1]),
-        ],
+      const state = makeView({
+        myDice: [3, 5],
         totalDiceInPlay: 4,
         currentBid: { playerId: 'p2', quantity: 2, faceValue: 4 },
       });

@@ -1,14 +1,15 @@
 import express from 'express';
 import { createServer } from 'http';
-import { Server } from 'socket.io';
-import { buildSocketServerOptions, registerHealthCheck, setupGracefulShutdown } from '@parlor/multiplayer';
+import { createSocketServer, registerHealthCheck, setupFatalProcessHandlers, setupGracefulShutdown } from '@parlor/multiplayer';
 import { handler } from '../build/handler.js';
 import { setupQuixxSocketHandlers } from '../src/lib/server/socket/socketServer.js';
+
+setupFatalProcessHandlers();
 
 const app = express();
 const server = createServer(app);
 
-const io = new Server(server, buildSocketServerOptions());
+const io = createSocketServer(server);
 
 setupQuixxSocketHandlers(io);
 

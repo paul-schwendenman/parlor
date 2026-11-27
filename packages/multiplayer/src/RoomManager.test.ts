@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { RoomManager, type ExpiryOutcome } from './RoomManager.js';
+import { RoomManager, type ExpiryOutcome, type HostHandoffOutcome } from './RoomManager.js';
+
+const gameRules = { id: 'test', minPlayers: 2, maxPlayers: 8, supportsBots: true };
 
 function seatTwoInGame(rm: RoomManager) {
   const host = rm.createRoom('sockA', 'Ann');
   const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
   rm.setPlayerReady(host.playerId, true);
   rm.setPlayerReady(guest.playerId!, true);
+  rm.selectGame(host.roomCode, gameRules);
   rm.startGame(host.roomCode);
   return { host, guest };
 }
@@ -54,7 +57,7 @@ describe('RoomManager reconnect + token', () => {
     rm.handleDisconnect('sockB');
 
     const ok = rm.handleReconnect(host.roomCode, guest.playerId!, guest.reconnectToken!, 'sockC');
-    expect(ok).toBe(true);
+    expect(ok?.reconnectToken).toEqual(expect.any(String));
     expect(rm.getPlayerIdBySocket('sockC')).toBe(guest.playerId);
 
     const players = rm.getPlayersInRoom(host.roomCode);
@@ -71,7 +74,7 @@ describe('RoomManager reconnect + token', () => {
     rm.handleDisconnect('sockB');
 
     const ok = rm.handleReconnect(host.roomCode, guest.playerId!, 'not-the-token', 'sockC');
-    expect(ok).toBe(false);
+    expect(ok).toBeNull();
     expect(rm.getPlayerIdBySocket('sockC')).toBeUndefined();
   });
 
@@ -79,7 +82,7 @@ describe('RoomManager reconnect + token', () => {
     const rm = new RoomManager();
     const { host } = seatTwoInGame(rm);
     const ok = rm.handleReconnect(host.roomCode, 'ghost-id', 'whatever', 'sockC');
-    expect(ok).toBe(false);
+    expect(ok).toBeNull();
   });
 });
 
@@ -100,6 +103,7 @@ describe('RoomManager maxPlayers', () => {
     const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
     rm.setPlayerReady(host.playerId, true);
     rm.setPlayerReady(guest.playerId!, true);
+    rm.selectGame(host.roomCode, gameRules);
     // Shrink the cap below the seated count.
     rm.setMaxPlayers(host.roomCode, 1);
     expect(rm.canStartGame(host.roomCode)).toBe(false);
@@ -117,11 +121,12 @@ describe('RoomManager disconnect + leave', () => {
     expect(result?.wasHost).toBe(true);
     expect(result?.retained).toBe(true);
     expect(result?.playerId).toBe(host.playerId);
-    // Host is NOT reassigned yet — the seat is kept until the timer expires.
+    // The host keeps the role through its short grace (plan 8.7).
+    expect(result?.newHostId).toBeUndefined();
     expect(rm.getRoom(host.roomCode)?.hostId).toBe(host.playerId);
+    expect(rm.hasPendingHostHandoff(host.roomCode)).toBe(true);
     const stillThere = rm.getPlayersInRoom(host.roomCode).find((p) => p.id === host.playerId);
     expect(stillThere?.connected).toBe(false);
-    // Silence the second host's would-be reassign so the room isn't left dangling.
     expect(guest.playerId).toBeTruthy();
   });
 
@@ -158,6 +163,7 @@ describe('RoomManager disconnect grace', () => {
     const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
     rm.setPlayerReady(host.playerId, true);
     rm.setPlayerReady(guest.playerId!, true);
+    rm.selectGame(host.roomCode, gameRules);
     rm.startGame(host.roomCode);
     return { host, guest };
   }
@@ -172,7 +178,7 @@ describe('RoomManager disconnect grace', () => {
     // Reconnect before the window elapses.
     vi.advanceTimersByTime(30_000);
     const ok = rm.handleReconnect(host.roomCode, guest.playerId!, guest.reconnectToken!, 'sockC');
-    expect(ok).toBe(true);
+    expect(ok?.reconnectToken).toEqual(expect.any(String));
 
     // Let the original window fully pass — the timer must have been cleared.
     vi.advanceTimersByTime(60_000);
@@ -184,7 +190,7 @@ describe('RoomManager disconnect grace', () => {
     expect(rm.getRoom(host.roomCode)?.hostId).toBe(host.playerId);
   });
 
-  it('lobby expiry removes the player, reassigns host, keeps the room', () => {
+  it('lobby expiry removes the player and preserves the transferred host', () => {
     vi.useFakeTimers();
     const rm = new RoomManager(1_000);
     const host = rm.createRoom('sockA', 'Ann');
@@ -197,9 +203,8 @@ describe('RoomManager disconnect grace', () => {
     expect(outcomes).toHaveLength(1);
     expect(outcomes[0]).toMatchObject({
       playerId: host.playerId,
-      wasHost: true,
+      wasHost: false,
       wasInGame: false,
-      newHostId: guest.playerId,
       roomDestroyed: false,
     });
     expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
@@ -210,6 +215,7 @@ describe('RoomManager disconnect grace', () => {
     vi.useFakeTimers();
     const rm = new RoomManager(1_000);
     const host = rm.createRoom('sockA', 'Ann');
+    rm.selectGame(host.roomCode, gameRules);
     rm.addBot(host.roomCode, 'Bot Bob');
     const outcomes: ExpiryOutcome[] = [];
 
@@ -220,13 +226,14 @@ describe('RoomManager disconnect grace', () => {
     expect(rm.getRoom(host.roomCode)).toBeUndefined();
   });
 
-  it('in-game expiry reports wasInGame and reassigns host among connected humans', () => {
+  it('in-game expiry reports wasInGame and preserves the transferred host', () => {
     vi.useFakeTimers();
     const rm = new RoomManager(1_000);
     const host = rm.createRoom('sockA', 'Ann');
     const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
     rm.setPlayerReady(host.playerId, true);
     rm.setPlayerReady(guest.playerId!, true);
+    rm.selectGame(host.roomCode, gameRules);
     rm.startGame(host.roomCode);
     const outcomes: ExpiryOutcome[] = [];
 
@@ -237,8 +244,7 @@ describe('RoomManager disconnect grace', () => {
     expect(outcomes[0]).toMatchObject({
       playerId: host.playerId,
       wasInGame: true,
-      wasHost: true,
-      newHostId: guest.playerId,
+      wasHost: false,
       roomDestroyed: false,
     });
     expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
@@ -251,6 +257,7 @@ describe('RoomManager disconnect grace', () => {
     const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
     rm.setPlayerReady(host.playerId, true);
     rm.setPlayerReady(guest.playerId!, true);
+    rm.selectGame(host.roomCode, gameRules);
     rm.startGame(host.roomCode);
     const outcomes: ExpiryOutcome[] = [];
 
@@ -266,34 +273,362 @@ describe('RoomManager disconnect grace', () => {
   });
 });
 
-describe('RoomManager.rebindSocket (connectionStateRecovery)', () => {
+describe('RoomManager.isSeatedPlayer', () => {
+  it('accepts a seated human bound to its own socket', () => {
+    const rm = new RoomManager();
+    const { host, guest } = seatTwoInGame(rm);
+    expect(rm.isSeatedPlayer(host.roomCode, host.playerId)).toBe(true);
+    expect(rm.isSeatedPlayer(host.roomCode, host.playerId, 'sockA')).toBe(true);
+    expect(rm.isSeatedPlayer(host.roomCode.toLowerCase(), guest.playerId, 'sockB')).toBe(true);
+  });
+
+  it('rejects a missing id, an unknown room, and a player from another room', () => {
+    const rm = new RoomManager();
+    const { host } = seatTwoInGame(rm);
+    const other = rm.createRoom('sockC', 'Cat');
+    expect(rm.isSeatedPlayer(host.roomCode, undefined)).toBe(false);
+    expect(rm.isSeatedPlayer(host.roomCode, '')).toBe(false);
+    expect(rm.isSeatedPlayer('ZZZZ', host.playerId)).toBe(false);
+    expect(rm.isSeatedPlayer(host.roomCode, other.playerId, 'sockC')).toBe(false);
+  });
+
+  it('rejects a socket acting for a seat it is not bound to', () => {
+    const rm = new RoomManager();
+    const { host } = seatTwoInGame(rm);
+    expect(rm.isSeatedPlayer(host.roomCode, host.playerId, 'sockB')).toBe(false);
+    expect(rm.isSeatedPlayer(host.roomCode, host.playerId, 'stranger')).toBe(false);
+  });
+
+  it('rejects spectators and bots', () => {
+    const rm = new RoomManager();
+    const host = rm.createRoom('sockA', 'Ann');
+    rm.selectGame(host.roomCode, gameRules);
+    const bot = rm.addBot(host.roomCode, 'Bot Alice');
+    rm.addSpectator(host.roomCode, 'sockS');
+    expect(rm.isSpectator('sockS')).toBe(true);
+    expect(rm.isSeatedPlayer(host.roomCode, host.playerId, 'sockS')).toBe(false);
+    expect(rm.isSeatedPlayer(host.roomCode, bot.botId)).toBe(false);
+  });
+
+  it('rejects a player after they leave', () => {
+    const rm = new RoomManager();
+    const { host, guest } = seatTwoInGame(rm);
+    rm.leaveRoom('sockB');
+    expect(rm.isSeatedPlayer(host.roomCode, guest.playerId, 'sockB')).toBe(false);
+  });
+});
+
+describe('RoomManager.clearReadiness', () => {
+  it('unreadies every human seat, keeps bots ready, and refuses once a game is running', () => {
+    const rm = new RoomManager();
+    const host = rm.createRoom('sockA', 'Ann');
+    const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
+    rm.selectGame(host.roomCode, gameRules);
+    rm.setPlayerReady(guest.playerId!, true);
+    expect(rm.addBot(host.roomCode, 'Bot Cy').success).toBe(true);
+
+    expect(rm.clearReadiness(host.roomCode)).toBe(true);
+    const ready = Object.fromEntries(rm.getPlayersInRoom(host.roomCode).map(p => [p.name, p.isReady]));
+    expect(ready).toEqual({ Ann: false, Bob: false, 'Bot Cy': true });
+    expect(rm.clearReadiness('NOPE99')).toBe(false);
+
+    rm.setPlayerReady(guest.playerId!, true);
+    rm.startGame(host.roomCode);
+    const before = structuredClone(rm.getRoom(host.roomCode));
+    expect(rm.clearReadiness(host.roomCode)).toBe(false);
+    expect(rm.getRoom(host.roomCode)).toEqual(before);
+  });
+});
+
+describe('RoomManager.transferHost (plan 8.6)', () => {
+  function lobbyOfThree(rm: RoomManager) {
+    const host = rm.createRoom('sockA', 'Ann');
+    const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
+    const third = rm.joinRoom(host.roomCode, 'sockC', 'Cat');
+    rm.selectGame(host.roomCode, gameRules);
+    const bot = rm.addBot(host.roomCode, 'Bot Dee');
+    rm.addSpectator(host.roomCode, 'sockS');
+    const other = rm.createRoom('sockO', 'Oz');
+    return { host, guest: guest.playerId!, third: third.playerId!, bot: bot.botId!, other: other.playerId };
+  }
+
+  it('rejects every invalid transfer without touching the room, then accepts a valid one', () => {
+    const rm = new RoomManager();
+    const { host, guest, third, bot, other } = lobbyOfThree(rm);
+    rm.handleDisconnect('sockC');
+    const before = structuredClone(rm.getRoom(host.roomCode));
+
+    const rejected: [string, string, string][] = [
+      [guest, third, 'Only the host can pass the host role on'],
+      ['sockS', guest, 'Only the host can pass the host role on'],
+      [host.playerId, host.playerId, 'You are already the host'],
+      [host.playerId, bot, 'A bot cannot be the host'],
+      [host.playerId, third, 'Cat is offline. Try again when they are back.'],
+      [host.playerId, 'nobody', 'That player is not in this room'],
+      [host.playerId, 'sockS', 'That player is not in this room'],
+      [host.playerId, other, 'That player is not in this room'],
+    ];
+    for (const [from, to, error] of rejected) {
+      expect(rm.transferHost(host.roomCode, from, to)).toEqual({ success: false, error });
+      expect(rm.getRoom(host.roomCode)).toEqual(before);
+    }
+    expect(rm.transferHost('NOPE99', host.playerId, guest)).toEqual({ success: false, error: 'Room not found' });
+
+    expect(rm.transferHost(host.roomCode.toLowerCase(), host.playerId, guest)).toEqual({ success: true });
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest);
+    expect(rm.isHost(host.roomCode, host.playerId)).toBe(false);
+    // The old host is now an ordinary guest and cannot take the role back.
+    expect(rm.transferHost(host.roomCode, host.playerId, guest).success).toBe(false);
+  });
+
+  it('only passes the role on in the lobby', () => {
+    const rm = new RoomManager();
+    const { host, guest } = seatTwoInGame(rm);
+    expect(rm.transferHost(host.roomCode, host.playerId, guest.playerId!)).toEqual({
+      success: false,
+      error: 'You can pass the host role on in the lobby, between games',
+    });
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(host.playerId);
+  });
+
+  it('gives the new host the start: the old host now needs Ready', () => {
+    const rm = new RoomManager();
+    const host = rm.createRoom('sockA', 'Ann');
+    const guest = rm.joinRoom(host.roomCode, 'sockB', 'Bob');
+    rm.selectGame(host.roomCode, gameRules);
+    rm.setPlayerReady(guest.playerId!, true);
+    expect(rm.canStartGame(host.roomCode)).toBe(true);
+    rm.transferHost(host.roomCode, host.playerId, guest.playerId!);
+    expect(rm.canStartGame(host.roomCode)).toBe(false);
+    rm.setPlayerReady(host.playerId, true);
+    expect(rm.canStartGame(host.roomCode)).toBe(true);
+  });
+});
+
+describe('RoomManager host grace (plan 8.7)', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('re-binds a recovered socket, clears the grace timer, and restores connected', () => {
+  function lobby(rm: RoomManager, names = ['Bob']) {
+    const host = rm.createRoom('sockA', 'Ann');
+    const guests = names.map((name, i) => rm.joinRoom(host.roomCode, `sock${i}`, name));
+    return { host, guests };
+  }
+
+  it('keeps the role for the grace window, then hands it to a connected human', () => {
     vi.useFakeTimers();
-    const rm = new RoomManager(1_000);
-    const { host } = seatTwoInGame(rm);
-    const outcomes: ExpiryOutcome[] = [];
+    const rm = new RoomManager(60_000);
+    const { host, guests: [guest] } = lobby(rm);
+    const handoffs: HostHandoffOutcome[] = [];
+    const expiries: ExpiryOutcome[] = [];
 
-    // Original socket drops; a grace timer is scheduled and the seat greys out.
-    rm.handleDisconnect('sockA', (o) => outcomes.push(o));
-    expect(rm.getRoom(host.roomCode)?.players.get(host.playerId)?.connected).toBe(false);
+    rm.handleDisconnect('sockA', (o) => expiries.push(o), (o) => handoffs.push(o));
+    vi.advanceTimersByTime(9_999);
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(host.playerId);
+    expect(handoffs).toEqual([]);
 
-    // Socket.io recovers the connection under a new id before the client's reconnect.
-    expect(rm.rebindSocket('sockA-recovered', host.playerId)).toBe(true);
-    expect(rm.getRoom(host.roomCode)?.players.get(host.playerId)?.connected).toBe(true);
-    expect(rm.getPlayerIdBySocket('sockA-recovered')).toBe(host.playerId);
+    vi.advanceTimersByTime(1);
+    expect(handoffs).toEqual([{ roomCode: host.roomCode, previousHostId: host.playerId, newHostId: guest.playerId }]);
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
+    expect(rm.hasPendingHostHandoff(host.roomCode)).toBe(false);
 
-    // The pending removal was cancelled — the timer must not fire.
-    vi.advanceTimersByTime(5_000);
-    expect(outcomes).toHaveLength(0);
-    expect(rm.getRoom(host.roomCode)?.players.has(host.playerId)).toBe(true);
+    // The seat's own expiry later does not reassign again.
+    vi.advanceTimersByTime(50_000);
+    expect(expiries).toEqual([expect.objectContaining({ wasHost: false, newHostId: undefined })]);
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
   });
 
-  it('returns false for an unknown player', () => {
-    const rm = new RoomManager();
-    expect(rm.rebindSocket('sock', 'nope')).toBe(false);
+  it('uses a configurable delay', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(60_000, undefined, 250);
+    const { host, guests: [guest] } = lobby(rm);
+    const onHostChange = vi.fn();
+    rm.handleDisconnect('sockA', undefined, onHostChange);
+    vi.advanceTimersByTime(250);
+    expect(onHostChange).toHaveBeenCalledOnce();
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
+  });
+
+  it('cancels the hand-off when the host reconnects inside the window', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(60_000);
+    const { host } = lobby(rm);
+    const onHostChange = vi.fn();
+
+    rm.handleDisconnect('sockA', undefined, onHostChange);
+    vi.advanceTimersByTime(5_000);
+    const back = rm.handleReconnect(host.roomCode, host.playerId, host.reconnectToken, 'sockA2');
+    expect(back?.newHostId).toBeUndefined();
+    expect(rm.hasPendingHostHandoff(host.roomCode)).toBe(false);
+    vi.advanceTimersByTime(60_000);
+    expect(onHostChange).not.toHaveBeenCalled();
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(host.playerId);
+  });
+
+  it('a second disconnect after a quick return starts a fresh window', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(60_000);
+    const { host, guests: [guest] } = lobby(rm);
+    const onHostChange = vi.fn();
+
+    rm.handleDisconnect('sockA', undefined, onHostChange);
+    vi.advanceTimersByTime(8_000);
+    rm.handleReconnect(host.roomCode, host.playerId, host.reconnectToken, 'sockA2');
+    rm.handleDisconnect('sockA2', undefined, onHostChange);
+    vi.advanceTimersByTime(8_000);
+    expect(onHostChange).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(2_000);
+    expect(onHostChange).toHaveBeenCalledOnce();
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
+  });
+
+  it('an explicit leave after a quick return hands the role on at once, with no late hand-off', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(60_000);
+    const { host, guests: [guest] } = lobby(rm);
+    const onHostChange = vi.fn();
+
+    rm.handleDisconnect('sockA', undefined, onHostChange);
+    rm.handleReconnect(host.roomCode, host.playerId, host.reconnectToken, 'sockA2');
+    const left = rm.leaveRoom('sockA2');
+    expect(left?.newHostId).toBe(guest.playerId);
+    expect(rm.hasPendingHostHandoff(host.roomCode)).toBe(false);
+    vi.advanceTimersByTime(60_000);
+    expect(onHostChange).not.toHaveBeenCalled();
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
+  });
+
+  it('when seat expiry comes first, removal reassigns once and the hand-off never fires', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(1_000, undefined, 5_000);
+    const { host, guests: [guest] } = lobby(rm);
+    const expiries: ExpiryOutcome[] = [];
+    const onHostChange = vi.fn();
+
+    rm.handleDisconnect('sockA', (o) => expiries.push(o), onHostChange);
+    vi.advanceTimersByTime(1_000);
+    expect(expiries).toEqual([expect.objectContaining({ wasHost: true, newHostId: guest.playerId })]);
+    expect(rm.hasPendingHostHandoff(host.roomCode)).toBe(false);
+    vi.advanceTimersByTime(10_000);
+    expect(onHostChange).not.toHaveBeenCalled();
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
+  });
+
+  it('with equal delays the hand-off runs first and expiry does not reassign again', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(1_000);
+    const { host, guests: [guest] } = lobby(rm);
+    const expiries: ExpiryOutcome[] = [];
+    const handoffs: HostHandoffOutcome[] = [];
+
+    rm.handleDisconnect('sockA', (o) => expiries.push(o), (o) => handoffs.push(o));
+    vi.advanceTimersByTime(1_000);
+    expect(handoffs).toHaveLength(1);
+    expect(expiries).toEqual([expect.objectContaining({ wasHost: false, newHostId: undefined })]);
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
+  });
+
+  it('clears the hand-off when the room is destroyed', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(1_000, undefined, 5_000);
+    const host = rm.createRoom('sockA', 'Ann');
+    rm.selectGame(host.roomCode, gameRules);
+    rm.addBot(host.roomCode, 'Bot Bob');
+    const onHostChange = vi.fn();
+
+    rm.handleDisconnect('sockA', undefined, onHostChange);
+    vi.advanceTimersByTime(1_000);
+    expect(rm.getRoom(host.roomCode)).toBeUndefined();
+    expect(rm.hasPendingHostHandoff(host.roomCode)).toBe(false);
+    vi.advanceTimersByTime(10_000);
+    expect(onHostChange).not.toHaveBeenCalled();
+  });
+
+  it('picks whoever is connected when the window ends', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(60_000);
+    const { host, guests: [bob, cat] } = lobby(rm, ['Bob', 'Cat']);
+    const onHostChange = vi.fn();
+
+    rm.handleDisconnect('sockA', undefined, onHostChange);
+    rm.handleDisconnect('sock0');
+    vi.advanceTimersByTime(10_000);
+    expect(onHostChange).toHaveBeenCalledExactlyOnceWith({
+      roomCode: host.roomCode, previousHostId: host.playerId, newHostId: cat.playerId,
+    });
+    expect(rm.getRoom(host.roomCode)?.hostId).not.toBe(bob.playerId);
+  });
+
+  it('with nobody connected at the end of the window, the first human back becomes host', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(60_000);
+    const { host, guests: [bob] } = lobby(rm);
+    const onHostChange = vi.fn();
+
+    rm.handleDisconnect('sockA', undefined, onHostChange);
+    rm.handleDisconnect('sock0');
+    vi.advanceTimersByTime(10_000);
+    expect(onHostChange).not.toHaveBeenCalled();
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(host.playerId);
+
+    const back = rm.handleReconnect(host.roomCode, bob.playerId!, bob.reconnectToken!, 'sockB2');
+    expect(back?.newHostId).toBe(bob.playerId);
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(bob.playerId);
+  });
+
+  it('a guest who reconnects or joins inside the window does not take the role', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(60_000);
+    const { host, guests: [bob] } = lobby(rm);
+    const onHostChange = vi.fn();
+
+    rm.handleDisconnect('sock0');
+    rm.handleDisconnect('sockA', undefined, onHostChange);
+    const back = rm.handleReconnect(host.roomCode, bob.playerId!, bob.reconnectToken!, 'sockB2');
+    expect(back?.newHostId).toBeUndefined();
+    const joined = rm.joinRoom(host.roomCode, 'sockD', 'Dee');
+    expect(joined.newHostId).toBeUndefined();
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(host.playerId);
+
+    vi.advanceTimersByTime(10_000);
+    expect(onHostChange).toHaveBeenCalledExactlyOnceWith({
+      roomCode: host.roomCode, previousHostId: host.playerId, newHostId: bob.playerId,
+    });
+  });
+
+  it('inside the window nobody can act as host and the room cannot start', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(60_000);
+    const { host, guests: [bob] } = lobby(rm);
+    rm.selectGame(host.roomCode, gameRules);
+    rm.setPlayerReady(bob.playerId!, true);
+    expect(rm.canStartGame(host.roomCode)).toBe(true);
+
+    rm.handleDisconnect('sockA');
+    expect(rm.isHost(host.roomCode, bob.playerId!)).toBe(false);
+    expect(rm.canStartGame(host.roomCode)).toBe(false);
+    expect(rm.startGame(host.roomCode)).toBeNull();
+    expect(rm.transferHost(host.roomCode, bob.playerId!, bob.playerId!).success).toBe(false);
+    expect(rm.transferHost(host.roomCode, host.playerId, bob.playerId!)).toEqual({
+      success: false, error: 'Only the host can pass the host role on',
+    });
+
+    vi.advanceTimersByTime(10_000);
+    expect(rm.isHost(host.roomCode, bob.playerId!)).toBe(true);
+    // The old host's seat is still in grace, so the room still waits for it.
+    expect(rm.canStartGame(host.roomCode)).toBe(false);
+  });
+
+  it('an in-game host keeps the role through the window too', () => {
+    vi.useFakeTimers();
+    const rm = new RoomManager(60_000);
+    const { host, guest } = seatTwoInGame(rm);
+    const onHostChange = vi.fn();
+    rm.handleDisconnect('sockA', undefined, onHostChange);
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(host.playerId);
+    vi.advanceTimersByTime(10_000);
+    expect(onHostChange).toHaveBeenCalledOnce();
+    expect(rm.getRoom(host.roomCode)?.hostId).toBe(guest.playerId);
   });
 });

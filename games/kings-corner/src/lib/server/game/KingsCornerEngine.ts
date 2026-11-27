@@ -1,3 +1,6 @@
+import { cardEquals, createDeck } from '@parlor/cards';
+import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
+import { GameRuleError, RoomManager } from '@parlor/multiplayer';
 import type {
   Card,
   PilePosition,
@@ -13,8 +16,7 @@ import {
   CORNER_POSITIONS,
   ALL_POSITIONS,
 } from '../../types/game.js';
-import { createDeck, shuffle } from '../../game/deck.js';
-import { cardEquals, canPlayCardOnPile, canMovePile, isCornerPosition } from '../../game/validation.js';
+import { canPlayCardOnPile, canMovePile } from '../../game/validation.js';
 
 interface Player {
   id: string;
@@ -32,16 +34,22 @@ export class KingsCornerEngine {
   private winner: { id: string; name: string } | null = null;
   private roomCode: string;
   private config: KingsCornerConfig;
+  /** Seats whose player left for good: out of the turn order (plan 3.9). */
+  private removed = new Set<string>();
+  private passed = new Set<string>();
+  private turnMadeProgress = false;
+  private penalties?: Record<string, number>;
 
   constructor(
     playerInfos: { id: string; name: string }[],
     roomCode: string,
     config: KingsCornerConfig = DEFAULT_CONFIG,
+    randomInt: RandomInt = secureRandomInt,
   ) {
     this.roomCode = roomCode;
     this.config = config;
 
-    let deck = shuffle(createDeck());
+    const deck = fisherYatesShuffle(createDeck(), randomInt);
 
     this.players = playerInfos.map((p) => ({
       id: p.id,
@@ -92,46 +100,51 @@ export class KingsCornerEngine {
 
   drawCard(playerId: string): void {
     if (this.phase !== 'drawing') {
-      throw new Error('Not in drawing phase');
+      throw new GameRuleError('Not in drawing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     if (this.drawPile.length === 0) {
-      throw new Error('Draw pile is empty');
+      throw new GameRuleError('Draw pile is empty');
     }
 
     const drawn = this.drawPile.pop()!;
     player.hand.push(drawn);
+    this.recordProgress();
     this.phase = 'playing';
   }
 
   playCard(playerId: string, card: Card, target: PilePosition): void {
     if (this.phase !== 'playing') {
-      throw new Error('Not in playing phase');
+      throw new GameRuleError('Not in playing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     const cardIndex = player.hand.findIndex((c) => cardEquals(c, card));
     if (cardIndex === -1) {
-      throw new Error('Card not in hand');
+      throw new GameRuleError('Card not in hand');
     }
 
-    const pile = this.getPile(target);
-    if (!canPlayCardOnPile(card, { position: target, cards: pile }, target)) {
-      throw new Error('Cannot play this card on that pile');
+    const pile = this.piles.get(target);
+    if (!pile) throw new GameRuleError('Invalid pile', 'INVALID_ACTION');
+    // From here on use the server's own card, never the client's object (CORE-AUDIT A-05).
+    const handCard = player.hand[cardIndex];
+    if (!canPlayCardOnPile(handCard, { position: target, cards: pile }, target)) {
+      throw new GameRuleError('Cannot play this card on that pile');
     }
 
     // Remove from hand, add to pile
     player.hand.splice(cardIndex, 1);
-    pile.push(card);
+    pile.push(handCard);
+    this.recordProgress();
 
     // Check win
     if (player.hand.length === 0) {
@@ -142,50 +155,52 @@ export class KingsCornerEngine {
 
   movePile(playerId: string, from: PilePosition, to: PilePosition): void {
     if (this.phase !== 'playing') {
-      throw new Error('Not in playing phase');
+      throw new GameRuleError('Not in playing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     if (from === to) {
-      throw new Error('Cannot move pile onto itself');
+      throw new GameRuleError('Cannot move pile onto itself');
     }
 
-    const fromPile = this.getPile(from);
-    const toPile = this.getPile(to);
+    const fromPile = this.piles.get(from);
+    const toPile = this.piles.get(to);
+    if (!fromPile || !toPile) throw new GameRuleError('Invalid pile', 'INVALID_ACTION');
 
     if (!canMovePile(
       { position: from, cards: fromPile },
       { position: to, cards: toPile },
       to,
     )) {
-      throw new Error('Cannot move this pile there');
+      throw new GameRuleError('Cannot move this pile there');
     }
 
     // Move all cards from source to destination
     toPile.push(...fromPile);
     fromPile.length = 0;
+    this.recordProgress();
   }
 
   endTurn(playerId: string): void {
     if (this.phase !== 'playing') {
-      throw new Error('Not in playing phase');
+      throw new GameRuleError('Not in playing phase');
     }
 
     const player = this.getActivePlayer();
     if (player.id !== playerId) {
-      throw new Error('Not your turn');
+      throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
     }
 
     // Check mandatory Kings rule
     if (this.playerMustPlayKing(player)) {
-      throw new Error('You must play a King to an open corner before ending your turn');
+      throw new GameRuleError('You must play a King to an open corner before ending your turn');
     }
 
-    this.advanceTurn();
+    this.completeTurn();
   }
 
   getPlayerView(playerId: string): KingsCornerPlayerView {
@@ -213,6 +228,7 @@ export class KingsCornerEngine {
         name: p.name,
         cardCount: p.hand.length,
         connected: p.connected,
+        isBot: RoomManager.isBotPlayer(p.id),
       })),
       myIndex,
       activePlayerIndex: this.activePlayerIndex,
@@ -225,6 +241,7 @@ export class KingsCornerEngine {
       phase: this.phase,
       winner: this.winner,
       gameOver: this.phase === 'game-over',
+      ...(this.penalties && { penalties: { ...this.penalties } }),
       playableCards,
       movablePiles,
       canEndTurn,
@@ -240,6 +257,7 @@ export class KingsCornerEngine {
         name: p.name,
         cardCount: p.hand.length,
         connected: p.connected,
+        isBot: RoomManager.isBotPlayer(p.id),
       })),
       myIndex: -1,
       activePlayerIndex: this.activePlayerIndex,
@@ -252,6 +270,7 @@ export class KingsCornerEngine {
       phase: this.phase,
       winner: this.winner,
       gameOver: this.phase === 'game-over',
+      ...(this.penalties && { penalties: { ...this.penalties } }),
       playableCards: [],
       movablePiles: [],
       canEndTurn: false,
@@ -262,13 +281,69 @@ export class KingsCornerEngine {
   handleDisconnect(playerId: string): void {
     const player = this.players.find((p) => p.id === playerId);
     if (player) player.connected = false;
+    this.takeAbsentTurn(playerId);
+  }
 
+  /** The id of the seat whose turn it is, in engine seat order. */
+  getActivePlayerId(): string {
+    return this.getActivePlayer().id;
+  }
+
+  isConnected(playerId: string): boolean {
+    return this.players.find((p) => p.id === playerId)?.connected ?? false;
+  }
+
+  /** At least one seat still in the game is connected (bots always are). */
+  hasConnectedPlayer(): boolean {
+    return this.players.some((p) => p.connected && !this.removed.has(p.id));
+  }
+
+  /**
+   * Remove a departing seat from the turn order and impasse scoring.
+   * With fewer than two seats left, the last seat wins by forfeit.
+   */
+  removePlayer(playerId: string): void {
+    const player = this.players.find((p) => p.id === playerId);
+    if (!player || this.removed.has(playerId)) return;
+    player.connected = false;
+    this.removed.add(playerId);
+    this.passed.delete(playerId);
     if (this.phase === 'game-over') return;
 
+    const remaining = this.players.filter((p) => !this.removed.has(p.id));
+    if (remaining.length < 2) {
+      const last = remaining[0];
+      this.winner = last ? { id: last.id, name: last.name } : null;
+      this.phase = 'game-over';
+      return;
+    }
+    if (this.getActivePlayer().id === playerId) this.advanceTurn();
+    this.finishImpasseIfReady();
+  }
+
+  /**
+   * Stand in for an active seat during disconnect grace. Play mandatory kings
+   * and pass without drawing. Always ends their turn (or the game).
+   */
+  takeAbsentTurn(playerId: string): void {
+    if (this.phase === 'game-over') return;
     const activePlayer = this.getActivePlayer();
     if (activePlayer.id !== playerId) return;
 
-    // Auto-action for disconnected active player
+    this.phase = 'playing';
+    this.autoPlayKings(activePlayer);
+    if (this.phase === 'playing') this.completeTurn();
+  }
+
+  /**
+   * The fallback for a bot that overran its time: draw, play any mandatory
+   * kings, and pass if the game is still running.
+   */
+  takeTimedOutTurn(playerId: string): void {
+    if (this.phase === 'game-over') return;
+    const activePlayer = this.getActivePlayer();
+    if (activePlayer.id !== playerId) return;
+
     if (this.phase === 'drawing') {
       if (this.drawPile.length > 0) {
         this.drawCard(playerId);
@@ -278,9 +353,8 @@ export class KingsCornerEngine {
     }
 
     if (this.phase === 'playing') {
-      // Play any mandatory Kings first
       this.autoPlayKings(activePlayer);
-      this.advanceTurn();
+      if (this.phase === 'playing') this.completeTurn();
     }
   }
 
@@ -297,8 +371,42 @@ export class KingsCornerEngine {
     return this.piles.get(position)!;
   }
 
+  private recordProgress(): void {
+    this.turnMadeProgress = true;
+    this.passed.clear();
+  }
+
+  private completeTurn(): void {
+    if (this.drawPile.length === 0 && !this.turnMadeProgress) {
+      this.passed.add(this.getActivePlayerId());
+      this.finishImpasseIfReady();
+    }
+    if (!this.isGameOver()) this.advanceTurn();
+  }
+
+  private finishImpasseIfReady(): void {
+    if (this.drawPile.length > 0) return;
+    const remaining = this.players.filter((player) => !this.removed.has(player.id));
+    if (!remaining.every((player) => this.passed.has(player.id))) return;
+
+    const penalties = Object.fromEntries(remaining.map(({ id, hand }) => [
+      id, hand.reduce((points, card) => points + (card.rank === 'K' ? 10 : 1), 0),
+    ]));
+    const lowest = Math.min(...Object.values(penalties));
+    const leaders = remaining.filter(({ id }) => penalties[id] === lowest);
+    this.penalties = penalties;
+    this.winner = leaders.length === 1 ? { id: leaders[0].id, name: leaders[0].name } : null;
+    this.phase = 'game-over';
+  }
+
   private advanceTurn(): void {
-    this.activePlayerIndex = (this.activePlayerIndex + 1) % this.players.length;
+    // Skip seats that have left the game.
+    let next = (this.activePlayerIndex + 1) % this.players.length;
+    for (let i = 0; i < this.players.length && this.removed.has(this.players[next].id); i++) {
+      next = (next + 1) % this.players.length;
+    }
+    this.activePlayerIndex = next;
+    this.turnMadeProgress = false;
 
     if (this.drawPile.length > 0) {
       this.phase = 'drawing';
@@ -330,6 +438,7 @@ export class KingsCornerEngine {
           const idx = player.hand.findIndex((c) => cardEquals(c, king));
           player.hand.splice(idx, 1);
           this.getPile(emptyCorner).push(king);
+          this.recordProgress();
           changed = true;
 
           if (player.hand.length === 0) {

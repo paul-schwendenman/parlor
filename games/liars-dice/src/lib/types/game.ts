@@ -91,6 +91,7 @@ export interface LiarsDicePlayerView {
     connected: boolean;
     diceCount: number;
     eliminated: boolean;
+    isBot: boolean;
     dice: number[] | null; // only visible during reveal
   }[];
   myDice: number[];
@@ -120,3 +121,14 @@ export type LiarsDiceAction =
   | { type: 'challenge' }
   | { type: 'spot-on' }
   | { type: 'nextRound' };
+
+// Liar's Dice's entries in the `game:state` and `game:action` wire maps (plans 3.1b, 3.5). Spectators get
+// the same shape with `myIndex: -1` and no dice.
+declare module '@parlor/game-types' {
+  interface GameViewMap {
+    'liars-dice': LiarsDicePlayerView;
+  }
+  interface GameActionMap {
+    'liars-dice': LiarsDiceAction;
+  }
+}

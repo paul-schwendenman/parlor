@@ -1,4 +1,5 @@
 import type { GameState, Die, PendingAction } from '../../types/game.js';
+import { abortableDelay, type GameScheduling } from '@parlor/multiplayer';
 import { AIStrategy } from './AIStrategy.js';
 
 interface AICallbacks {
@@ -17,19 +18,25 @@ export class AIPlayer {
     this.strategy = new AIStrategy();
   }
 
-  async takeTurn(state: GameState, callbacks: AICallbacks): Promise<void> {
+  async takeTurn(
+    state: GameState,
+    callbacks: AICallbacks,
+    signal?: AbortSignal,
+    scheduler?: GameScheduling,
+  ): Promise<void> {
+    const wait = async (ms: number): Promise<boolean> =>
+      await abortableDelay(ms, signal, scheduler) && !signal?.aborted;
     const player = state.players[state.currentPlayerIndex];
     let rollsRemaining = state.rollsRemaining;
-    let currentDice = state.dice;
-
     // First roll is mandatory - dice start as placeholders
-    await this.delay(this.thinkDelay);
-    currentDice = await callbacks.onRoll();
+    if (!(await wait(this.thinkDelay))) return;
+    let currentDice = await callbacks.onRoll();
+    if (signal?.aborted) return;
     rollsRemaining--;
 
     // Subsequent rolls are optional
     while (rollsRemaining > 0) {
-      await this.delay(this.thinkDelay);
+      if (!(await wait(this.thinkDelay))) return;
 
       // Decide which dice to keep
       const keepIndices = this.strategy.decideDiceToKeep(currentDice, player, state);
@@ -39,8 +46,9 @@ export class AIPlayer {
       const shouldRoll = this.strategy.shouldRollAgain(currentDice, rollsRemaining, player, state);
       if (!shouldRoll) break;
 
-      await this.delay(800);
+      if (!(await wait(800))) return;
       currentDice = await callbacks.onRoll();
+      if (signal?.aborted) return;
       rollsRemaining--;
     }
 
@@ -48,19 +56,19 @@ export class AIPlayer {
     callbacks.onFinishRolling();
 
     // Target selection phase
-    await this.delay(this.thinkDelay);
+    if (!(await wait(this.thinkDelay))) return;
     const pendingActions = this.detectPendingActions(currentDice);
 
     for (const action of pendingActions) {
       const target = this.strategy.selectTarget(action.face, player, state);
       if (target) {
         callbacks.onSelectTarget(action.dieIndex, target.id);
-        await this.delay(500);
+        if (!(await wait(500))) return;
       }
     }
 
     // End turn
-    await this.delay(1000);
+    if (!(await wait(1000))) return;
     callbacks.onEndTurn();
   }
 
@@ -73,9 +81,5 @@ export class AIPlayer {
         face: die.face as 'cutlass' | 'jolly_roger',
         resolved: false,
       }));
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

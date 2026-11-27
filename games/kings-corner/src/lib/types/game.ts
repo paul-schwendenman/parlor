@@ -1,13 +1,6 @@
-export const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'] as const;
-export type Suit = (typeof SUITS)[number];
+import type { Card } from '@parlor/cards';
 
-export const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const;
-export type Rank = (typeof RANKS)[number];
-
-export interface Card {
-  suit: Suit;
-  rank: Rank;
-}
+export { RANKS, SUITS, type Card, type Rank, type Suit } from '@parlor/cards';
 
 export const CARDINAL_POSITIONS = ['north', 'south', 'east', 'west'] as const;
 export const CORNER_POSITIONS = ['northeast', 'southeast', 'southwest', 'northwest'] as const;
@@ -24,6 +17,7 @@ export type KingsCornerPhase = 'drawing' | 'playing' | 'game-over';
 export type KingsCornerAction =
   | { type: 'play-card'; card: Card; target: PilePosition }
   | { type: 'move-pile'; from: PilePosition; to: PilePosition }
+  | { type: 'draw-card' }
   | { type: 'end-turn' };
 
 export interface KingsCornerPlayerInfo {
@@ -31,6 +25,7 @@ export interface KingsCornerPlayerInfo {
   name: string;
   cardCount: number;
   connected: boolean;
+  isBot: boolean;
 }
 
 export interface PlayableCard {
@@ -54,6 +49,8 @@ export interface KingsCornerPlayerView {
   phase: KingsCornerPhase;
   winner: { id: string; name: string } | null;
   gameOver: boolean;
+  /** Revealed only when an empty-stock impasse ends the hand. */
+  penalties?: Record<string, number>;
   playableCards: PlayableCard[];
   movablePiles: MovablePile[];
   canEndTurn: boolean;
@@ -67,3 +64,14 @@ export interface KingsCornerConfig {
 export const DEFAULT_CONFIG: KingsCornerConfig = {
   turnTimer: null,
 };
+
+// Kings Corner's entries in the `game:state` and `game:action` wire maps (plans 3.1b, 3.5). Spectators get
+// the same shape with `myIndex: -1` and an empty hand.
+declare module '@parlor/game-types' {
+  interface GameViewMap {
+    'kings-corner': KingsCornerPlayerView;
+  }
+  interface GameActionMap {
+    'kings-corner': KingsCornerAction;
+  }
+}

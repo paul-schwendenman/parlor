@@ -18,7 +18,7 @@ test.describe('Homepage', () => {
 	test('shows join section with inputs', async ({ page }) => {
 		await page.goto('/');
 
-		await expect(page.getByPlaceholder('ABCD')).toBeVisible();
+		await expect(page.getByLabel('Room code')).toBeVisible();
 		await expect(page.getByPlaceholder('Your name')).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Join' })).toBeVisible();
 	});
@@ -46,7 +46,7 @@ test.describe('Create Room Flow', () => {
 		await page.getByRole('button', { name: 'Create Room' }).click();
 
 		// Should navigate to lobby
-		await expect(page).toHaveURL(/\/lobby\/[A-Z0-9]{4}$/);
+		await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
 
 		// Lobby should show the player and host badge
 		await expect(page.getByText('TestHost')).toBeVisible();
@@ -62,10 +62,10 @@ test.describe('Multiplayer Flow', () => {
 
 		await hostPage.goto('/');
 		await hostPage.getByRole('button', { name: 'Start Game' }).first().click();
-		await hostPage.getByPlaceholder('Enter your name').fill('Host');
+		await hostPage.getByPlaceholder('Enter your name').fill('Alex');
 		await hostPage.getByRole('button', { name: 'Create Room' }).click();
 
-		await expect(hostPage).toHaveURL(/\/lobby\/[A-Z0-9]{4}$/);
+		await expect(hostPage).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
 
 		// Extract room code from URL
 		const roomCode = hostPage.url().split('/').pop()!;
@@ -75,15 +75,15 @@ test.describe('Multiplayer Flow', () => {
 		const guestPage = await guestContext.newPage();
 
 		await guestPage.goto('/');
-		await guestPage.getByPlaceholder('ABCD').fill(roomCode);
+		await guestPage.getByLabel('Room code').fill(roomCode);
 		await guestPage.getByPlaceholder('Your name').fill('Guest');
 		await guestPage.getByRole('button', { name: 'Join' }).click();
 
 		await expect(guestPage).toHaveURL(`/lobby/${roomCode}`);
 
 		// Both players see each other
-		await expect(hostPage.getByText('Guest')).toBeVisible();
-		await expect(guestPage.getByText('Host', { exact: true })).toBeVisible();
+		await expect(hostPage.getByText('Guest', { exact: true })).toBeVisible();
+		await expect(guestPage.getByText('Alex', { exact: true })).toBeVisible();
 
 		await hostContext.close();
 		await guestContext.close();
@@ -98,23 +98,22 @@ test.describe('Multiplayer Flow', () => {
 		await page.getByPlaceholder('Enter your name').fill('Player1');
 		await page.getByRole('button', { name: 'Create Room' }).click();
 
-		await expect(page).toHaveURL(/\/lobby\/[A-Z0-9]{4}$/);
+		await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
 
 		// Add a bot
-		await page.getByRole('button', { name: 'Add Bot' }).click();
+		await page.getByRole('button', { name: 'Add bot to seat 2' }).click();
 
 		// Should see the bot in player list
-		await expect(page.getByText('Bot')).toBeVisible();
+		await expect(page.getByText('Bot Alice')).toBeVisible();
 
-		// Ready up
-		await page.getByRole('button', { name: 'Ready Up' }).click();
-		await expect(page.getByText('Ready').first()).toBeVisible();
+		// The bot is always ready and the host's START is their ready
+		await expect(page.getByText('Ready', { exact: true })).toBeVisible();
 
 		// Start the game
 		await page.getByRole('button', { name: 'Start Game' }).click();
 
 		// Should navigate to game page
-		await expect(page).toHaveURL(/\/game\/[A-Z0-9]{4}$/);
+		await expect(page).toHaveURL(/\/game\/[A-Z2-9]{4}$/);
 
 		// Game view should load (generic check - "Playing" in title)
 		await expect(page).toHaveTitle(/Playing/);

@@ -1,6 +1,21 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createParlorRuntime, type ParlorRuntimeAdapter } from './clientRuntime.js';
 
+// A client-only test game, so `sendAction` has real action types to check.
+type TestClientAction =
+  | { type: 'lockDice'; diceIndices: number[] }
+  | { type: 'bid'; quantity: number; faceValue: number }
+  | { type: 'roll' };
+
+declare module '@parlor/game-types' {
+  interface GameViewMap {
+    'test-client': { turn: number };
+  }
+  interface GameActionMap {
+    'test-client': TestClientAction;
+  }
+}
+
 // --- socket.io-client mock -------------------------------------------------
 
 type Handler = (...args: unknown[]) => void;
@@ -55,16 +70,16 @@ function latestSocket(): MockSocket {
 }
 
 /** Pull the (success) ack callback from the last player:reconnect emit. */
-function reconnectCb(socket: MockSocket): (success: boolean) => void {
+function reconnectCb(socket: MockSocket): (success: boolean, reconnectToken?: string) => void {
   const calls = socket.emit.mock.calls.filter((c) => c[0] === 'player:reconnect');
   const last = calls[calls.length - 1];
-  return last[last.length - 1] as (success: boolean) => void;
+  return last[last.length - 1] as (success: boolean, reconnectToken?: string) => void;
 }
 
-/** Pull the (success, error) ack from the last emit of the given event. */
-function ackOf(socket: MockSocket, event: string): (success: boolean, error?: string) => void {
+/** Pull the ack callback from the first emit of the given event. Call it with whatever the server would send. */
+function ackOf(socket: MockSocket, event: string): (...args: unknown[]) => void {
   const call = socket.emit.mock.calls.find((c) => c[0] === event)!;
-  return call[call.length - 1] as (success: boolean, error?: string) => void;
+  return call[call.length - 1] as (...args: unknown[]) => void;
 }
 
 function reconnectEmits(socket: MockSocket): unknown[][] {
@@ -99,7 +114,7 @@ function makeAdapter(overrides: Partial<ParlorRuntimeAdapter> = {}): ParlorRunti
       set: vi.fn(),
       reset: vi.fn(),
     },
-    onView: vi.fn(),
+    onGameState: vi.fn(),
     ...overrides,
   };
 }
@@ -173,6 +188,20 @@ describe('createParlorRuntime', () => {
     runtime.getSocket();
     latestSocket().trigger('connect_error');
     expect(adapter.connectionState.setError).not.toHaveBeenCalled();
+  });
+
+  it('uses the rotated reconnect token on the next connection', () => {
+    storeSession();
+    const runtime = createParlorRuntime(makeAdapter());
+    runtime.getSocket();
+    const mock = latestSocket();
+    mock.trigger('connect');
+    reconnectCb(mock)(true, 'rotated-token');
+
+    mock.trigger('disconnect');
+    mock.trigger('connect');
+    expect(reconnectEmits(mock).at(-1)?.[3]).toBe('rotated-token');
+    reconnectCb(mock)(true);
   });
 
   it('re-emits player:reconnect on EVERY connect (not just the first)', () => {
@@ -267,18 +296,26 @@ describe('createParlorRuntime', () => {
     expect(adapter.playerState.set).not.toHaveBeenCalled();
   });
 
-  it('room-gone rejection clears the session and resets player', () => {
+  it('clears the session and stale lobby and game state when the room is gone', () => {
     storeSession();
     const adapter = makeAdapter({ restorePlayerOnReconnect: true });
     const runtime = createParlorRuntime(adapter);
     runtime.getSocket();
     const socket = latestSocket();
     socket.trigger('connect');
+    reconnectCb(socket)(true);
+    socket.trigger('lobby:state', [{ id: 'p1', name: 'Ann', connected: true }], false);
+    socket.trigger('lobby:gameStarting');
+    socket.trigger('game:state', { gameId: 'quixx', view: { phase: 'playing' } });
+    socket.trigger('disconnect');
+    socket.trigger('connect');
     reconnectCb(socket)(false);
 
-    expect(adapter.playerState.set).not.toHaveBeenCalled();
     expect(adapter.playerState.reset).toHaveBeenCalledTimes(1);
+    expect(adapter.lobbyState.reset).toHaveBeenCalledTimes(1);
+    expect(adapter.gameState.reset).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem(SESSION_KEY)).toBeNull();
+    expect(adapter.connectionState.setReconnectPending).toHaveBeenLastCalledWith(false);
   });
 
   it('ack timeout does NOT clear the session and retries on the next connect', () => {
@@ -295,6 +332,8 @@ describe('createParlorRuntime', () => {
       vi.advanceTimersByTime(5000);
 
       expect(adapter.playerState.reset).not.toHaveBeenCalled();
+      expect(adapter.lobbyState.reset).not.toHaveBeenCalled();
+      expect(adapter.gameState.reset).not.toHaveBeenCalled();
       expect(localStorage.getItem(SESSION_KEY)).toContain('ABCD');
       expect(adapter.connectionState.setReconnectPending).toHaveBeenLastCalledWith(false);
 
@@ -367,7 +406,67 @@ describe('createParlorRuntime', () => {
     expect(adapter.connectionState.setActionError).toHaveBeenCalledWith('Cannot start the game yet');
   });
 
-  it('resets game view when lobby:state arrives during gameStarting', () => {
+  it('sendAction emits game:action with an ack and resolves ok without setting an error', async () => {
+    const adapter = makeAdapter();
+    const runtime = createParlorRuntime(adapter);
+    runtime.getSocket();
+    const socket = latestSocket();
+    const pending = runtime.sendAction({ type: 'lockDice', diceIndices: [0, 2] });
+    const call = socket.emit.mock.calls.find((c) => c[0] === 'game:action')!;
+    expect(call[1]).toEqual({ type: 'lockDice', diceIndices: [0, 2] });
+    (call[2] as (r: unknown) => void)({ ok: true });
+    await expect(pending).resolves.toEqual({ ok: true });
+    expect(adapter.connectionState.setActionError).toHaveBeenCalledTimes(1);
+    expect(adapter.connectionState.setActionError).toHaveBeenCalledWith(null);
+  });
+
+  it('sendAction surfaces a server rejection through actionError', async () => {
+    const adapter = makeAdapter();
+    const runtime = createParlorRuntime(adapter);
+    runtime.getSocket();
+    const socket = latestSocket();
+    const pending = runtime.sendAction({ type: 'bid', quantity: 1, faceValue: 2 });
+    const reject = { ok: false, code: 'NOT_YOUR_TURN', message: 'Not your turn' };
+    ackOf(socket, 'game:action')(reject);
+    await expect(pending).resolves.toEqual(reject);
+    expect(adapter.connectionState.setActionError).toHaveBeenLastCalledWith('Not your turn');
+  });
+
+  it('sendAction resolves TIMEOUT after 5s with no ack, and ignores a late ack', async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = makeAdapter();
+      const runtime = createParlorRuntime(adapter);
+      runtime.getSocket();
+      const socket = latestSocket();
+      const pending = runtime.sendAction({ type: 'roll' });
+      vi.advanceTimersByTime(4999);
+      expect(adapter.connectionState.setActionError).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(1);
+      await expect(pending).resolves.toEqual({
+        ok: false,
+        code: 'TIMEOUT',
+        message: 'Server did not respond',
+      });
+      expect(adapter.connectionState.setActionError).toHaveBeenLastCalledWith('Server did not respond');
+      ackOf(socket, 'game:action')({ ok: true });
+      expect(adapter.connectionState.setActionError).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sendAction treats a malformed ack as an internal failure', async () => {
+    const adapter = makeAdapter();
+    const runtime = createParlorRuntime(adapter);
+    runtime.getSocket();
+    const socket = latestSocket();
+    const pending = runtime.sendAction({ type: 'roll' });
+    ackOf(socket, 'game:action')(true);
+    await expect(pending).resolves.toMatchObject({ ok: false, code: 'INTERNAL' });
+  });
+
+  it('preserves the active game through a lobby update and clears it on lobby:returned', () => {
     const adapter = makeAdapter();
     adapter.gameState = { view: { some: 'view' }, setGameId: vi.fn(), reset: vi.fn() };
     adapter.lobbyState.gameStarting = true;
@@ -377,17 +476,34 @@ describe('createParlorRuntime', () => {
 
     socket.trigger('lobby:state', [], false);
 
+    expect(adapter.gameState.reset).not.toHaveBeenCalled();
+    expect(adapter.lobbyState.gameStarting).toBe(true);
+    expect(adapter.lobbyState.setLobbyState).toHaveBeenCalledWith([], false);
+
+    socket.trigger('lobby:returned', 'crazy-eights');
+
     expect(adapter.gameState.reset).toHaveBeenCalledTimes(1);
     expect(adapter.lobbyState.gameStarting).toBe(false);
-    expect(adapter.lobbyState.setLobbyState).toHaveBeenCalledWith([], false);
+    expect(adapter.gameState.setGameId).toHaveBeenCalledWith('crazy-eights');
   });
 
-  it('applies incoming game:state via onView', () => {
-    const adapter = makeAdapter();
+  it('passes the whole game:state envelope to onGameState', () => {
+    const onGameState = vi.fn();
+    const adapter = makeAdapter({ onGameState });
     const runtime = createParlorRuntime(adapter);
     runtime.getSocket();
-    latestSocket().trigger('game:state', { hello: 'world' });
-    expect(adapter.onView).toHaveBeenCalledWith({ hello: 'world' });
+    const envelope = { gameId: 'quixx', view: { phase: 'phase1' } };
+    latestSocket().trigger('game:state', envelope);
+    expect(onGameState).toHaveBeenCalledExactlyOnceWith(envelope);
+  });
+
+  it('ignores a game:state payload that is not an envelope object', () => {
+    const onGameState = vi.fn();
+    const adapter = makeAdapter({ onGameState });
+    const runtime = createParlorRuntime(adapter);
+    runtime.getSocket();
+    expect(() => latestSocket().trigger('game:state', null)).not.toThrow();
+    expect(onGameState).not.toHaveBeenCalled();
   });
 
   it('createRoomAction stores session and selects a pre-chosen game when enabled', async () => {
@@ -420,6 +536,27 @@ describe('createParlorRuntime', () => {
     expect(socket.emit).toHaveBeenCalledWith('lobby:selectGame', 'crazy-eights');
     expect(adapter.gameState.setGameId).toHaveBeenCalledWith('crazy-eights');
     expect(localStorage.getItem(SESSION_KEY)).toContain('WXYZ');
+  });
+
+  it('rejects a failed create acknowledgement and preserves the current session', async () => {
+    storeSession();
+    const stored = localStorage.getItem(SESSION_KEY);
+    const adapter = makeAdapter({ enableGameSelection: true });
+    const runtime = createParlorRuntime(adapter);
+    runtime.getSocket();
+    const socket = latestSocket();
+    socket.emit.mockImplementation((event: string, ...rest: unknown[]) => {
+      if (event === 'lobby:create') {
+        const ack = rest[1] as (result: null, error: string) => void;
+        ack(null, 'Names starting with Bot are reserved');
+      }
+    });
+
+    await expect(runtime.createRoomAction('Bot Alice', 'crazy-eights')).rejects.toThrow('Names starting with Bot are reserved');
+    expect(localStorage.getItem(SESSION_KEY)).toBe(stored);
+    expect(adapter.playerState.set).not.toHaveBeenCalled();
+    expect(adapter.lobbyState.reset).not.toHaveBeenCalled();
+    expect(socket.emit).not.toHaveBeenCalledWith('lobby:selectGame', 'crazy-eights');
   });
 
   it('joinRoomAction normalizes the room code and stores session on success', async () => {

@@ -1,88 +1,82 @@
 <script lang="ts">
-  import type { LogEntry } from '../../types/game.js';
   import { tick } from 'svelte';
+  import type { LogEntry } from '../../types/game.js';
 
-  interface Props {
-    entries: LogEntry[];
-  }
+  let { entries }: { entries: LogEntry[] } = $props();
+  let list = $state<HTMLOListElement | null>(null);
 
-  let { entries }: Props = $props();
-  let container: HTMLDivElement;
-
+  // Keep the newest line in view.
   $effect(() => {
-    if (entries.length > 0) {
-      tick().then(() => {
-        if (container) {
-          container.scrollTop = container.scrollHeight;
-        }
-      });
-    }
+    if (entries.length === 0) return;
+    tick().then(() => {
+      if (list) list.scrollTop = list.scrollHeight;
+    }).catch(console.error);
   });
 </script>
 
-<div class="game-log" bind:this={container}>
-  <h3>Game Log</h3>
-  <div class="entries">
-    {#each entries as entry, index (`${entry.timestamp}-${index}`)}
-      <div class="entry entry-{entry.type}">
-        {entry.message}
-      </div>
-    {/each}
-  </div>
-</div>
+<section class="log" aria-labelledby="log-title">
+  <h2 id="log-title" class="title">Captain's log</h2>
+  {#if entries.length === 0}
+    <p class="empty">Nothing yet. The first roll starts the story.</p>
+  {:else}
+    <ol class="entries" bind:this={list} aria-live="polite">
+      {#each entries as entry, i (`${entry.timestamp}-${i}`)}
+        <li class="entry entry-{entry.type}">{entry.message}</li>
+      {/each}
+    </ol>
+  {/if}
+</section>
 
 <style>
-  .game-log {
-    background: #1a1a1a;
-    border-radius: 10px;
-    padding: 1rem;
-    height: 200px;
-    overflow-y: auto;
+  .log {
+    padding: 14px 16px;
+    border: 2px solid var(--color-espresso);
+    border-radius: 14px;
+    background: var(--color-paper);
   }
 
-  h3 {
-    margin: 0 0 0.75rem;
-    font-size: 0.9rem;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+  .title {
+    margin: 0 0 8px;
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.125rem;
+  }
+
+  .empty {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--color-ink-muted);
   }
 
   .entries {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 168px;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 4px;
+    font-size: 0.875rem;
+    line-height: 1.4;
   }
 
   .entry {
-    font-size: 0.85rem;
-    padding: 0.5rem;
-    border-radius: 4px;
-    background: #222;
-    color: #ccc;
+    padding: 3px 0;
+    border-bottom: 1.5px solid var(--color-linen);
   }
 
-  .entry-combo {
-    background: #3d2a1a;
-    color: #d4a574;
-    font-weight: 600;
+  .entry:last-child {
+    border-bottom: 0;
   }
 
-  .entry-elimination {
-    background: #3a1a1a;
-    color: #e77;
-  }
-
+  .entry-combo,
+  .entry-elimination,
   .entry-win {
-    background: #2a3d1a;
-    color: #9d9;
-    font-weight: 600;
+    font-weight: 700;
   }
 
   .entry-summary {
-    background: #1a2a3d;
-    color: #7aa8d4;
-    border-left: 3px solid #4a8cc4;
-    font-style: italic;
+    color: var(--color-ink-muted);
   }
 </style>

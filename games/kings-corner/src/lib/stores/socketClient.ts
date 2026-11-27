@@ -5,18 +5,19 @@ import { connectionState } from './connectionStore.svelte.js';
 import { lobbyState } from './lobbyStore.svelte.js';
 import { gameState } from './gameStore.svelte.js';
 import { playerState } from './playerStore.svelte.js';
-import type { KingsCornerPlayerView } from '../types/game.js';
 
-const runtime = createParlorRuntime({
+const runtime = createParlorRuntime<'kings-corner'>({
   browser,
   connectionState,
   lobbyState,
   gameState,
   playerState,
-  onView: (state) => gameState.setView(state as unknown as KingsCornerPlayerView),
+  onGameState: (state) => {
+    if (state.gameId === 'kings-corner') gameState.setView(state.view);
+  },
 });
 
-export function getSocket(): GameSocket {
+export function getSocket(): GameSocket<'kings-corner'> {
   return runtime.getSocket();
 }
 

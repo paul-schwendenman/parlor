@@ -1,19 +1,30 @@
 <script lang="ts">
   import { Modal } from '@parlor/ui';
+  import FaceIcon from '@parlor/booty-dice/face-icon';
+  import { findGame, playerCount } from '$lib/games/catalog.js';
 
   interface Props {
     open: boolean;
     gameId: string | null;
     gameName: string;
     onclose: () => void;
-    onplay: () => void;
+    /** Omitted mid-game, where there is nothing to start. Labelled "Play <game>". */
+    onplay?: () => void;
+    /** The lobby ballot: a toggle that reads "Vote", or "Your vote" when pressed. */
+    onvote?: () => void;
+    voted?: boolean;
   }
 
-  let { open, gameId, gameName, onclose, onplay }: Props = $props();
+  let { open, gameId, gameName, onclose, onplay, onvote, voted = false }: Props = $props();
+
+  let game = $derived(findGame(gameId));
+  /** "4 players · bots can fill seats", "2–5 players · no bots". */
+  let fitLine = $derived(game ? `${playerCount(game)} · ${game.supportsBots ? 'bots can fill seats' : 'no bots'}` : '');
 </script>
 
 {#if open}
-<Modal open={true} {onclose} title="{gameName} — How to Play">
+<Modal open={true} {onclose} title="How to play {gameName}">
+  {#if fitLine}<p class="fit">{fitLine}</p>{/if}
   <div class="rules-content">
     {#if gameId === 'quixx'}
       <section>
@@ -22,7 +33,7 @@
       </section>
 
       <section>
-        <h3>The Scoresheet</h3>
+        <h3>The scoresheet</h3>
         <p>Four colored rows of numbers 2-12:</p>
         <ul>
           <li><span class="color-dot red"></span> <strong>Red</strong> and <span class="color-dot yellow"></span> <strong>Yellow</strong> — ascending (2 to 12)</li>
@@ -32,12 +43,12 @@
       </section>
 
       <section>
-        <h3>The Dice</h3>
+        <h3>The dice</h3>
         <p>6 dice total: 2 white + 1 red, 1 yellow, 1 green, 1 blue.</p>
       </section>
 
       <section>
-        <h3>Each Turn</h3>
+        <h3>Each turn</h3>
         <ol>
           <li><strong>Phase 1 — White sum:</strong> The active player rolls all dice. <em>Every</em> player may cross off the sum of the two white dice in any row.</li>
           <li><strong>Phase 2 — Colored combo:</strong> Only the active player may add one white die + one colored die and cross off that number in the matching colored row.</li>
@@ -46,21 +57,25 @@
       </section>
 
       <section>
-        <h3>Locking a Row</h3>
+        <h3>Locking a row</h3>
         <p>To cross off the last number in a row (12 for red/yellow, 2 for green/blue), you need <strong>5 or more</strong> marks in that row. Locking a row removes its die from the game for everyone.</p>
       </section>
 
       <section>
         <h3>Scoring</h3>
-        <p>More marks in a row = exponentially more points:</p>
-        <div class="scoring-table">
-          <span>1 mark = 1pt</span>
-          <span>2 = 3pt</span>
-          <span>3 = 6pt</span>
-          <span>4 = 10pt</span>
-          <span>5 = 15pt</span>
-          <span>...</span>
-        </div>
+        <p>Each row scores by how many boxes you crossed in it. The lock counts as one more cross.</p>
+        {#each [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]] as range, half (half)}
+          <div class="score-scale" role="table" aria-label="Points for {range[0]} to {range[5]} crosses in one row">
+            <div class="scale-row" role="row">
+              <span class="scale-head" role="rowheader">Crosses</span>
+              {#each range as n (n)}<span class="scale-n" role="cell">{n}</span>{/each}
+            </div>
+            <div class="scale-row" role="row">
+              <span class="scale-head" role="rowheader">Points</span>
+              {#each range as n (n)}<span class="scale-pts" role="cell">{(n * (n + 1)) / 2}</span>{/each}
+            </div>
+          </div>
+        {/each}
         <p>Each penalty costs <strong>-5 points</strong>. The game ends when a player has 4 penalties or 2 rows are locked.</p>
       </section>
 
@@ -80,7 +95,7 @@
       </section>
 
       <section>
-        <h3>Your Turn</h3>
+        <h3>Your turn</h3>
         <ol>
           <li>Play a card that matches the top card's <strong>suit</strong> or <strong>rank</strong></li>
           <li>If you can't play, <strong>draw</strong> a card from the pile</li>
@@ -89,13 +104,114 @@
       </section>
 
       <section>
-        <h3>Eights are Wild</h3>
+        <h3>Eights are wild</h3>
         <p>Play an <strong>8</strong> at any time, regardless of the top card. When you play an 8, you choose the suit that the next player must follow.</p>
       </section>
 
       <section>
         <h3>Winning</h3>
         <p>The first player to empty their hand wins. If no one can play and the draw pile is empty, the player with the <strong>fewest cards</strong> wins.</p>
+      </section>
+
+    {:else if gameId === 'kings-corner'}
+      <section>
+        <h3>Objective</h3>
+        <p>Be the first player to get rid of all your cards.</p>
+      </section>
+
+      <section>
+        <h3>The table</h3>
+        <p>Everyone gets <strong>7 cards</strong>. Four cards are dealt face up to the north, south, east and west piles around the draw pile. The four <strong>corners</strong> start empty.</p>
+      </section>
+
+      <section>
+        <h3>Your turn</h3>
+        <ol>
+          <li><strong>Draw</strong> a card from the draw pile</li>
+          <li>Play as many cards as you like, then <strong>end your turn</strong></li>
+        </ol>
+      </section>
+
+      <section>
+        <h3>Playing cards</h3>
+        <ul>
+          <li>A card goes on a pile if it is <strong>one rank lower</strong> and the <strong>opposite colour</strong>: a red 9 on a black 10</li>
+          <li>Only a <strong>King</strong> can start an empty corner</li>
+          <li>Any card can fill an empty north, south, east or west pile</li>
+          <li>You can move a <strong>whole pile</strong> onto another if its first card fits there</li>
+          <li>If you hold a King and a corner is empty, you must play it before ending your turn</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Winning</h3>
+        <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
+      </section>
+
+    {:else if gameId === 'oh-hell'}
+      <section>
+        <h3>Bidding</h3>
+        <p>A trick is one card from each player. Whoever plays the best card takes them all.</p>
+        <p>Starting left of the dealer, bid exactly how many tricks you expect to win. The dealer bids last and must leave the total bids different from the number of tricks available.</p>
+      </section>
+      <section>
+        <h3>Playing tricks</h3>
+        <p>The face-up card sets trump, the suit that beats all the others. Follow the led suit (the suit of the first card in the trick) if you can. The highest trump takes the trick. If nobody plays trump, the highest card of the led suit wins. The winner leads next.</p>
+      </section>
+      <section>
+        <h3>Scoring</h3>
+        <p>Hit your bid exactly to score 10 points plus your tricks. A missed bid scores zero. Hand sizes grow from one to five cards, then shrink back to one. The highest score after nine hands wins, with ties shared.</p>
+      </section>
+
+    {:else if gameId === 'euchre'}
+      <section>
+        <h3>Calling trump</h3>
+        <p>Partners sit across from each other and each player gets five cards. A trick is one card from each player, and the best card takes them all. Trump is the suit that beats all the others.</p>
+        <p>Order up (say yes to) the face-up card to make its suit trump, then the dealer takes the card and discards one.</p>
+        <p>If everyone passes, choose from the other three suits. If the decision gets back to the dealer again, the dealer must name trump.</p>
+      </section>
+      <section>
+        <h3>The bowers</h3>
+        <p>The bowers are the two highest trumps. The jack of trump is the right bower, the strongest card. The other jack of the same color is the left bower. It ranks second and counts as trump when following suit.</p>
+        <p>Follow suit (play the same suit as the first card in the trick) when you can. The highest trump takes the trick, or the highest card of the led suit if no one played trump. The winner leads the next trick.</p>
+      </section>
+      <section>
+        <h3>Scoring</h3>
+        <p>The makers are the team that chose trump; the other team defends. Take three or four tricks as makers for one point, or all five for two. If the makers take fewer than three, the defenders score two.</p>
+        <p>Call trump alone to sit out your partner. A lone sweep scores four points. The first team to 10 wins.</p>
+      </section>
+
+    {:else if gameId === 'spades'}
+      <section>
+        <h3>Bidding</h3>
+        <p>Partners sit across from each other. Starting left of the dealer, bid how many of the 13 tricks you expect to take. A trick is one card from each player, and the best card takes all four. Add both partners’ bids to get your team’s contract, the number of tricks your team promised to take.</p>
+      </section>
+      <section>
+        <h3>Trump and tricks</h3>
+        <p>Spades are trump: they beat every other suit. Follow the led suit (the suit of the first card in the trick) if you can. The highest spade wins the trick, or the highest card of the led suit if nobody played a spade. The winner leads next.</p>
+        <p>You can lead (play the first card of a trick) with spades after one has been played or if your hand contains only spades.</p>
+      </section>
+      <section>
+        <h3>Scoring and nil</h3>
+        <p>Make your contract to score 10 points per bid trick. Each extra trick scores one point and adds a bag (a trick over your bid). Ten bags cost 100 points. Miss your contract and lose 10 points per bid trick.</p>
+        <p>A nil bid means you promise to take no tricks at all. It earns 100 points for taking zero tricks and loses 100 if you take any. Tricks taken by a nil bidder do not count toward their team’s contract.</p>
+        <p>The higher-scoring team wins once either team reaches 500. A tie goes to another round.</p>
+      </section>
+
+    {:else if gameId === 'hearts'}
+      <section>
+        <h3>Passing</h3>
+        <p>Each player gets 13 cards. Pass three cards left in the first round, right in the second, and across in the third. Keep your hand in the fourth round, then repeat.</p>
+      </section>
+      <section>
+        <h3>Taking tricks</h3>
+        <p>A trick is one card from each player. The 2 of clubs opens the round. Play the same suit if you can. The highest card of that suit wins, and its player leads the next trick. Aces are high.</p>
+        <p>Avoid playing penalty cards (any heart, or the queen of spades) on the first trick. If you have only penalty cards and cannot follow suit, play a heart. You may lead (play the first card of a trick with) hearts once a heart has been played, or if your hand contains only hearts.</p>
+      </section>
+      <section>
+        <h3>Scoring</h3>
+        <p>Each heart you take costs one point. The queen of spades costs 13. Take all 26 points to shoot the moon and give 26 to everyone else.</p>
+        <p>When anyone reaches 100 points, the lowest total wins. Tied players share the win.</p>
       </section>
 
     {:else if gameId === 'booty-dice'}
@@ -113,7 +229,7 @@
       </section>
 
       <section>
-        <h3>Your Turn</h3>
+        <h3>Your turn</h3>
         <ol>
           <li>Roll 6 dice (up to 3 rolls per turn)</li>
           <li>Lock dice you want to keep between rolls</li>
@@ -123,36 +239,100 @@
       </section>
 
       <section>
-        <h3>Dice Faces</h3>
+        <h3>Dice faces</h3>
         <div class="dice-list">
-          <div class="dice-item"><span class="dice-emoji">{'\u{1FA99}'}</span><div><strong>Doubloon</strong> — Gain 2 doubloons</div></div>
-          <div class="dice-item"><span class="dice-emoji">{'\u274C'}</span><div><strong>X Marks the Spot</strong> — Lose 2 doubloons</div></div>
-          <div class="dice-item"><span class="dice-emoji">{'\u2620\uFE0F'}</span><div><strong>Jolly Roger</strong> — Steal 2 doubloons from another player</div></div>
-          <div class="dice-item"><span class="dice-emoji">{'\u2694\uFE0F'}</span><div><strong>Cutlass</strong> — Target loses 1 life (blocked by shields)</div></div>
-          <div class="dice-item"><span class="dice-emoji">{'\u{1F30A}'}</span><div><strong>Walk the Plank</strong> — You lose 1 life</div></div>
-          <div class="dice-item"><span class="dice-emoji">{'\u{1F6E1}\uFE0F'}</span><div><strong>Shield</strong> — Blocks 1 cutlass attack</div></div>
+          <div class="dice-item"><span class="dice-icon"><FaceIcon face="doubloon" size={20} /></span><div><strong>Doubloon</strong> — Gain 2 doubloons</div></div>
+          <div class="dice-item"><span class="dice-icon"><FaceIcon face="x_marks_spot" size={20} /></span><div><strong>X Marks the Spot</strong> — Lose 2 doubloons</div></div>
+          <div class="dice-item"><span class="dice-icon"><FaceIcon face="jolly_roger" size={20} /></span><div><strong>Jolly Roger</strong> — Steal 2 doubloons from another player</div></div>
+          <div class="dice-item"><span class="dice-icon"><FaceIcon face="cutlass" size={20} /></span><div><strong>Cutlass</strong> — Target loses 1 life (blocked by shields)</div></div>
+          <div class="dice-item"><span class="dice-icon"><FaceIcon face="walk_plank" size={20} /></span><div><strong>Walk the Plank</strong> — You lose 1 life</div></div>
+          <div class="dice-item"><span class="dice-icon"><FaceIcon face="shield" size={20} /></span><div><strong>Shield</strong> — Blocks 1 cutlass attack</div></div>
         </div>
       </section>
 
       <section>
         <h3>Combos</h3>
         <div class="combo-list">
-          <div class="combo-item"><strong>{'\u{1F30A}'} Mutiny</strong> — 3+ planks: all enemies lose 1 life (+1 per extra plank)</div>
-          <div class="combo-item"><strong>{'\u274C'} Shipwreck</strong> — 3+ X's: all enemies lose 3 doubloons (+1 per extra X)</div>
-          <div class="combo-item"><strong>{'\u2620\uFE0F'} Blackbeard's Curse</strong> — All 6 different faces: all enemies lose 2 lives and 5 doubloons!</div>
+          <div class="combo-item"><strong>Mutiny</strong> — 3+ planks: all enemies lose 1 life (+1 per extra plank)</div>
+          <div class="combo-item"><strong>Shipwreck</strong> — 3+ X's: all enemies lose 3 doubloons (+1 per extra X)</div>
+          <div class="combo-item"><strong>Blackbeard's Curse</strong> — All 6 different faces: all enemies lose 2 lives and 5 doubloons!</div>
         </div>
       </section>
 
       <section>
-        <h3>Captain's Plunder</h3>
+        <h3>Captain's plunder</h3>
         <p>If you eliminate another pirate, you claim <strong>all their doubloons</strong>!</p>
+      </section>
+    {:else if gameId === 'liars-dice'}
+      <section>
+        <h3>Objective</h3>
+        <p>Be the <strong>last player with dice remaining</strong>.</p>
+      </section>
+
+      <section>
+        <h3>Setup</h3>
+        <ul>
+          <li>2-6 players, 5 dice each</li>
+          <li>Everyone rolls at the start of each round. Only you can see your dice.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Bidding</h3>
+        <p>On your turn, bid how many dice of one face are on the <strong>whole table</strong>, counting everyone's dice. Each bid must beat the last one:</p>
+        <ul>
+          <li>Raise the count: "three 4s" to "four 4s"</li>
+          <li>Or keep the count and raise the face: "three 4s" to "three 5s"</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Wild ones</h3>
+        <p><strong>1s count as every face.</strong> If someone bids "four 3s", every 1 and every 3 counts.</p>
+        <ul>
+          <li>Switching to a bid on 1s: the count can drop to half (rounded up)</li>
+          <li>Switching back from 1s: the count must be double plus one</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Liar!</h3>
+        <p>Instead of bidding, call the last bidder a liar. Everyone shows their dice:</p>
+        <ul>
+          <li>If the bid was right, <strong>you</strong> lose a die</li>
+          <li>If the bid was wrong, the <strong>bidder</strong> loses a die</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Spot on</h3>
+        <p>Think the bid is exactly right? Call Spot on:</p>
+        <ul>
+          <li>If it's exact, <strong>everyone else</strong> loses a die</li>
+          <li>If it isn't, <strong>you</strong> lose a die</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Out</h3>
+        <p>Lose your last die and you're out. The loser of each call starts the next round.</p>
       </section>
     {/if}
   </div>
 
   <div class="modal-footer">
-    <button class="btn-close" onclick={onclose}>Close</button>
-    <button class="btn-play" onclick={onplay}>Play Now</button>
+    <button type="button" class="btn-close" onclick={onclose}>Close</button>
+    {#if onvote}
+      <button type="button" class="btn-close btn-vote" aria-pressed={voted} onclick={onvote}>
+        {#if voted}
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          Your vote
+        {:else}
+          Vote
+        {/if}
+      </button>
+    {/if}
+    {#if onplay}<button type="button" class="btn-play" onclick={onplay}>Play {gameName}</button>{/if}
   </div>
 </Modal>
 {/if}
@@ -160,6 +340,13 @@
 <style>
   .rules-content {
     max-width: 28rem;
+  }
+
+  .fit {
+    margin: -6px 0 16px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
   }
 
   section {
@@ -172,11 +359,9 @@
 
   h3 {
     font-family: var(--font-heading);
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: var(--color-terracotta);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 1.0625rem;
+    font-weight: 900;
+    color: var(--color-espresso);
     margin: 0 0 0.5rem;
   }
 
@@ -193,7 +378,7 @@
 
   .note {
     font-size: 0.85rem;
-    color: #78716c;
+    color: var(--color-ink-muted);
     font-style: italic;
   }
 
@@ -222,24 +407,60 @@
     vertical-align: middle;
   }
 
-  .color-dot.red { background: #ef4444; }
-  .color-dot.yellow { background: #eab308; }
-  .color-dot.green { background: #22c55e; }
-  .color-dot.blue { background: #3b82f6; }
+  .color-dot.red { background: #B8372B; }
+  .color-dot.yellow { background: #D4A843; }
+  .color-dot.green { background: #3F7350; }
+  .color-dot.blue { background: #2F5C8A; }
 
-  .scoring-table {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    font-size: 0.8rem;
-    color: #78716c;
-    margin: 0.25rem 0 0.5rem;
+  /* Crosses over points, in two blocks of six so every number stays
+     readable at phone width. */
+  .score-scale {
+    margin: 0.5rem 0;
+    border: 2px solid var(--color-espresso);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--color-paper);
   }
 
-  .scoring-table span {
+  .score-scale + .score-scale {
+    margin-bottom: 0.75rem;
+  }
+
+  .scale-row {
+    display: grid;
+    grid-template-columns: 4.75rem repeat(6, minmax(0, 1fr));
+  }
+
+  .scale-row + .scale-row {
+    border-top: 2px solid var(--color-espresso);
+  }
+
+  .scale-head,
+  .scale-n,
+  .scale-pts {
+    padding: 0.4rem 0.25rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scale-head {
+    padding-left: 0.6rem;
+    text-align: left;
     background: var(--color-linen);
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
+    border-right: 2px solid var(--color-espresso);
+    font-size: 0.8125rem;
+    font-weight: 700;
+  }
+
+  .scale-n {
+    font-weight: 600;
+    color: var(--color-ink-muted);
+  }
+
+  .scale-pts {
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.0625rem;
   }
 
   .dice-list {
@@ -259,9 +480,19 @@
     color: var(--color-espresso);
   }
 
-  .dice-emoji {
-    font-size: 1.25rem;
-    line-height: 1;
+  /* Booty Dice faces as printed on the dice: cream on Deep Clay. */
+  .dice-icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    box-sizing: border-box;
+    border: 2px solid var(--color-espresso);
+    border-radius: 8px;
+    background: var(--color-terracotta-deep);
+    color: var(--color-cream);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .combo-list {
@@ -272,49 +503,84 @@
 
   .combo-item {
     padding: 0.4rem 0.6rem;
-    background: #fef2f2;
-    border-left: 3px solid var(--color-terracotta);
-    border-radius: 0 4px 4px 0;
+    background: var(--color-mustard-tint);
+    border: 1.5px solid var(--color-espresso);
+    border-radius: 8px;
     font-size: 0.85rem;
     color: var(--color-espresso);
   }
 
+  /* Pinned to the bottom of the sheet: on a phone the rules scroll beneath
+     it, so Close and the actions are always in reach. */
   .modal-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 0.75rem;
-    margin-top: 1.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--color-linen);
+    gap: 8px;
+    margin: 20px -24px -24px;
+    padding: 12px 24px 16px;
+    background: var(--color-paper);
+    border-top: 2px solid var(--color-linen);
   }
 
   .btn-close, .btn-play {
-    padding: 0.6rem 1.25rem;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-weight: 600;
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: 999px;
+    font-size: 0.9375rem;
+    font-weight: 700;
     font-family: var(--font-body);
     cursor: pointer;
-    transition: background 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background 0.2s ease;
   }
 
   .btn-close {
-    background: var(--color-linen);
-    border: none;
-    color: #78716c;
+    background: transparent;
+    border: 2px solid var(--color-espresso);
+    color: var(--color-espresso);
   }
 
-  .btn-close:hover {
-    background: #e7e5e4;
+  /* Pressed reads as a marked ballot, not as a call to action. */
+  .btn-vote[aria-pressed='true'] {
+    background: var(--color-mustard-tint);
   }
 
   .btn-play {
-    background: var(--color-terracotta);
-    border: none;
-    color: white;
+    background: var(--color-terracotta-deep);
+    border: 2px solid var(--color-terracotta-deep);
+    color: var(--color-cream);
   }
 
-  .btn-play:hover {
-    background: #a8552f;
+  @media (hover: hover) {
+    .btn-close:hover {
+      background: rgba(59, 47, 47, 0.06);
+    }
+
+    .btn-vote[aria-pressed='true']:hover {
+      background: var(--color-mustard-tint);
+    }
+
+    .btn-play:hover {
+      background: var(--color-terracotta-press);
+      border-color: var(--color-terracotta-press);
+    }
+  }
+
+  .btn-close:active, .btn-play:active {
+    transform: scale(0.98);
+  }
+
+  /* On a phone the buttons share the row; a third wraps to a full-width row. */
+  @media (max-width: 519px) {
+    .btn-close, .btn-play {
+      flex: 1 1 auto;
+    }
   }
 </style>

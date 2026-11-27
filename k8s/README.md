@@ -12,12 +12,72 @@ kubectl rollout restart deployment/parlor -n parlor
 kubectl rollout status deployment/parlor -n parlor
 ```
 
+## Crashes and restarts
+
+The Deployment uses Kubernetes' `restartPolicy: Always`. When the server logs an
+uncaught exception or unhandled promise rejection and exits non-zero, the kubelet
+restarts the container. During a rollout, the pod has a 30-second termination
+grace period to drain connections after `SIGTERM`.
+
+**Every room and active game is lost when the process exits.** Room state and
+reconnect credentials are held in process memory. After the replacement server
+starts, it rejects reconnect requests for lost rooms. Clients clear their saved
+session and show a room or game unavailable message with a **Back to home** link.
+Players can create or join a room from there.
+
+To inspect the logs from the previous container after a crash, use the affected
+pod's name from `kubectl get pods -n parlor`:
+
+```bash
+kubectl logs -n parlor <pod-name> --previous
+```
+
 ## First deploy (or after manifest changes)
 
 ```bash
 kubectl apply -f k8s/
 kubectl apply -f k8s/  # run twice — namespace must exist before other resources
 ```
+
+## Required configuration: `CORS_ORIGIN`
+
+`CORS_ORIGIN` is **required in production**. `deployment.yaml` sets it to
+`https://parlor.whatsdoom.com`; keep it in sync with the host in `ingress.yaml`. It is a
+comma-separated allowlist of origins (scheme + host + optional port, no path).
+
+- **Set:** the socket server rejects any Socket.io handshake, long-polling or WebSocket,
+  whose `Origin` header isn't in the list. Polling gets a 403 and the WebSocket upgrade
+  is aborted with a 400. The list also drives the polling CORS headers.
+- **No `Origin` header:** allowed. Browsers always send `Origin` on WebSocket upgrades
+  and cross-origin requests, so these are non-browser clients (curl, bots, tests) or
+  same-origin polling GETs. Non-browser clients can forge `Origin` anyway; the check
+  exists to stop third-party pages from driving their visitors' browsers.
+- **Unset:** any origin is accepted (the dev default), and the server logs a warning
+  at startup when `NODE_ENV=production`.
+
+## Socket connection limits
+
+Each Parlor process accepts up to 256 concurrent Engine.IO sessions and 32 per
+direct peer IP. The socket server counts the transport peer, so connections
+forwarded by the same ingress proxy share its 32-session allowance. Forwarding
+headers do not affect the quota. The inbound message limit is 16 KiB.
+
+## Container security
+
+- The image runs as the unprivileged `node` user (uid/gid 1000). The pod's
+  `securityContext` enforces `runAsNonRoot` with that uid/gid, drops all capabilities,
+  disallows privilege escalation, and uses the `RuntimeDefault` seccomp profile. No
+  service-account token is mounted.
+- The root filesystem is **read-only**. Nothing writes under `/app` at runtime. The
+  only writable path is `/tmp`, a 64Mi in-memory `emptyDir` that holds tsx's
+  transform cache (the server still runs TypeScript through `tsx` at startup).
+- To reproduce the same constraints locally:
+
+  ```bash
+  docker run --rm --read-only --tmpfs /tmp --cap-drop ALL \
+    --security-opt no-new-privileges -e CORS_ORIGIN=http://localhost:3010 \
+    -p 3010:3010 ghcr.io/paul-schwendenman/parlor:main
+  ```
 
 ## Check status
 

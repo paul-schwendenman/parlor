@@ -1,343 +1,260 @@
-import type { Socket } from 'socket.io';
-import type {
-  ClientToServerEvents,
-  ServerToClientEvents,
-  InterServerEvents,
-  SocketData,
-  GameMeta,
-} from '@parlor/game-types';
-import {
-  RoomManager,
-  type ServerGameDefinition,
-  type AppServer,
-} from '@parlor/multiplayer';
-
-type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-import type { QuixxAction } from '../types/game.js';
+import { defineGame, GameRuleError, type GameContext, type TypedGameDefinition } from '@parlor/multiplayer';
+import { DEFAULT_CONFIG, type QuixxAction } from '../types/game.js';
 import { QuixxEngine } from './game/QuixxEngine.js';
-import { DEFAULT_CONFIG } from '../types/game.js';
-import { scheduleBotActions, clearBotTimers } from './game/botController.js';
+import { scheduleBotActions } from './game/botController.js';
+import { validateQuixxAction } from './validateAction.js';
+import { quixxMeta } from '../../meta.js';
 
-// Per-room timer handles
-const roomTimers = new Map<string, ReturnType<typeof setTimeout>>();
+type Game = GameContext<QuixxEngine>;
 
-function clearRoomTimer(roomCode: string): void {
-  const existing = roomTimers.get(roomCode);
-  if (existing) {
-    clearTimeout(existing);
-    roomTimers.delete(roomCode);
+const PHASE_TIMER = 'phase';
+const AUTO_ROLL = 'auto-roll';
+const ABSENT = 'absent-turn';
+
+/*
+ * Every state change ends in one of three follow-ups, whoever made it (a
+ * player, a bot, a timer or a stand-in):
+ *   afterRoll     -> phase 1 timer, then drive
+ *   afterResolve  -> phase 2 timer, then drive
+ *   drive         -> auto-roll, stand-ins for absent seats, the next bot move
+ * (CORE-AUDIT C-03 / B-04: before, only the human paths auto-rolled.)
+ */
+
+function afterRoll(game: Game): void {
+  startPhase1Timer(game);
+  drive(game);
+}
+
+function afterResolve(game: Game): void {
+  startPhase2Timer(game);
+  drive(game);
+}
+
+function drive(game: Game): void {
+  const engine = game.state;
+  if (!game.instance.isCurrent() || engine.isGameOver()) return;
+  if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) autoRollIfNeeded(game);
+  scheduleBotActions(game.instance, engine, {
+    broadcast: () => game.broadcast(),
+    rolled: () => afterRoll(game),
+    resolved: () => afterResolve(game),
+    advanced: () => drive(game),
+  });
+  scheduleStandIn(game);
+}
+
+function startPhase1Timer(game: Game): void {
+  const engine = game.state;
+  const { phase1Timer } = engine.getConfig();
+  if (!phase1Timer) return;
+
+  game.instance.schedule(() => {
+    if (engine.getPhase() !== 'phase1' || engine.isGameOver()) return;
+
+    for (const player of engine.getPlayers()) {
+      if (player.phase1Decision === null) {
+        engine.submitPhase1(player.id, { type: 'phase1-pass' });
+      }
+    }
+
+    if (engine.allPhase1Submitted()) {
+      engine.resolvePhase1();
+      game.broadcast();
+      if (!engine.isGameOver()) afterResolve(game);
+    }
+  }, phase1Timer * 1000, PHASE_TIMER);
+}
+
+function startPhase2Timer(game: Game): void {
+  const engine = game.state;
+  const { turnTimer } = engine.getConfig();
+  if (!turnTimer) return;
+
+  game.instance.schedule(() => {
+    if (engine.getPhase() !== 'phase2' || engine.isGameOver()) return;
+
+    const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
+    engine.submitPhase2(activePlayer.id, { type: 'phase2-pass' });
+    if (engine.isGameOver()) {
+      game.broadcast();
+      return;
+    }
+
+    engine.advanceTurn();
+    game.broadcast();
+    drive(game);
+  }, turnTimer * 1000, PHASE_TIMER);
+}
+
+function autoRollIfNeeded(game: Game): void {
+  const engine = game.state;
+  game.instance.schedule(() => {
+    if (engine.getPhase() !== 'rolling' || engine.isGameOver()) return;
+
+    engine.rollDice();
+    game.broadcast();
+    afterRoll(game);
+  }, 500, AUTO_ROLL);
+}
+
+/**
+ * Does an absent seat (disconnected in grace, or removed) hold up the game right
+ * now? Phase 1: an absent seat has not decided. Rolling: the active seat is
+ * removed, or is disconnected in player-roll mode (auto-roll rolls for it
+ * otherwise). Phase 2: the active seat is absent.
+ */
+function standInNeeded(engine: QuixxEngine): boolean {
+  if (engine.isGameOver()) return false;
+  const activeId = engine.getActivePlayerId();
+  switch (engine.getPhase()) {
+    case 'phase1':
+      return engine.getPlayers().some((p) => p.phase1Decision === null && engine.isAbsent(p.id));
+    case 'rolling':
+      return engine.isAbsent(activeId) && (engine.isRemoved(activeId) || !engine.shouldAutoRoll());
+    case 'phase2':
+      return engine.isAbsent(activeId);
+    default:
+      return false;
   }
 }
 
-function startPhase1Timer(
-  io: AppServer,
-  roomCode: string,
-  engine: QuixxEngine,
-  roomManager: RoomManager,
-): void {
-  const config = engine.getConfig();
-  if (!config.phase1Timer) return;
-
-  clearRoomTimer(roomCode);
-  roomTimers.set(
-    roomCode,
-    setTimeout(() => {
-      roomTimers.delete(roomCode);
-      if (engine.getPhase() !== 'phase1' || engine.isGameOver()) return;
-
-      // Auto-pass all players who haven't submitted
+/**
+ * The stand-in moves for absent seats. None of them penalises the seat: phase 1
+ * is passed (no cost on its own); an absent active seat's phase 2 is skipped
+ * with no penalty, although a present player passing both phases takes one; in
+ * player-roll mode the roll is made for them (it costs nothing, and the table
+ * needs it); a removed active seat is skipped without a roll. Runs the
+ * follow-up for whatever transition it caused.
+ */
+function standIn(game: Game): void {
+  const engine = game.state;
+  const activeId = engine.getActivePlayerId();
+  switch (engine.getPhase()) {
+    case 'phase1': {
       for (const player of engine.getPlayers()) {
-        if (player.phase1Decision === null) {
-          try {
-            engine.submitPhase1(player.id, { type: 'phase1-pass' });
-          } catch {
-            // Already submitted
-          }
+        if (player.phase1Decision === null && engine.isAbsent(player.id)) {
+          engine.submitPhase1(player.id, { type: 'phase1-pass' });
         }
       }
-
-      if (engine.allPhase1Submitted()) {
-        engine.resolvePhase1();
-        broadcastViews(io, roomCode, engine, roomManager);
-        if (!engine.isGameOver()) {
-          startPhase2Timer(io, roomCode, engine, roomManager);
-          scheduleBotActions(io, roomCode, engine, roomManager);
-        }
-      }
-    }, config.phase1Timer * 1000),
-  );
-}
-
-function startPhase2Timer(
-  io: AppServer,
-  roomCode: string,
-  engine: QuixxEngine,
-  roomManager: RoomManager,
-): void {
-  const config = engine.getConfig();
-  if (!config.turnTimer) return;
-
-  clearRoomTimer(roomCode);
-  roomTimers.set(
-    roomCode,
-    setTimeout(() => {
-      roomTimers.delete(roomCode);
-      if (engine.getPhase() !== 'phase2' || engine.isGameOver()) return;
-
-      const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
-      try {
-        engine.submitPhase2(activePlayer.id, { type: 'phase2-pass' });
-      } catch {
-        return;
-      }
-
-      if (engine.isGameOver()) {
-        broadcastViews(io, roomCode, engine, roomManager);
-      } else {
-        engine.advanceTurn();
-        broadcastViews(io, roomCode, engine, roomManager);
-
-        if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) {
-          autoRollIfNeeded(io, roomCode, engine, roomManager);
-        }
-        scheduleBotActions(io, roomCode, engine, roomManager);
-      }
-    }, config.turnTimer * 1000),
-  );
-}
-
-function autoRollIfNeeded(
-  io: AppServer,
-  roomCode: string,
-  engine: QuixxEngine,
-  roomManager: RoomManager,
-): void {
-  setTimeout(() => {
-    if (engine.getPhase() === 'rolling' && !engine.isGameOver()) {
-      try {
-        engine.rollDice();
-        broadcastViews(io, roomCode, engine, roomManager);
-        startPhase1Timer(io, roomCode, engine, roomManager);
-        scheduleBotActions(io, roomCode, engine, roomManager);
-      } catch {
-        // Ignore if phase changed
-      }
+      if (!engine.allPhase1Submitted()) return drive(game);
+      game.instance.cancel(PHASE_TIMER);
+      engine.resolvePhase1();
+      if (!engine.isGameOver()) afterResolve(game);
+      return;
     }
-  }, 500);
-}
-
-function broadcastViews(
-  io: AppServer,
-  roomCode: string,
-  engine: QuixxEngine,
-  roomManager: RoomManager,
-): void {
-  const players = roomManager.getPlayersInRoom(roomCode);
-  for (const player of players) {
-    if (RoomManager.isBotPlayer(player.id)) continue;
-    const view = engine.getPlayerView(player.id);
-    io.to(player.id).emit('game:state', view as never);
-  }
-
-  const spectators = roomManager.getSpectatorsInRoom(roomCode);
-  if (spectators.length > 0) {
-    const spectatorView = engine.getSpectatorView();
-    for (const spectatorId of spectators) {
-      io.to(spectatorId).emit('game:state', spectatorView as never);
-    }
+    case 'rolling':
+      if (engine.isRemoved(activeId)) {
+        engine.skipAbsentTurn();
+        return drive(game);
+      }
+      engine.rollDice();
+      return afterRoll(game);
+    case 'phase2':
+      game.instance.cancel(PHASE_TIMER);
+      engine.skipAbsentTurn();
+      return drive(game);
   }
 }
 
-export function cleanupRoomTimers(roomCode: string): void {
-  clearRoomTimer(roomCode);
+/** Schedule the stand-in when an absent seat holds up the game, unless nobody is present. */
+function scheduleStandIn(game: Game): void {
+  const engine = game.state;
+  if (!standInNeeded(engine) || !engine.hasPresentPlayer()) return;
+  game.instance.schedule(() => {
+    if (!standInNeeded(engine) || !engine.hasPresentPlayer()) return;
+    standIn(game);
+    game.broadcast();
+  }, 0, ABSENT);
 }
 
-const meta: GameMeta = {
-  id: 'quixx',
-  name: 'Quixx',
-  description: 'A fast-paced dice game of marking numbers and strategic choices',
-  minPlayers: 2,
-  maxPlayers: 5,
-  estimatedMinutes: '15-20',
-  tags: ['dice', 'strategy', 'quick'],
-  displayModes: ['peer'],
-  supportsBots: true,
-};
+/** Quixx on the typed game contract (plan 3.1b). Servers use `quixxDefinition`. */
+export const quixxGame: TypedGameDefinition<'quixx', QuixxEngine> = {
+  meta: quixxMeta,
 
-export const quixxDefinition: ServerGameDefinition = {
-  meta,
+  validateAction: validateQuixxAction,
 
-  createLobbyCallbacks: (roomManager: RoomManager, io: AppServer) => ({
-    onGameStart: (roomCode, players, io) => {
-      const engine = new QuixxEngine(
-        players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot })),
-        roomCode,
-        DEFAULT_CONFIG,
-      );
-      roomManager.setGameData(roomCode, engine);
+  createState: (roomCode, players) =>
+    new QuixxEngine(
+      players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot })),
+      roomCode,
+      DEFAULT_CONFIG,
+    ),
 
-      // Send initial views to each player (skip bots)
-      for (const player of players) {
-        if (RoomManager.isBotPlayer(player.id)) continue;
-        const view = engine.getPlayerView(player.id);
-        io.to(player.id).emit('game:state', view as never);
-      }
+  onGameStart: drive,
 
-      // Send initial view to spectators
-      const spectators = roomManager.getSpectatorsInRoom(roomCode);
-      if (spectators.length > 0) {
-        const spectatorView = engine.getSpectatorView();
-        for (const spectatorId of spectators) {
-          io.to(spectatorId).emit('game:state', spectatorView as never);
-        }
-      }
-
-      // Auto-roll if configured
-      if (DEFAULT_CONFIG.diceRolling === 'auto') {
-        setTimeout(() => {
-          if (engine.getPhase() === 'rolling') {
-            try {
-              engine.rollDice();
-              for (const player of players) {
-                if (RoomManager.isBotPlayer(player.id)) continue;
-                const view = engine.getPlayerView(player.id);
-                io.to(player.id).emit('game:state', view as never);
-              }
-              const specs = roomManager.getSpectatorsInRoom(roomCode);
-              if (specs.length > 0) {
-                const specView = engine.getSpectatorView();
-                for (const specId of specs) {
-                  io.to(specId).emit('game:state', specView as never);
-                }
-              }
-            } catch {
-              // Ignore
-            }
-          }
-          scheduleBotActions(io, roomCode, engine, roomManager);
-        }, 500);
-      } else {
-        scheduleBotActions(io, roomCode, engine, roomManager);
-      }
-    },
-
-    onGameReset: (roomCode) => {
-      cleanupRoomTimers(roomCode);
-      clearBotTimers(roomCode);
-      roomManager.setGameData(roomCode, null);
-    },
-
-    onPlayerDisconnect: (roomCode, playerId) => {
-      const engine = roomManager.getGameData<QuixxEngine>(roomCode);
-      if (!engine) return;
-
-      // Auto-pass for disconnected player in phase1
-      if (engine.getPhase() === 'phase1') {
-        try {
-          engine.submitPhase1(playerId, { type: 'phase1-pass' });
-          if (engine.allPhase1Submitted()) {
-            engine.resolvePhase1();
-          }
-        } catch {
-          // Already submitted
-        }
-      }
-
-      // If active player disconnected during phase2, auto-pass
+  actions: {
+    'roll-dice': (game) => {
+      const engine = game.state;
       const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
-      if (activePlayer.id === playerId && engine.getPhase() === 'phase2') {
-        try {
-          engine.submitPhase2(playerId, { type: 'phase2-pass' });
-          if (!engine.isGameOver()) {
-            engine.advanceTurn();
-          }
-        } catch {
-          // Ignore
-        }
+      if (activePlayer.id !== game.playerId) {
+        throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
       }
-
-      // Broadcast updated state
-      broadcastViews(io, roomCode, engine, roomManager);
+      engine.rollDice();
+      afterRoll(game);
     },
-
-    onPlayerReconnect: (roomCode, playerId) => {
-      const engine = roomManager.getGameData<QuixxEngine>(roomCode);
-      if (!engine) return;
-
-      const view = engine.getPlayerView(playerId);
-      io.to(playerId).emit('game:state', view as never);
-    },
-  }),
-
-  handleGameAction: (
-    io: AppServer,
-    socket: AppSocket,
-    roomManager: RoomManager,
-    rawAction: Record<string, unknown>,
-  ) => {
-    const roomCode = socket.data.roomCode;
-    if (!roomCode) return;
-
-    const engine = roomManager.getGameData<QuixxEngine>(roomCode);
-    if (!engine) return;
-
-    const action = rawAction as unknown as QuixxAction;
-
-    try {
-      switch (action.type) {
-        case 'roll-dice': {
-          const activePlayer = engine.getPlayers()[engine.getActivePlayerIndex()];
-          if (activePlayer.id !== socket.data.playerId) return;
-          engine.rollDice();
-          broadcastViews(io, roomCode, engine, roomManager);
-          startPhase1Timer(io, roomCode, engine, roomManager);
-          scheduleBotActions(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'phase1-mark':
-        case 'phase1-pass': {
-          engine.submitPhase1(socket.data.playerId, action);
-          broadcastViews(io, roomCode, engine, roomManager);
-
-          if (engine.allPhase1Submitted()) {
-            clearRoomTimer(roomCode);
-            engine.resolvePhase1();
-            broadcastViews(io, roomCode, engine, roomManager);
-
-            if (!engine.isGameOver()) {
-              startPhase2Timer(io, roomCode, engine, roomManager);
-              scheduleBotActions(io, roomCode, engine, roomManager);
-            }
-          } else {
-            scheduleBotActions(io, roomCode, engine, roomManager);
-          }
-          break;
-        }
-
-        case 'phase2-mark':
-        case 'phase2-pass': {
-          clearRoomTimer(roomCode);
-          engine.submitPhase2(socket.data.playerId, action);
-
-          if (engine.isGameOver()) {
-            broadcastViews(io, roomCode, engine, roomManager);
-          } else {
-            engine.advanceTurn();
-            broadcastViews(io, roomCode, engine, roomManager);
-
-            // Auto-roll after turn advance
-            if (engine.getPhase() === 'rolling' && engine.shouldAutoRoll()) {
-              autoRollIfNeeded(io, roomCode, engine, roomManager);
-            }
-            scheduleBotActions(io, roomCode, engine, roomManager);
-          }
-          break;
-        }
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      socket.emit('error', message);
-    }
+    'phase1-mark': (game, action) => submitPhase1(game, action),
+    'phase1-pass': (game, action) => submitPhase1(game, action),
+    'phase2-mark': (game, action) => submitPhase2(game, action),
+    'phase2-pass': (game, action) => submitPhase2(game, action),
   },
+
+  getPlayerView: (engine, playerId) => engine.getPlayerView(playerId),
+  getSpectatorView: (engine) => engine.getSpectatorView(),
+  isGameOver: (engine) => engine.isGameOver(),
+
+  // A disconnected player keeps their seat for the grace window: they pass
+  // phase 1, pass phase 2 when it is their turn, and (player-roll mode) have
+  // their roll made for them, now and until they return.
+  onPlayerDisconnect: (game) => {
+    game.state.setConnected(game.playerId, false);
+    if (standInNeeded(game.state)) standIn(game);
+    else drive(game);
+  },
+  onPlayerReconnect: (game) => {
+    game.state.setConnected(game.playerId, true);
+    // Stand-ins pause while nobody is present; a return resumes them.
+    drive(game);
+  },
+
+  // The seat is gone for good: it passes phase 1 from now on and its turns are
+  // skipped. With one seat left, the game ends and is scored.
+  onPlayerRemoved: (game) => {
+    game.state.removePlayer(game.playerId);
+    if (standInNeeded(game.state)) standIn(game);
+    else drive(game);
+  },
+
+  // Timers and bots live on the game instance, which the core has already invalidated.
+  onRoomDestroyed: () => undefined,
 };
+
+type Phase1Action = Extract<QuixxAction, { type: 'phase1-mark' | 'phase1-pass' }>;
+type Phase2Action = Extract<QuixxAction, { type: 'phase2-mark' | 'phase2-pass' }>;
+
+function submitPhase1(game: Game & { playerId: string }, action: Phase1Action): void {
+  const engine = game.state;
+  engine.submitPhase1(game.playerId, action);
+  if (!engine.allPhase1Submitted()) {
+    drive(game);
+    return;
+  }
+  // Show everyone's submission before resolving, as before.
+  game.broadcast();
+  game.instance.cancel(PHASE_TIMER);
+  engine.resolvePhase1();
+  if (!engine.isGameOver()) afterResolve(game);
+}
+
+function submitPhase2(game: Game & { playerId: string }, action: Phase2Action): void {
+  const engine = game.state;
+  // submitPhase2 validates phase + active player before mutating; only a
+  // successful submit may cancel the turn timer (CORE-AUDIT A-12).
+  engine.submitPhase2(game.playerId, action);
+  game.instance.cancel(PHASE_TIMER);
+  if (engine.isGameOver()) return;
+
+  engine.advanceTurn();
+  drive(game);
+}
+
+export const quixxDefinition = defineGame(quixxGame);

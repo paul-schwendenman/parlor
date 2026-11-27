@@ -1,5 +1,11 @@
 # Parlor - Product Documentation
 
+<!-- impeccable:product-schema 1 -->
+
+## Platform
+
+web
+
 ## Vision
 
 Parlor is a multiplayer game platform for playing tabletop games remotely with friends and family. Modeled after real card and dice games, Parlor brings game night online. Think Jackbox meets Board Game Arena - a host starts a session, shares a code/link/QR, and everyone joins on their devices.
@@ -20,6 +26,58 @@ Parlor is a multiplayer game platform for playing tabletop games remotely with f
 - Anyone with a room code/link can join - no account needed
 - Jackbox-style model: a host owns/starts the game, players join freely
 - No public matchmaking, discovery, or stranger-pairing - rooms are private by invitation
+- The table is mixed: tech-comfortable adults, kids playing with family, and older or less technical relatives can all be in the same room. Most players are comfortable with links and codes, but no one should be required to be.
+
+---
+
+## Positioning
+
+Parlor is the classic card and dice games your group already knows, played privately, with nothing to install or sign up for, in a room that stays open all evening. Four claims, all of which future work must protect:
+
+- **Real published games.** Faithful versions of familiar card and dice games, not invented party games. Players already know the rules or can learn them in a minute.
+- **Zero-friction join.** A code or link and a name. No account, no app, no download.
+- **The group stays together.** One lobby carries the whole evening across many games; nobody re-joins between rounds.
+- **Private, ours.** Invite-only rooms for people who know each other. No strangers, no ads, no storefront, no public discovery.
+
+Jackbox has the join model but its own invented games; Board Game Arena has real games but accounts and public matchmaking. Parlor is the overlap.
+
+---
+
+## Operating Context
+
+All four play settings are real and must work:
+
+- **Remote, on a video call.** Everyone at home, talking over FaceTime/Zoom/Discord, with Parlor in a browser tab beside or behind the call. Voice carries the social layer, so Parlor shouldn't compete with it.
+- **Same room, own phones.** Around a couch or table, each person on their phone (peer mode), looking up at each other between turns.
+- **Same room, shared screen.** A TV or laptop shows public state while phones act as controllers (Jackbox mode). Read from across a room.
+- **Mixed.** Some people in the room, some dialed in remotely, in the same lobby.
+
+The room code is usually read aloud or pasted into a group chat, so it has to survive both. Sessions are evening-length, with a few games in a row and breaks in between, so reconnects and wandering away are normal, not edge cases.
+
+---
+
+## Evidence on Hand
+
+- Five shipped, playable games: Quixx, Crazy Eights, Booty Dice, Liar's Dice, Kings Corner (`games/`).
+- Game descriptions, player counts and play times as written in `apps/parlor/src/routes/+page.svelte`.
+- An approved visual direction and its mockups (`apps/parlor/DESIGN.md`).
+- **None yet:** no testimonials, user counts, press, reviews, ratings, screenshots of real sessions, logo files, or published pricing. Do not invent any of these.
+
+---
+
+## Product Principles
+
+1. **Join in under a minute.** Any step added between "here's the code" and "you're in the lobby" has to earn its place against a kid or a grandparent doing it alone.
+2. **The talking is the game.** Parlor carries the rules and the state; the people carry the fun. Never compete with the call or the room for attention.
+3. **Faithful first, house rules second.** Published rules are the default; variants are opt-in toggles for the host.
+4. **The evening, not the match.** Optimize for the group moving smoothly from game to game, and for people dropping out and coming back.
+5. **Private by default.** No feature that exposes a room, a name, or a player to anyone outside the invitation.
+
+---
+
+## Accessibility & Inclusion
+
+No formal standard has been set beyond ordinary good practice. The audience spans kids and older relatives as well as tech-comfortable adults, so readable text sizes, plain-language copy and errors that say how to recover matter on every screen. In Jackbox mode, public state has to be legible from across a room.
 
 ---
 
@@ -33,15 +91,23 @@ Parlor is a multiplayer game platform for playing tabletop games remotely with f
 
 ## Games
 
+### Shipped Games
+
+| Game | Type | Players | Display Mode |
+|------|------|---------|-------------|
+| Quixx | Roll-and-write dice | 2-5 | Peer |
+| Crazy Eights | Shedding cards | 2-5 | Peer |
+| Booty Dice | Push-your-luck dice | 2-6 | Peer |
+| Liar's Dice | Bluffing dice | 2-6 | Peer |
+| Kings Corner | Solitaire-style cards | 2-4 | Peer |
+
 ### Planned Games
 
-| Game | Type | Players | Display Mode | Priority |
-|------|------|---------|-------------|----------|
-| **Quixx** | Roll-and-write dice | 2-5 | Peer or Jackbox | **First** |
-| Coup | Bluffing/deduction cards | 2-6 | TBD | Future |
-| Love Letter | Deduction cards | 2-6 | TBD | Future |
-| Booty Dice | Push-your-luck dice | 2+ | TBD | Future |
-| Sushi Go | Drafting cards | 2-5 | TBD | Future |
+| Game | Type | Players | Display Mode |
+|------|------|---------|-------------|
+| Coup | Bluffing/deduction cards | 2-6 | TBD |
+| Love Letter | Deduction cards | 2-6 | TBD |
+| Sushi Go | Drafting cards | 2-5 | TBD |
 
 ### Game Rules Policy
 
@@ -73,7 +139,7 @@ The host selects the display mode when starting a game (if the game supports bot
 
 ### Join Mechanisms
 
-- **Room code** - Short alphanumeric code (currently 4 characters), easy to say out loud
+- **Room code** - Short alphanumeric code (currently 4 characters, `ROOM_CODE_LENGTH` in `@parlor/game-types`), easy to say out loud
 - **Share link** - URL with embedded room code, shareable via native share sheet / messaging
 - **QR code** - Displayed on host screen or in lobby, scannable by phone camera
 
@@ -122,7 +188,7 @@ Two entry points, both supported:
 
 ### Bot Players
 
-- Future feature, not required for every game
+- Implemented for some games: the host can add and remove bots in the lobby when the selected game supports them; not required for every game
 - Most important for games with rigid player count requirements
 - Bots should follow the same game interface as human players
 
@@ -265,7 +331,7 @@ Each game being independently deployable means it needs its own server process (
 ### Visual Direction
 
 - Leaning **cozy / warm** - warm tones, soft textures, game-night atmosphere
-- To be validated with mockups before committing to a design system
+- Validated with mockups and committed on 2026-11-27; the visual system lives in `apps/parlor/DESIGN.md`
 - Consistent across all games via `@parlor/ui` shared components
 
 ### Animations
@@ -349,7 +415,7 @@ Quixx is a roll-and-write dice game for 2-5 players. Players mark numbers on fou
 
 ## Open Questions & Future Ideas
 
-- [ ] Final visual design direction (needs mockups)
+- [x] Final visual design direction: "The Game Box Lid", chosen from mockups 2026-11-27 (see `apps/parlor/DESIGN.md`)
 - [ ] Deployment platform selection
 - [ ] Database selection (when persistence is needed)
 - [ ] Consensus model deep dive - prototype for Quixx?

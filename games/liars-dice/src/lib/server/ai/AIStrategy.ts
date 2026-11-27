@@ -1,4 +1,19 @@
-import type { LiarsDiceGameState, Bid } from '../../types/game.js';
+import type { Bid } from '../../types/game.js';
+import { isValidBid } from '../../game/bidding.js';
+
+/**
+ * Everything a bot may know on its turn (CORE-AUDIT D-11 / F-30): its own dice
+ * and the public table. There is deliberately no field for anyone else's dice,
+ * so a strategy cannot read them; the server builds this with
+ * `LiarsDiceEngine.getBotView`.
+ */
+export interface LiarsDiceBotView {
+  readonly myDice: readonly number[];
+  readonly totalDiceInPlay: number;
+  readonly currentBid: Bid | null;
+  readonly wildOnes: boolean;
+  readonly spotOnEnabled: boolean;
+}
 
 export type AIDecision =
   | { action: 'bid'; quantity: number; faceValue: number }
@@ -12,9 +27,8 @@ export class AIStrategy {
    * Core probability: with wild ones, each die has a 2/6 (1/3) chance of matching
    * any non-1 face value (the face itself + wild 1). For 1s, it's 1/6.
    */
-  decide(state: LiarsDiceGameState): AIDecision {
-    const me = state.players[state.activePlayerIndex];
-    const myDice = me.dice;
+  decide(state: LiarsDiceBotView): AIDecision {
+    const myDice = state.myDice;
     const totalDice = state.totalDiceInPlay;
     const currentBid = state.currentBid;
 
@@ -58,7 +72,22 @@ export class AIStrategy {
     }
 
     // Otherwise, raise the bid
-    return this.makeRaiseBid(currentBid, myDice, totalDice, state.wildOnes);
+    return this.legalize(this.makeRaiseBid(currentBid, myDice, totalDice, state.wildOnes), currentBid, totalDice, state.wildOnes);
+  }
+
+  /**
+   * The raise heuristics ignore the wild-ones conversions (from 1s to another
+   * face the count must double plus one), so lift the count until the bid is
+   * legal, or challenge when no legal bid on that face fits on the table.
+   */
+  private legalize(decision: AIDecision, currentBid: Bid, totalDice: number, wildOnes: boolean): AIDecision {
+    if (decision.action !== 'bid') return decision;
+    for (let quantity = decision.quantity; quantity <= totalDice; quantity++) {
+      if (isValidBid({ quantity, faceValue: decision.faceValue }, currentBid, wildOnes)) {
+        return { action: 'bid', quantity, faceValue: decision.faceValue };
+      }
+    }
+    return { action: 'challenge' };
   }
 
   /**
@@ -66,7 +95,7 @@ export class AIStrategy {
    * Bid on our most common face (including wilds), with a slight bluff.
    */
   private makeOpeningBid(
-    myDice: number[],
+    myDice: readonly number[],
     totalDice: number,
     wildOnes: boolean,
   ): AIDecision {
@@ -96,7 +125,7 @@ export class AIStrategy {
    */
   private makeRaiseBid(
     currentBid: Bid,
-    myDice: number[],
+    myDice: readonly number[],
     totalDice: number,
     wildOnes: boolean,
   ): AIDecision {
@@ -147,7 +176,7 @@ export class AIStrategy {
   }
 
   /** Count how many of my dice match a face value (with wild ones). */
-  countMyMatching(myDice: number[], faceValue: number, wildOnes: boolean): number {
+  countMyMatching(myDice: readonly number[], faceValue: number, wildOnes: boolean): number {
     let count = 0;
     for (const die of myDice) {
       if (die === faceValue) count++;

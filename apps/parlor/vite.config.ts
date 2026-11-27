@@ -1,8 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import type { ViteDevServer, Plugin } from 'vite';
-import { Server } from 'socket.io';
-import { buildSocketServerOptions } from '@parlor/multiplayer';
+import { createSocketServer, type AppServer } from '@parlor/multiplayer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -13,7 +12,7 @@ const webSocketServer: Plugin = {
   configureServer(server: ViteDevServer) {
     if (!server.httpServer) return;
 
-    const io = new Server(server.httpServer, buildSocketServerOptions());
+    const io = createSocketServer(server.httpServer);
 
     const socketServerPath = path.join(__dirname, 'src/lib/server/socketServer.ts');
 
@@ -21,7 +20,7 @@ const webSocketServer: Plugin = {
       .ssrLoadModule(socketServerPath)
       .then((module) => {
         const { setupParlorSocketHandlers } = module as {
-          setupParlorSocketHandlers: (io: Server) => void;
+          setupParlorSocketHandlers: (io: AppServer) => void;
         };
         setupParlorSocketHandlers(io);
         console.log('Parlor Socket.io server initialized');

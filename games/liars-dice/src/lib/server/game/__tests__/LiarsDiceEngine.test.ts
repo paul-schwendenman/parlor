@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { GameRuleError, MAX_GAME_LOG_ENTRIES } from '@parlor/multiplayer';
 import { LiarsDiceEngine } from '../LiarsDiceEngine.js';
 import type { LiarsDicePlayer } from '../../../types/game.js';
 
@@ -19,6 +20,27 @@ describe('LiarsDiceEngine', () => {
 
   beforeEach(() => {
     engine = new LiarsDiceEngine(makePlayers(3), 'TEST');
+  });
+
+  it('caps bid log views and reads each retained entry once', () => {
+    const placeNextBid = (index: number) => {
+      const state = engine.getState();
+      engine.placeBid(state.players[state.activePlayerIndex].id, Math.floor(index / 5) + 1, 2 + index % 5);
+    };
+
+    for (let index = 0; index < MAX_GAME_LOG_ENTRIES; index++) placeNextBid(index);
+
+    const retainedLog = engine.getSpectatorView().gameLog;
+    expect(retainedLog).toHaveLength(MAX_GAME_LOG_ENTRIES);
+    expect(retainedLog.every(({ type }) => type === 'bid')).toBe(true);
+    expect(engine.getNewLogEntries()).toEqual(retainedLog);
+    expect(engine.getNewLogEntries()).toEqual([]);
+
+    placeNextBid(MAX_GAME_LOG_ENTRIES);
+    const playerLog = engine.getPlayerView('p1').gameLog;
+    expect(playerLog).toHaveLength(MAX_GAME_LOG_ENTRIES);
+    expect(playerLog.slice(0, -1)).toEqual(retainedLog.slice(1));
+    expect(engine.getNewLogEntries()).toEqual(playerLog.slice(-1));
   });
 
   describe('initialization', () => {
@@ -214,7 +236,7 @@ describe('LiarsDiceEngine', () => {
       const players = makePlayers(2);
       const engine2 = new LiarsDiceEngine(players, 'TEST2');
       // Access private state to disable wild ones for this test
-      (engine2 as any).state.wildOnes = false;
+      engine2['state'].wildOnes = false;
 
       const allDice = [
         [1, 3, 3],
@@ -314,6 +336,58 @@ describe('LiarsDiceEngine', () => {
       expect(state3.revealedDice).toBeNull();
       expect(state3.challengeResult).toBeNull();
       expect(state3.bidHistory).toEqual([]);
+    });
+  });
+
+  describe('next round permissions (CORE-AUDIT D-02)', () => {
+    function toReveal(eng: LiarsDiceEngine): void {
+      const s1 = eng.getState();
+      eng.placeBid(s1.players[s1.activePlayerIndex].id, 2, 3);
+      const s2 = eng.getState();
+      eng.challenge(s2.players[s2.activePlayerIndex].id);
+    }
+
+    it('rejects nextRound outside a reveal phase with a rule error, state unchanged', () => {
+      const before = engine.getState();
+      const actor = before.players[1].id;
+      expect(() => engine.requestNextRound(actor)).toThrow(GameRuleError);
+      expect(() => engine.requestNextRound(actor)).toThrow('Cannot start next round from this phase');
+      expect(() => engine.startNextRound()).toThrow('Cannot start next round from this phase');
+      expect(engine.getState()).toEqual(before);
+    });
+
+    it('rejects an actor who is not in the game, state unchanged', () => {
+      toReveal(engine);
+      const before = engine.getState();
+      expect(() => engine.requestNextRound('spectator-socket')).toThrow(GameRuleError);
+      expect(() => engine.requestNextRound('')).toThrow('Only players in this game can start the next round');
+      expect(engine.getState()).toEqual(before);
+    });
+
+    it('lets any player in the game advance from the reveal, eliminated ones included', () => {
+      toReveal(engine);
+      const anyPlayer = engine.getState().players[2].id;
+      engine.requestNextRound(anyPlayer);
+      expect(engine.getState().round).toBe(2);
+      expect(engine.getState().phase).toBe('bidding');
+    });
+
+    it('rule errors carry the expected codes', () => {
+      const state = engine.getState();
+      const wrong = state.players[(state.activePlayerIndex + 1) % 3].id;
+      try {
+        engine.placeBid(wrong, 1, 2);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(GameRuleError);
+        expect((err as GameRuleError).code).toBe('NOT_YOUR_TURN');
+      }
+      try {
+        engine.challenge(state.players[state.activePlayerIndex].id);
+        expect.unreachable();
+      } catch (err) {
+        expect((err as GameRuleError).code).toBe('RULE_VIOLATION');
+      }
     });
   });
 

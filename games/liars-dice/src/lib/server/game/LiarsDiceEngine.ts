@@ -1,3 +1,8 @@
+import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
+import { isValidBid } from '../../game/bidding.js';
+import { appendGameLog, GameRuleError } from '@parlor/multiplayer';
+import { MAX_DICE_IN_PLAY } from '../validateAction.js';
+import type { LiarsDiceBotView } from '../ai/AIStrategy.js';
 import type {
   LiarsDiceGameState,
   LiarsDicePlayer,
@@ -12,9 +17,13 @@ export class LiarsDiceEngine {
   private state: LiarsDiceGameState;
   private lastBroadcastLogIndex = 0;
 
-  constructor(players: LiarsDicePlayer[], roomCode: string) {
+  constructor(
+    players: LiarsDicePlayer[],
+    roomCode: string,
+    private readonly randomInt: RandomInt = secureRandomInt,
+  ) {
     // Shuffle player order
-    const shuffled = this.shuffle(players);
+    const shuffled = fisherYatesShuffle(players, this.randomInt);
 
     this.state = {
       roomCode,
@@ -44,7 +53,85 @@ export class LiarsDiceEngine {
     return {
       ...this.state,
       players: this.state.players.map((p) => ({ ...p, dice: [...p.dice] })),
+      gameLog: [...this.state.gameLog],
     };
+  }
+
+  /**
+   * What a bot may see on its turn: its own dice and the public table, built
+   * fresh with no other field (CORE-AUDIT D-11 / F-30).
+   */
+  getBotView(botId: string): LiarsDiceBotView {
+    const bot = this.state.players.find((p) => p.id === botId);
+    return {
+      myDice: bot ? [...bot.dice] : [],
+      totalDiceInPlay: this.state.totalDiceInPlay,
+      currentBid: this.state.currentBid ? { ...this.state.currentBid } : null,
+      wildOnes: this.state.wildOnes,
+      spotOnEnabled: this.state.spotOnEnabled,
+    };
+  }
+
+  /**
+   * The stand-in bid for an absent player in their grace window (plan 3.9): the
+   * least-penalising legal move. It never challenges or calls spot-on, which
+   * would put a die at stake straight away. It is the lowest-quantity legal bid
+   * (an opening bid with no bid standing, otherwise the smallest legal raise);
+   * at equal quantity a non-1 face is preferred, since with wild ones it also
+   * counts the 1s and is the likelier bid to hold. Null only if no legal bid
+   * exists below twice the dice in play plus one (never, in practice).
+   */
+  getStandInBid(): { quantity: number; faceValue: number } | null {
+    return this.findLegalBid([2, 3, 4, 5, 6, 1], this.state.totalDiceInPlay * 2 + 1);
+  }
+
+  getActivePlayerId(): string {
+    return this.state.players[this.state.activePlayerIndex].id;
+  }
+
+  /** Track a player's connection (shown in views as `connected`). */
+  setConnected(playerId: string, connected: boolean): void {
+    const player = this.state.players.find((p) => p.id === playerId);
+    if (player) player.connected = connected;
+  }
+
+  isAbsent(playerId: string): boolean {
+    const player = this.state.players.find((p) => p.id === playerId);
+    return !!player && !player.isAI && !player.connected;
+  }
+
+  /** A seat still in the game whose player is connected, or a bot. */
+  hasPresentPlayer(): boolean {
+    return this.state.players.some((p) => !p.eliminated && (p.isAI || p.connected));
+  }
+
+  /**
+   * A player left for good (plan 3.9): the seat is eliminated, the same way
+   * losing its last die eliminates it, so turn order already skips it and the
+   * last player standing wins. Their dice leave the table at once.
+   */
+  forfeit(playerId: string): void {
+    const player = this.state.players.find((p) => p.id === playerId);
+    if (!player || player.eliminated) return;
+    player.connected = false;
+    player.diceCount = 0;
+    player.dice = [];
+    player.eliminated = true;
+    this.addLog(playerId, `${player.name} left the game`, 'elimination');
+    if (this.state.gameOver) return;
+
+    const alivePlayers = this.state.players.filter((p) => !p.eliminated);
+    if (alivePlayers.length <= 1) {
+      this.state.winner = alivePlayers[0]?.id ?? null;
+      this.state.gameOver = true;
+      this.state.phase = 'game-over';
+      if (this.state.winner) {
+        const winnerPlayer = this.state.players.find((p) => p.id === this.state.winner)!;
+        this.addLog(this.state.winner, `${winnerPlayer.name} wins the game!`, 'win');
+      }
+      return;
+    }
+    if (this.state.phase === 'bidding' && this.getActivePlayerId() === playerId) this.advanceToNextPlayer();
   }
 
   getNewLogEntries(): LogEntry[] {
@@ -65,6 +152,7 @@ export class LiarsDiceEngine {
         connected: p.connected,
         diceCount: p.diceCount,
         eliminated: p.eliminated,
+        isBot: p.isAI,
         dice: this.state.revealedDice ? this.state.revealedDice[p.id] ?? null : null,
       })),
       myDice: myPlayer ? [...myPlayer.dice] : [],
@@ -101,6 +189,7 @@ export class LiarsDiceEngine {
         connected: p.connected,
         diceCount: p.diceCount,
         eliminated: p.eliminated,
+        isBot: p.isAI,
         dice: this.state.revealedDice ? this.state.revealedDice[p.id] ?? null : null,
       })),
       myDice: [],
@@ -126,17 +215,17 @@ export class LiarsDiceEngine {
   }
 
   placeBid(playerId: string, quantity: number, faceValue: number): void {
-    if (this.state.phase !== 'bidding') throw new Error('Not in bidding phase');
+    if (this.state.phase !== 'bidding') throw new GameRuleError('Not in bidding phase');
 
     const activePlayer = this.state.players[this.state.activePlayerIndex];
-    if (activePlayer.id !== playerId) throw new Error('Not your turn');
+    if (activePlayer.id !== playerId) throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
 
-    if (faceValue < 1 || faceValue > 6) throw new Error('Face value must be 1-6');
-    if (quantity < 1) throw new Error('Quantity must be at least 1');
+    if (faceValue < 1 || faceValue > 6) throw new GameRuleError('Face value must be 1-6');
+    if (quantity < 1) throw new GameRuleError('Quantity must be at least 1');
 
     const newBid: Bid = { playerId, quantity, faceValue };
     if (!this.isValidBid(newBid, this.state.currentBid)) {
-      throw new Error('Bid is not high enough');
+      throw new GameRuleError('Bid is not high enough');
     }
 
     this.state.previousBidderId = this.state.currentBid?.playerId ?? null;
@@ -149,11 +238,11 @@ export class LiarsDiceEngine {
   }
 
   challenge(playerId: string): void {
-    if (this.state.phase !== 'bidding') throw new Error('Not in bidding phase');
-    if (!this.state.currentBid) throw new Error('No bid to challenge');
+    if (this.state.phase !== 'bidding') throw new GameRuleError('Not in bidding phase');
+    if (!this.state.currentBid) throw new GameRuleError('No bid to challenge');
 
     const activePlayer = this.state.players[this.state.activePlayerIndex];
-    if (activePlayer.id !== playerId) throw new Error('Not your turn');
+    if (activePlayer.id !== playerId) throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
 
     const bid = this.state.currentBid;
     const allDice = this.state.players
@@ -197,12 +286,12 @@ export class LiarsDiceEngine {
   }
 
   spotOn(playerId: string): void {
-    if (this.state.phase !== 'bidding') throw new Error('Not in bidding phase');
-    if (!this.state.currentBid) throw new Error('No bid to call spot on');
-    if (!this.state.spotOnEnabled) throw new Error('Spot on is not enabled');
+    if (this.state.phase !== 'bidding') throw new GameRuleError('Not in bidding phase');
+    if (!this.state.currentBid) throw new GameRuleError('No bid to call spot on');
+    if (!this.state.spotOnEnabled) throw new GameRuleError('Spot on is not enabled');
 
     const activePlayer = this.state.players[this.state.activePlayerIndex];
-    if (activePlayer.id !== playerId) throw new Error('Not your turn');
+    if (activePlayer.id !== playerId) throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
 
     const bid = this.state.currentBid;
     const allDice = this.state.players
@@ -253,9 +342,22 @@ export class LiarsDiceEngine {
     }
   }
 
+  /**
+   * A player's `nextRound` request. Any player in the game may advance from a
+   * reveal, eliminated players included (they still see the reveal); anyone
+   * else, or any other phase, is a rule error and changes nothing.
+   */
+  requestNextRound(playerId: string): void {
+    if (!playerId || !this.state.players.some((p) => p.id === playerId)) {
+      throw new GameRuleError('Only players in this game can start the next round');
+    }
+    this.startNextRound();
+  }
+
+  /** Advance from a reveal to the next round (server auto-advance path). */
   startNextRound(): void {
     if (this.state.phase !== 'challenge' && this.state.phase !== 'spot-on' && this.state.phase !== 'round-result') {
-      throw new Error('Cannot start next round from this phase');
+      throw new GameRuleError('Cannot start next round from this phase');
     }
 
     if (this.state.gameOver) return;
@@ -325,26 +427,7 @@ export class LiarsDiceEngine {
   // --- Validation helpers ---
 
   isValidBid(newBid: Bid, currentBid: Bid | null): boolean {
-    if (newBid.faceValue < 1 || newBid.faceValue > 6) return false;
-    if (newBid.quantity < 1) return false;
-
-    if (!currentBid) return true;
-
-    if (this.state.wildOnes) {
-      // Bidding on 1s from another number: quantity is halved (round up)
-      if (newBid.faceValue === 1 && currentBid.faceValue !== 1) {
-        return newBid.quantity >= Math.ceil(currentBid.quantity / 2);
-      }
-      // From 1s to another number: quantity doubled + 1
-      if (newBid.faceValue !== 1 && currentBid.faceValue === 1) {
-        return newBid.quantity >= currentBid.quantity * 2 + 1;
-      }
-    }
-
-    // Standard: higher quantity, or same quantity with higher face
-    if (newBid.quantity > currentBid.quantity) return true;
-    if (newBid.quantity === currentBid.quantity && newBid.faceValue > currentBid.faceValue) return true;
-    return false;
+    return isValidBid(newBid, currentBid, this.state.wildOnes);
   }
 
   countMatchingDice(allDice: number[][], faceValue: number): number {
@@ -359,29 +442,38 @@ export class LiarsDiceEngine {
   }
 
   getMinimumBid(): { quantity: number; faceValue: number } | null {
-    if (!this.state.currentBid) {
-      return { quantity: 1, faceValue: 1 };
-    }
-
     const current = this.state.currentBid;
+    if (!current) return { quantity: 1, faceValue: 1 };
 
-    // Try same quantity, next face value
-    if (current.faceValue < 6) {
-      return { quantity: current.quantity, faceValue: current.faceValue + 1 };
+    const next = current.faceValue < 6
+      ? { quantity: current.quantity, faceValue: current.faceValue + 1 }
+      : { quantity: current.quantity + 1, faceValue: 1 };
+    if (next.quantity <= MAX_DICE_IN_PLAY && this.isValidBid({ playerId: '', ...next }, current)) {
+      return next;
     }
 
-    // Must increase quantity
-    return { quantity: current.quantity + 1, faceValue: 1 };
+    return this.findLegalBid([1, 2, 3, 4, 5, 6], MAX_DICE_IN_PLAY);
   }
 
   // --- Private helpers ---
+
+  private findLegalBid(faces: number[], maxQuantity: number): { quantity: number; faceValue: number } | null {
+    for (let quantity = 1; quantity <= maxQuantity; quantity++) {
+      for (const faceValue of faces) {
+        if (this.isValidBid({ playerId: '', quantity, faceValue }, this.state.currentBid)) {
+          return { quantity, faceValue };
+        }
+      }
+    }
+    return null;
+  }
 
   private rollAllDice(): void {
     for (const player of this.state.players) {
       if (player.eliminated) continue;
       player.dice = [];
       for (let i = 0; i < player.diceCount; i++) {
-        player.dice.push(Math.floor(Math.random() * 6) + 1);
+        player.dice.push(this.randomInt(6) + 1);
       }
     }
   }
@@ -398,7 +490,8 @@ export class LiarsDiceEngine {
 
   private removeDie(playerId: string): void {
     const player = this.state.players.find((p) => p.id === playerId);
-    if (!player) return;
+    // A seat that already left (forfeit) has no die to lose.
+    if (!player || player.eliminated) return;
 
     player.diceCount--;
     if (player.diceCount <= 0) {
@@ -421,20 +514,11 @@ export class LiarsDiceEngine {
   }
 
   private addLog(playerId: string, message: string, type: LogEntry['type']): void {
-    this.state.gameLog.push({
+    this.lastBroadcastLogIndex = appendGameLog(this.state.gameLog, this.lastBroadcastLogIndex, {
       timestamp: Date.now(),
       playerId,
       message,
       type,
     });
-  }
-
-  private shuffle<T>(arr: T[]): T[] {
-    const shuffled = [...arr];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
   }
 }

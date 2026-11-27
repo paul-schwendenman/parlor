@@ -11,6 +11,45 @@ Parlor's deployment needs are shaped by a few key constraints:
 5. **Cost-effective** - This is a passion project, not a VC-funded startup
 6. **Simple ops** - Minimal DevOps burden, ideally deploy-on-push
 
+## Production checklist (any platform)
+
+The current deployment is k3s. See the [Kubernetes runbook](../k8s/README.md) for details.
+
+- **`CORS_ORIGIN` is required.** Set it to a comma-separated list of the public origins
+  (e.g. `https://parlor.whatsdoom.com`). The Socket.io server rejects polling and
+  WebSocket handshakes from any other `Origin`. Requests with no `Origin` header
+  (non-browser clients) are allowed. If it's unset, every origin is accepted and a
+  warning is logged in production.
+- **Non-root, read-only:** the image runs as `node` (uid/gid 1000) and writes nothing
+  under `/app`. If the platform mounts the root filesystem read-only, give it a
+  writable `/tmp` (tsx's cache lives there).
+
+## Crashes and restarts
+
+The server logs an uncaught exception or unhandled promise rejection, then exits
+with a non-zero status. Run it under a supervisor configured to restart failed
+processes. Kubernetes Deployments use `restartPolicy: Always`.
+
+Rooms, reconnect credentials and active games live in process memory. A crash,
+container restart or rolling deployment **loses every active game on that
+process**. During a planned shutdown, the server drains connections before it
+exits. Players still need a new room after the restart.
+
+When the client reconnects, it presents its saved room and player credentials.
+If the new server has lost the room, it rejects the reconnect and the client
+clears the saved session and the old views. An open game returns to the lobby
+page and shows that the room is unavailable. Players can use **Back to home**
+to create a new room or join an existing one.
+
+## Health metrics
+
+`GET /healthz` returns `status`, `uptime` in seconds, and a `metrics` object.
+`rooms` and `sockets` are the current in-memory room count and active Engine.IO
+session count. `gamesStarted` counts successful starts and restarts,
+`rejectedActions` counts rejected `game:action` requests, and
+`caughtRoomFailures` counts contained game and lifecycle failures. The totals
+are per process and reset when it restarts.
+
 ---
 
 ## Platform Comparison
@@ -180,8 +219,8 @@ Parlor's deployment needs are shaped by a few key constraints:
 ## Suggested Phased Approach
 
 ### Phase 1: Development (Now)
-- Run everything locally with `turbo dev`
-- Each game is a standalone SvelteKit app with embedded Socket.io server
+- Run Parlor and its shared package watchers locally with `pnpm dev`.
+- To run a standalone game server, use `pnpm --filter @parlor/quixx dev`, substituting the package name for the game you're working on.
 - No deployment needed yet
 
 ### Phase 2: First Deploy (Quixx ready)

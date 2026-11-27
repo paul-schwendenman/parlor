@@ -4,7 +4,6 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { gameState } from '$lib/stores/gameStore.svelte.js';
-  import { lobbyState } from '$lib/stores/lobbyStore.svelte.js';
   import { playerState } from '$lib/stores/playerStore.svelte.js';
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
   import { getSocket } from '$lib/stores/socketClient.js';
@@ -38,16 +37,10 @@
     if (view) {
       hadView = true;
     } else if (hadView) {
-      goto(`/lobby/${roomCode}`);
+      goto(`/lobby/${roomCode}`).catch(console.error);
     }
   });
 
-  function backToLobby() {
-    getSocket().emit('lobby:resetGame');
-    gameState.reset();
-    lobbyState.gameStarting = false;
-    goto(`/lobby/${roomCode}`);
-  }
 </script>
 
 <svelte:head><title>Booty Dice - Parlor</title></svelte:head>
@@ -67,7 +60,6 @@
     {view}
     socket={getSocket()}
     playerId={playerState.id ?? ''}
-    onBackToLobby={backToLobby}
   />
 {/if}
 

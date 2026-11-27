@@ -1,16 +1,7 @@
 @import 'tailwindcss';
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap');
 
-:root {
-  --color-cream: #FDF6EC;
-  --color-linen: #F5EDE0;
-  --color-terracotta: #C4663A;
-  --color-forest: #4A7C59;
-  --color-mustard: #D4A843;
-  --color-espresso: #3B2F2F;
-  --font-heading: 'Nunito', system-ui, sans-serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
-}
+@import '@parlor/ui/tokens.css';
 
 body {
   font-family: var(--font-body);
@@ -18,4 +9,26 @@ body {
   min-height: 100vh;
   background: var(--color-cream);
   color: var(--color-espresso);
+  caret-color: var(--color-terracotta-deep);
 }
+
+:focus-visible {
+  outline: 3px solid var(--color-espresso);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--color-mustard-tint);
+  color: var(--color-espresso);
+}
+
+/*
+ * Game spines (DESIGN.md: Game shelf). Each game keeps one block colour, the
+ * same on the home shelf and the lobby ballot. A spine sets its fill and the
+ * text colour that passes on it, plus a contrasting solid for its main pill.
+ */
+.spine-felt { --spine-bg: var(--color-forest-deep); --spine-fg: var(--color-cream); --spine-solid-bg: var(--color-cream); --spine-solid-fg: var(--color-forest-deep); }
+.spine-mustard { --spine-bg: var(--color-mustard); --spine-fg: var(--color-espresso); --spine-solid-bg: var(--color-espresso); --spine-solid-fg: var(--color-cream); }
+.spine-clay { --spine-bg: var(--color-terracotta-deep); --spine-fg: var(--color-cream); --spine-solid-bg: var(--color-cream); --spine-solid-fg: var(--color-terracotta-deep); }
+.spine-ink { --spine-bg: var(--color-espresso); --spine-fg: var(--color-cream); --spine-solid-bg: var(--color-mustard); --spine-solid-fg: var(--color-espresso); }
+.spine-linen { --spine-bg: var(--color-linen); --spine-fg: var(--color-espresso); --spine-solid-bg: var(--color-terracotta-deep); --spine-solid-fg: var(--color-cream); }

@@ -1,13 +1,6 @@
-export const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'] as const;
-export type Suit = (typeof SUITS)[number];
+import type { Card, Suit } from '@parlor/cards';
 
-export const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const;
-export type Rank = (typeof RANKS)[number];
-
-export interface Card {
-  suit: Suit;
-  rank: Rank;
-}
+export { RANKS, SUITS, type Card, type Rank, type Suit } from '@parlor/cards';
 
 export type CrazyEightsPhase = 'playing' | 'choosing-suit' | 'game-over';
 
@@ -22,6 +15,7 @@ export interface CrazyEightsPlayerInfo {
   name: string;
   cardCount: number;
   connected: boolean;
+  isBot: boolean;
 }
 
 export interface CrazyEightsPlayerView {
@@ -49,3 +43,14 @@ export interface CrazyEightsConfig {
 export const DEFAULT_CONFIG: CrazyEightsConfig = {
   turnTimer: null,
 };
+
+// Crazy Eights' entries in the `game:state` and `game:action` wire maps (plans 3.1b, 3.5). Players and
+// spectators both receive this shape; a spectator's has `myIndex: -1` and an empty hand.
+declare module '@parlor/game-types' {
+  interface GameViewMap {
+    'crazy-eights': CrazyEightsPlayerView;
+  }
+  interface GameActionMap {
+    'crazy-eights': CrazyEightsAction;
+  }
+}

@@ -1,336 +1,213 @@
-import type { Socket } from 'socket.io';
-import type {
-  ClientToServerEvents,
-  ServerToClientEvents,
-  InterServerEvents,
-  SocketData,
-} from '@parlor/game-types';
-import type { ServerGameDefinition, AppServer } from '@parlor/multiplayer';
-import { RoomManager } from '@parlor/multiplayer';
+import {
+  defineGame,
+  GameRuleError,
+  scheduleAbsentTurn,
+  type GameContext,
+  type TypedGameDefinition,
+} from '@parlor/multiplayer';
 import { GameEngine } from './game/GameEngine.js';
 import { createPlayer } from '../types/game.js';
-import type { BootyDiceAction } from '../types/game.js';
 import { AIPlayer } from './ai/AIPlayer.js';
-import { validateDiceIndices } from './validation.js';
+import { validateBootyDiceAction } from './validateAction.js';
+import { bootyDiceMeta } from '../../meta.js';
 
-type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
+type Game = GameContext<GameEngine>;
 
 const aiPlayer = new AIPlayer();
 const AI_TURN_TIMEOUT = 30_000;
 
-function broadcastViews(
-  io: AppServer,
-  roomCode: string,
-  engine: GameEngine,
-  roomManager: RoomManager,
-): void {
-  // Send new log entries first
-  const newEntries = engine.getNewLogEntries();
-  for (const entry of newEntries) {
-    // Send to all humans in the room
-    const players = roomManager.getPlayersInRoom(roomCode);
-    for (const player of players) {
-      if (RoomManager.isBotPlayer(player.id)) continue;
-      io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
-    }
-  }
-
-  // If no new log entries, just broadcast state
-  if (newEntries.length === 0) {
-    const players = roomManager.getPlayersInRoom(roomCode);
-    for (const player of players) {
-      if (RoomManager.isBotPlayer(player.id)) continue;
-      io.to(player.id).emit('game:state', engine.getPlayerView(player.id) as never);
-    }
-  }
-
-  const spectators = roomManager.getSpectatorsInRoom(roomCode);
-  if (spectators.length > 0) {
-    const spectatorView = engine.getSpectatorView();
-    for (const spectatorId of spectators) {
-      io.to(spectatorId).emit('game:state', spectatorView as never);
-    }
-  }
-}
-
-function handleEndTurn(
-  io: AppServer,
-  roomCode: string,
-  engine: GameEngine,
-  roomManager: RoomManager,
-): void {
-  const resolution = engine.resolveTurn();
-
-  if (resolution.winner) {
-    broadcastViews(io, roomCode, engine, roomManager);
+/**
+ * After any change of turn: a bot's turn is scheduled; a disconnected player's
+ * turn gets its stand-in (plan 3.9). Eliminated (and removed) seats are skipped
+ * by the engine.
+ */
+function driveTurn(game: Game): void {
+  const engine = game.state;
+  const state = engine.getState();
+  const player = state.players[state.currentPlayerIndex];
+  if (state.phase === 'ended' || player.isEliminated) return;
+  if (player.isAI) {
+    game.instance.schedule(() => handleAITurn(game), 0, 'bot-turn');
     return;
   }
 
+  scheduleAbsentTurn(game, {
+    activePlayer: () => (engine.getState().phase === 'ended' ? null : engine.getCurrentPlayer().id),
+    isAbsent: (playerId) => {
+      const seat = engine.getState().players.find((p) => p.id === playerId);
+      return !!seat && !seat.isAI && !seat.isConnected;
+    },
+    anyonePresent: () => engine.hasPresentPlayer(),
+    takeTurn: (playerId) => standInTurn(engine, playerId),
+    afterTurn: () => {
+      if (engine.getCurrentPlayer().isAI) driveTurn(game);
+    },
+  });
+}
+
+/** Resolve an existing roll and advance if the game is still running. */
+function settleTurn(engine: GameEngine): void {
+  if (engine.hasRolledThisTurn()) engine.resolveTurn();
   engine.endTurn();
-  broadcastViews(io, roomCode, engine, roomManager);
-
-  // Don't continue if game ended during endTurn
-  const newState = engine.getState();
-  if (newState.phase === 'ended') return;
-
-  // Check if next player is AI
-  const nextPlayer = newState.players[newState.currentPlayerIndex];
-  if (nextPlayer.isAI && !nextPlayer.isEliminated) {
-    setImmediate(() => {
-      handleAITurn(io, roomCode, engine, roomManager).catch((err) => {
-        console.error('[AI Turn] Error:', err);
-      });
-    });
-  }
 }
 
-async function handleAITurn(
-  io: AppServer,
-  roomCode: string,
-  engine: GameEngine,
-  roomManager: RoomManager,
-): Promise<void> {
+/** Score the turn and pass it on. The caller broadcasts. */
+function endTurn(game: Game): void {
+  settleTurn(game.state);
+  driveTurn(game);
+}
+
+async function handleAITurn(game: Game): Promise<void> {
+  const { state: engine, instance } = game;
   const state = engine.getState();
-
-  if (state.phase === 'ended') return;
-
   const currentPlayer = state.players[state.currentPlayerIndex];
-  if (!currentPlayer.isAI || currentPlayer.isEliminated) return;
+  if (state.phase === 'ended' || !currentPlayer.isAI || currentPlayer.isEliminated) return;
 
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('AI turn timed out')), AI_TURN_TIMEOUT),
-  );
+  function canAct(): boolean {
+    if (!instance.isCurrent()) return false;
+    const current = engine.getState();
+    return current.phase !== 'ended' && current.turnNumber === state.turnNumber
+      && current.players[current.currentPlayerIndex].id === currentPlayer.id;
+  }
 
-  try {
-    await Promise.race([
-      aiPlayer.takeTurn(state, {
-        onLockDice: (indices) => {
-          if (engine.getState().phase === 'ended') return;
-          engine.lockDice(indices);
-          broadcastViews(io, roomCode, engine, roomManager);
-        },
-        onRoll: async () => {
-          if (engine.getState().phase === 'ended') return state.dice;
-          try {
-            const result = engine.roll();
-            broadcastViews(io, roomCode, engine, roomManager);
-            return result.dice;
-          } catch (err) {
-            throw err;
-          }
-        },
-        onFinishRolling: () => {
-          if (engine.getState().phase === 'ended') return;
-          engine.finishRolling();
-          broadcastViews(io, roomCode, engine, roomManager);
-        },
-        onSelectTarget: (dieIndex, targetId) => {
-          if (engine.getState().phase === 'ended') return;
-          engine.selectTarget(dieIndex, targetId);
-          broadcastViews(io, roomCode, engine, roomManager);
-        },
-        onEndTurn: () => {
-          if (engine.getState().phase === 'ended') return;
-          handleEndTurn(io, roomCode, engine, roomManager);
-        },
-      }),
-      timeoutPromise,
-    ]);
-  } catch (err) {
-    console.error('[AI Turn] Error/timeout:', err);
-    if (engine.getState().phase !== 'ended') {
+  const outcome = await instance.runWithTimeout((signal) => aiPlayer.takeTurn(state, {
+    onLockDice: (indices) => {
+      if (signal.aborted || !canAct()) return;
+      engine.lockDice(indices);
+      game.broadcast();
+    },
+    onRoll: () => {
+      if (signal.aborted || !canAct()) return Promise.resolve(state.dice);
+      const result = engine.roll();
+      game.broadcast();
+      return Promise.resolve(result.dice);
+    },
+    onFinishRolling: () => {
+      if (signal.aborted || !canAct()) return;
       engine.finishRolling();
-      handleEndTurn(io, roomCode, engine, roomManager);
-    }
+      game.broadcast();
+    },
+    onSelectTarget: (dieIndex, targetId) => {
+      if (signal.aborted || !canAct()) return;
+      engine.selectTarget(dieIndex, targetId);
+      game.broadcast();
+    },
+    onEndTurn: () => {
+      if (signal.aborted || !canAct()) return;
+      endTurn(game);
+      game.broadcast();
+    },
+  }, signal, instance), AI_TURN_TIMEOUT);
+
+  if (outcome === 'timed-out' && canAct()) {
+    engine.finishRolling();
+    endTurn(game);
+    game.broadcast();
   }
 }
 
-export const bootyDiceDefinition: ServerGameDefinition = {
-  meta: {
-    id: 'booty-dice',
-    name: 'Booty Dice',
-    description: 'A pirate dice game of treasure, attacks, and survival',
-    minPlayers: 2,
-    maxPlayers: 6,
-    estimatedMinutes: '15-30',
-    tags: ['dice', 'pirates', 'competitive'],
-    displayModes: ['peer'],
-    supportsBots: true,
+/**
+ * End the absent player's turn without making any more choices. A turn that
+ * has already rolled resolves normally. Targeted dice only apply when the
+ * player already chose a target. A turn that never rolled is simply passed.
+ */
+function standInTurn(engine: GameEngine, playerId: string): boolean {
+  const state = engine.getState();
+  const currentPlayer = state.players[state.currentPlayerIndex];
+  if (currentPlayer.id !== playerId || state.phase !== 'playing') return false;
+  settleTurn(engine);
+  return true;
+}
+
+function requireRolled(engine: GameEngine, message: string): void {
+  if (!engine.hasRolledThisTurn()) throw new GameRuleError(message);
+}
+
+function requireActivePlayer(engine: GameEngine, playerId: string): ReturnType<GameEngine['getState']> {
+  const state = engine.getState();
+  if (state.players[state.currentPlayerIndex].id !== playerId) {
+    throw new GameRuleError('Not your turn', 'NOT_YOUR_TURN');
+  }
+  return state;
+}
+
+function requireRolling(engine: GameEngine, playerId: string): void {
+  const state = requireActivePlayer(engine, playerId);
+  if (state.turnPhase !== 'rolling') throw new GameRuleError('You can only do that while rolling');
+}
+
+/** Booty Dice on the typed game contract (plan 3.1b). Servers use `bootyDiceDefinition`. */
+export const bootyDiceGame: TypedGameDefinition<'booty-dice', GameEngine> = {
+  meta: bootyDiceMeta,
+
+  validateAction: validateBootyDiceAction,
+
+  createState: (roomCode, players) =>
+    new GameEngine(players.map((p) => createPlayer(p.id, p.name, p.isBot)), roomCode),
+
+  onGameStart: driveTurn,
+
+  actions: {
+    roll: (game) => {
+      requireRolling(game.state, game.playerId);
+      game.state.roll();
+    },
+    lockDice: (game, action) => {
+      requireRolling(game.state, game.playerId);
+      // Locking before the first roll would keep the previous player's (or the
+      // opening) dice through the roll (CORE-AUDIT A-06).
+      requireRolled(game.state, 'Roll before locking dice');
+      game.state.lockDice(action.diceIndices);
+    },
+    finishRolling: (game) => {
+      requireRolling(game.state, game.playerId);
+      requireRolled(game.state, 'Roll at least once first');
+      game.state.finishRolling();
+    },
+    selectTarget: (game, action) => {
+      const state = requireActivePlayer(game.state, game.playerId);
+      if (state.turnPhase !== 'selecting_targets') throw new GameRuleError('Not selecting targets');
+      game.state.selectTarget(action.dieIndex, action.targetPlayerId);
+    },
+    endTurn: (game) => {
+      const state = requireActivePlayer(game.state, game.playerId);
+      if (state.phase !== 'playing') throw new GameRuleError('The game is not in progress');
+      // Without a roll this turn, resolveTurn would score the opening or the
+      // previous player's dice (CORE-AUDIT A-06).
+      requireRolled(game.state, 'You must roll before ending your turn');
+      if (game.state.hasUnresolvedTargets()) {
+        throw new GameRuleError('Select targets for all attacks and steals first');
+      }
+      endTurn(game);
+    },
   },
 
-  createLobbyCallbacks: (roomManager: RoomManager, io: AppServer) => ({
-    onGameStart: (roomCode, players) => {
-      const gamePlayers = players.map((p) => createPlayer(p.id, p.name, p.isBot));
-      const engine = new GameEngine(gamePlayers, roomCode);
-      roomManager.setGameData(roomCode, engine);
+  getPlayerView: (engine, playerId) => engine.getPlayerView(playerId),
+  getSpectatorView: (engine) => engine.getSpectatorView(),
+  isGameOver: (engine) => engine.getState().phase === 'ended',
 
-      // Send initial views to each player (skip bots)
-      for (const player of players) {
-        if (RoomManager.isBotPlayer(player.id)) continue;
-        const view = engine.getPlayerView(player.id);
-        io.to(player.id).emit('game:state', view as never);
-      }
-
-      // Send initial view to spectators
-      const spectators = roomManager.getSpectatorsInRoom(roomCode);
-      if (spectators.length > 0) {
-        const spectatorView = engine.getSpectatorView();
-        for (const spectatorId of spectators) {
-          io.to(spectatorId).emit('game:state', spectatorView as never);
-        }
-      }
-
-      // If first player is AI, schedule their turn
-      const state = engine.getState();
-      const firstPlayer = state.players[state.currentPlayerIndex];
-      if (firstPlayer.isAI) {
-        setImmediate(() => {
-          handleAITurn(io, roomCode, engine, roomManager).catch((err) => {
-            console.error('[AI Turn] Error:', err);
-          });
-        });
-      }
-    },
-
-    onGameReset: (roomCode) => {
-      roomManager.setGameData(roomCode, null);
-    },
-
-    onPlayerDisconnect: (roomCode, playerId) => {
-      const engine = roomManager.getGameData<GameEngine>(roomCode);
-      if (!engine) return;
-
-      const state = engine.getState();
-      const currentPlayer = state.players[state.currentPlayerIndex];
-
-      // If it's the disconnected player's turn, auto-resolve and end their turn
-      if (currentPlayer.id === playerId && state.phase === 'playing') {
-        engine.finishRolling();
-
-        // Auto-resolve any pending actions
-        const updatedState = engine.getState();
-        if (updatedState.turnPhase === 'selecting_targets') {
-          const otherAlive = updatedState.players.filter(
-            (p) => p.id !== playerId && !p.isEliminated,
-          );
-          for (const action of updatedState.pendingActions) {
-            if (!action.resolved && otherAlive.length > 0) {
-              engine.selectTarget(action.dieIndex, otherAlive[0].id);
-            }
-          }
-        }
-
-        // Resolve and end turn
-        const resolution = engine.resolveTurn();
-        if (!resolution.winner) {
-          engine.endTurn();
-        }
-
-        broadcastViews(io, roomCode, engine, roomManager);
-
-        // Check if next player is AI
-        if (!resolution.winner) {
-          const newState = engine.getState();
-          const nextPlayer = newState.players[newState.currentPlayerIndex];
-          if (nextPlayer.isAI && !nextPlayer.isEliminated) {
-            setImmediate(() => {
-              handleAITurn(io, roomCode, engine, roomManager).catch((err) => {
-                console.error('[AI Turn] Error:', err);
-              });
-            });
-          }
-        }
-      }
-    },
-
-    onPlayerReconnect: (roomCode, playerId) => {
-      const engine = roomManager.getGameData<GameEngine>(roomCode);
-      if (!engine) return;
-
-      const view = engine.getPlayerView(playerId);
-      io.to(playerId).emit('game:state', view as never);
-    },
-  }),
-
-  handleGameAction: (
-    io: AppServer,
-    socket: AppSocket,
-    roomManager: RoomManager,
-    rawAction: Record<string, unknown>,
-  ) => {
-    const roomCode = socket.data.roomCode;
-    if (!roomCode) return;
-
-    const engine = roomManager.getGameData<GameEngine>(roomCode);
-    if (!engine) return;
-
-    const action = rawAction as unknown as BootyDiceAction;
-
-    try {
-      switch (action.type) {
-        case 'roll': {
-          const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
-          if (state.turnPhase !== 'rolling') return;
-
-          engine.roll();
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'lockDice': {
-          const diceResult = validateDiceIndices(action.diceIndices);
-          if (!diceResult.valid) {
-            socket.emit('error', diceResult.error);
-            return;
-          }
-
-          const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
-          if (state.turnPhase !== 'rolling') return;
-
-          engine.lockDice(diceResult.indices);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'finishRolling': {
-          const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
-          if (state.turnPhase !== 'rolling') return;
-
-          engine.finishRolling();
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'selectTarget': {
-          const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
-          if (state.turnPhase !== 'selecting_targets') return;
-
-          engine.selectTarget(action.dieIndex, action.targetPlayerId);
-          broadcastViews(io, roomCode, engine, roomManager);
-          break;
-        }
-
-        case 'endTurn': {
-          const state = engine.getState();
-          if (state.players[state.currentPlayerIndex].id !== socket.data.playerId) return;
-          if (state.phase !== 'playing') return;
-
-          if (engine.hasUnresolvedTargets()) {
-            socket.emit('error', 'Select targets for all attacks and steals first');
-            return;
-          }
-
-          handleEndTurn(io, roomCode, engine, roomManager);
-          break;
-        }
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      socket.emit('error', message);
-    }
+  // A disconnected player keeps their seat for the grace window: their turn
+  // gets a stand-in now and each time it comes round until they return.
+  onPlayerDisconnect: (game) => {
+    game.state.setConnected(game.playerId, false);
+    standInTurn(game.state, game.playerId);
+    driveTurn(game);
   },
+  onPlayerReconnect: (game) => {
+    game.state.setConnected(game.playerId, true);
+    // Stand-ins pause while nobody is connected; a return resumes them.
+    driveTurn(game);
+  },
+
+  // The seat is gone for good: it is eliminated (its turn, if current, ends
+  // unscored), and the last pirate standing wins.
+  onPlayerRemoved: (game) => {
+    game.state.forfeit(game.playerId);
+    driveTurn(game);
+  },
+
+  // Bot turns live on the game instance, which the core has already invalidated.
+  onRoomDestroyed: () => undefined,
 };
+
+export const bootyDiceDefinition = defineGame(bootyDiceGame);

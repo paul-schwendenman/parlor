@@ -1,29 +1,13 @@
-import type { Card, Rank, Pile, PilePosition } from '../types/game.js';
+import { aceLowRankValue, isRedSuit } from '@parlor/cards';
+import type { Card, Pile, PilePosition } from '../types/game.js';
 import { CORNER_POSITIONS } from '../types/game.js';
 
-export function cardEquals(a: Card, b: Card): boolean {
-  return a.suit === b.suit && a.rank === b.rank;
-}
-
-export function isRed(card: Card): boolean {
-  return card.suit === 'hearts' || card.suit === 'diamonds';
-}
-
 export function alternatesColor(cardToPlay: Card, targetCard: Card): boolean {
-  return isRed(cardToPlay) !== isRed(targetCard);
-}
-
-const RANK_VALUES: Record<Rank, number> = {
-  A: 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7,
-  '8': 8, '9': 9, '10': 10, J: 11, Q: 12, K: 13,
-};
-
-export function getRankValue(rank: Rank): number {
-  return RANK_VALUES[rank];
+  return isRedSuit(cardToPlay.suit) !== isRedSuit(targetCard.suit);
 }
 
 export function isOneRankLower(card: Card, target: Card): boolean {
-  return getRankValue(card.rank) === getRankValue(target.rank) - 1;
+  return aceLowRankValue(card.rank) === aceLowRankValue(target.rank) - 1;
 }
 
 export function isCornerPosition(pos: PilePosition): boolean {

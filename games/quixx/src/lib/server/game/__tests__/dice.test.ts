@@ -27,27 +27,17 @@ describe('rollAllDice', () => {
     expect(dice.green).toBeGreaterThanOrEqual(1);
   });
 
-  it('returns deterministic results with mocked Math.random', () => {
-    const mockRandom = vi.spyOn(Math, 'random');
-    // Each call: Math.floor(random * 6) + 1
-    // random=0 -> 1, random=0.5 -> 4, random=0.99 -> 6
-    mockRandom
-      .mockReturnValueOnce(0) // white1 = 1
-      .mockReturnValueOnce(0.5) // white2 = 4
-      .mockReturnValueOnce(0.17) // red = 2
-      .mockReturnValueOnce(0.34) // yellow = 3
-      .mockReturnValueOnce(0.67) // green = 5
-      .mockReturnValueOnce(0.84); // blue = 6
+  it('uses the injected source only for dice still in play', () => {
+    const randomInt = vi.fn<(max: number) => number>()
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(5)
+      .mockReturnValueOnce(3)
+      .mockReturnValueOnce(2);
 
-    const dice = rollAllDice([]);
-    expect(dice.white1).toBe(1);
-    expect(dice.white2).toBe(4);
-    expect(dice.red).toBe(2);
-    expect(dice.yellow).toBe(3);
-    expect(dice.green).toBe(5);
-    expect(dice.blue).toBe(6);
-
-    mockRandom.mockRestore();
+    expect(rollAllDice(['red', 'blue'], randomInt)).toEqual({
+      white1: 1, white2: 6, red: 0, yellow: 4, green: 3, blue: 0, rolled: true,
+    });
+    expect(randomInt.mock.calls).toEqual([[6], [6], [6], [6]]);
   });
 });
 

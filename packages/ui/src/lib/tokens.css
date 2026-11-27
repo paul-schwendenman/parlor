@@ -1,0 +1,21 @@
+/*
+ * Parlor design tokens (apps/parlor/DESIGN.md). One source for the Parlor app
+ * and every standalone game, so a board looks the same in both places.
+ */
+:root {
+  --color-cream: #FDF6EC;
+  --color-linen: #F5EDE0;
+  --color-paper: #FFFFFF;
+  --color-terracotta: #C4663A;
+  --color-terracotta-deep: #A9532D;
+  --color-terracotta-press: #8F4526;
+  --color-forest: #4A7C59;
+  --color-forest-deep: #2F5A3E;
+  --color-mustard: #D4A843;
+  --color-mustard-tint: #F3E2B6;
+  --color-espresso: #3B2F2F;
+  --color-ink-muted: #71625A;
+  --color-danger: #991B1B;
+  --font-heading: 'Nunito', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+}

@@ -1,4 +1,4 @@
-import type { LobbyPlayer } from '@parlor/game-types';
+import type { ActionResult, GameAction, GameId, GameStateEnvelope, LobbyPlayer } from '@parlor/game-types';
 import {
   createGameClient,
   saveSession,
@@ -55,8 +55,11 @@ export interface ParlorRuntimeAdapter {
   lobbyState: RuntimeLobbyState;
   gameState: RuntimeGameState;
   playerState: RuntimePlayerState;
-  /** Applies an incoming `game:state` payload to the game store (per-app cast). */
-  onView: (state: unknown) => void;
+  /**
+   * Receives each `game:state` envelope. Narrow on `state.gameId` to get the
+   * game's typed view (plan 3.1b).
+   */
+  onGameState: (state: GameStateEnvelope) => void;
   /**
    * When true, restore `playerState` on a successful `player:reconnect`
    * (parlor / liars-dice / booty-dice behavior). When false/omitted, a
@@ -72,8 +75,12 @@ export interface ParlorRuntimeAdapter {
   enableGameSelection?: boolean;
 }
 
-export interface ParlorRuntime {
-  getSocket(): GameSocket;
+/**
+ * `Id` is the game(s) this client sends actions for: one game id in a
+ * standalone app, every game (the default) in the parlor app.
+ */
+export interface ParlorRuntime<Id extends GameId = GameId> {
+  getSocket(): GameSocket<Id>;
   createRoomAction(playerName: string, gameId?: string): Promise<string>;
   joinRoomAction(
     roomCode: string,
@@ -82,6 +89,12 @@ export interface ParlorRuntime {
   selectGameAction(gameId: string | null): void;
   readyAction(isReady: boolean): void;
   startGameAction(): void;
+  /**
+   * Send a `game:action` and wait for the server's verdict. Never rejects:
+   * resolves `{ ok: false, code: 'TIMEOUT' }` if no ack arrives in time.
+   * Failures are also surfaced through `connectionState.setActionError`.
+   */
+  sendAction(action: GameAction<Id>): Promise<ActionResult>;
   disconnectSocket(): void;
   /** HMR-safe teardown: drop the socket without clearing the persisted session. */
   teardown(): void;
@@ -90,7 +103,7 @@ export interface ParlorRuntime {
 /** Ack timeout (ms) applied to reconnect + lobby action emits. */
 const ACK_TIMEOUT = 5000;
 
-export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntime {
+export function createParlorRuntime<Id extends GameId = GameId>(adapter: ParlorRuntimeAdapter): ParlorRuntime<Id> {
   const { browser, connectionState, lobbyState, gameState, playerState } = adapter;
 
   let socket: GameSocket | null = null;
@@ -130,7 +143,7 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
       session.roomCode,
       session.playerId,
       session.reconnectToken ?? '',
-      (success: boolean) => {
+      (success: boolean, reconnectToken?: string) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
@@ -140,7 +153,7 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
         if (success) {
           authedForConnection = true;
           // playerId is stable; re-persist to refresh the stored session.
-          saveSession(session);
+          saveSession({ ...session, reconnectToken: reconnectToken ?? session.reconnectToken });
           if (adapter.restorePlayerOnReconnect) {
             playerState.set({
               id: session.playerId,
@@ -153,6 +166,8 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
           authedForConnection = true;
           clearSession();
           playerState.reset();
+          lobbyState.reset();
+          gameState.reset();
         }
       },
     );
@@ -198,12 +213,14 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
 
       // Lobby events
       socket.on('lobby:state', (players, canStart) => {
-        // If we had an active game and receive lobby state, the game was reset
-        if (gameState.view && lobbyState.gameStarting) {
-          gameState.reset();
-          lobbyState.gameStarting = false;
-        }
         lobbyState.setLobbyState(players, canStart);
+      });
+
+      socket.on('lobby:returned', (gameId) => {
+        gameState.reset();
+        lobbyState.gameStarting = false;
+        lobbyState.setSelectedGame?.(gameId);
+        gameState.setGameId?.(gameId);
       });
 
       socket.on('lobby:hostChanged', (newHostId) => {
@@ -232,9 +249,10 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
         });
       }
 
-      // Game events - each app applies its own view shape
+      // Game views arrive as `{ gameId, view }`.
       socket.on('game:state', (state) => {
-        adapter.onView(state);
+        if (typeof state !== 'object' || state === null) return;
+        adapter.onGameState(state);
       });
 
       socket.on('error', (message) => {
@@ -276,12 +294,20 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
 
   function createRoomAction(playerName: string, gameId?: string): Promise<string> {
     const s = getSocket();
-    return new Promise((resolve) => {
-      s.emit('lobby:create', playerName, (result) => {
+    return new Promise((resolve, reject) => {
+      s.emit('lobby:create', playerName, (result, error) => {
+        if (!result) {
+          reject(new Error(error ?? 'Failed to create room'));
+          return;
+        }
+
         const { roomCode, playerId, reconnectToken } = result;
-        playerState.set({ id: playerId, name: playerName, roomCode });
+        const name = playerName.normalize('NFC').trim();
+        gameState.reset();
+        lobbyState.reset();
+        playerState.set({ id: playerId, name, roomCode });
         lobbyState.setHost(playerId);
-        saveSession({ playerId, playerName, roomCode, reconnectToken });
+        saveSession({ playerId, playerName: name, roomCode, reconnectToken });
 
         // If a game was pre-selected, select it
         if (adapter.enableGameSelection && gameId) {
@@ -305,10 +331,13 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
         const { success, error } = result;
         if (success && result.playerId) {
           const normalizedCode = result.roomCode ?? roomCode.toUpperCase();
-          playerState.set({ id: result.playerId, name: playerName, roomCode: normalizedCode });
+          const name = playerName.normalize('NFC').trim();
+          gameState.reset();
+          lobbyState.reset();
+          playerState.set({ id: result.playerId, name, roomCode: normalizedCode });
           saveSession({
             playerId: result.playerId,
-            playerName,
+            playerName: name,
             roomCode: normalizedCode,
             reconnectToken: result.reconnectToken,
           });
@@ -328,6 +357,35 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
 
   function startGameAction(): void {
     ackAction('Start game', (s, ack) => s.emit('lobby:startGame', ack));
+  }
+
+  function sendAction(action: GameAction<Id>): Promise<ActionResult> {
+    const s = getSocket();
+    connectionState.setActionError?.(null);
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (result: ActionResult) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (!result.ok) connectionState.setActionError?.(result.message);
+        resolve(result);
+      };
+      const timer = setTimeout(
+        () => finish({ ok: false, code: 'TIMEOUT', message: 'Server did not respond' }),
+        ACK_TIMEOUT,
+      );
+
+      s.emit('game:action', action, (result: ActionResult) => {
+        // Defend against a malformed ack from an older server.
+        if (result && typeof result === 'object' && typeof result.ok === 'boolean') {
+          finish(result);
+        } else {
+          finish({ ok: false, code: 'INTERNAL', message: 'Something went wrong' });
+        }
+      });
+    });
   }
 
   function teardown(): void {
@@ -354,6 +412,7 @@ export function createParlorRuntime(adapter: ParlorRuntimeAdapter): ParlorRuntim
     selectGameAction,
     readyAction,
     startGameAction,
+    sendAction,
     disconnectSocket,
     teardown,
   };

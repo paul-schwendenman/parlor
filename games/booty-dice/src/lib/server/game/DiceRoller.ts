@@ -1,12 +1,15 @@
+import { secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
 import type { Die, DiceFace, ComboType, DiceResult } from '../../types/game.js';
 import { DICE_FACES } from '../../types/game.js';
 import { detectCombo } from './comboDetector.js';
 
 export class DiceRoller {
+  constructor(private readonly randomInt: RandomInt = secureRandomInt) {}
+
   createFreshDice(): Die[] {
     return Array.from({ length: 6 }, (_, i) => ({
       id: i,
-      face: 'doubloon' as DiceFace,
+      face: 'doubloon',
       locked: false,
       rolling: false,
     }));
@@ -17,7 +20,7 @@ export class DiceRoller {
       if (die.locked) return { ...die, rolling: false };
       return {
         ...die,
-        face: DICE_FACES[Math.floor(Math.random() * DICE_FACES.length)],
+        face: DICE_FACES[this.randomInt(DICE_FACES.length)],
         rolling: false,
       };
     });
