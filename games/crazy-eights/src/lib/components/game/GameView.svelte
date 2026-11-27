@@ -1,7 +1,7 @@
 <script lang="ts">
   import { cardEquals } from '@parlor/cards';
   import type { GameSocket } from '@parlor/multiplayer/client';
-  import { TurnBanner, SeatChip, GameOver, Button, CardHand, cardName } from '@parlor/ui';
+  import { TurnBanner, SeatChip, GameOver, Button, CardBoard, CardHand, cardName } from '@parlor/ui';
   import type { Card, Suit, CrazyEightsPlayerView } from '../../types/game.js';
   import Table from './Table.svelte';
 
@@ -77,7 +77,7 @@
   const backToLobby = () => socket.emit('lobby:resetGame');
 </script>
 
-<div class="board">
+<CardBoard label="Crazy Eights game">
   {#if view.gameOver}
     <GameOver
       headline={view.winner ? (view.winner.id === playerId ? 'You win!' : `${view.winner.name} wins!`) : 'Game over'}
@@ -104,15 +104,17 @@
       {/each}
     </ul>
 
-    <Table
-      topCard={view.topDiscard}
-      declaredSuit={view.declaredSuit}
-      drawCount={view.drawPileCount}
-      canDraw={view.canDraw}
-      {choosingSuit}
-      ondraw={draw}
-      onchoosesuit={chooseSuit}
-    />
+    <div class="table">
+      <Table
+        topCard={view.topDiscard}
+        declaredSuit={view.declaredSuit}
+        drawCount={view.drawPileCount}
+        canDraw={view.canDraw}
+        {choosingSuit}
+        ondraw={draw}
+        onchoosesuit={chooseSuit}
+      />
+    </div>
 
     {#if view.canPass}
       <div class="pass">
@@ -130,30 +132,12 @@
       />
     {/if}
   {/if}
-</div>
+</CardBoard>
 
 <style>
-  /* Crazy Eights prints its card backs in Dice Mustard, its shelf colour. */
-  .board {
-    --card-w: 64px;
+  .table {
     --card-back: var(--color-mustard);
     --card-back-ink: var(--color-espresso);
-    max-width: 560px;
-    margin: 0 auto;
-    padding: 4px 16px 32px;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    color: var(--color-espresso);
-    font-family: var(--font-body);
-  }
-
-  @media (min-width: 600px) {
-    .board {
-      --card-w: 80px;
-      gap: 20px;
-    }
   }
 
   .seats {

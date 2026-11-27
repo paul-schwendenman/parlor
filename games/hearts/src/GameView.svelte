@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { cardEquals, isRedSuit, SUIT_SYMBOLS, type Card } from '@parlor/cards';
+  import { cardEquals, type Card } from '@parlor/cards';
   import type { GameSocket } from '@parlor/multiplayer/client';
+  import { Button, CardBoard, CardHand, Felt, GameOver, PlayingCard, SeatChip, TurnBanner, SUIT_NAMES } from '@parlor/ui';
   import type { HeartsAction, HeartsView } from './types.js';
 
   let { view, socket, playerId, isHost }: {
@@ -10,7 +11,6 @@
     isHost: boolean;
   } = $props();
 
-  const ranks: Partial<Record<Card['rank'], string>> = { A: 'Ace', J: 'Jack', Q: 'Queen', K: 'King' };
   let selected = $state<Card[]>([]);
   let pending = $state(false);
   let error = $state('');
@@ -20,8 +20,23 @@
   let winners = $derived(view.players.filter((player) => view.winnerIds.includes(player.id)));
   let playing = $derived(!!playerId && view.activePlayerId === playerId);
 
-  function label(card: Card): string {
-    return `${ranks[card.rank] ?? card.rank} of ${card.suit}`;
+  let passing = $derived(view.phase === 'passing');
+  let scoring = $derived(view.phase === 'round-scoring');
+  let lead = $derived(view.trick[0]?.card.suit);
+  let standings = $derived(view.players.map((player, seat) => ({
+    id: player.id,
+    name: player.name,
+    detail: `${player.totalScore} pts`,
+    seat,
+    place: 1 + view.players.filter((other) => other.totalScore < player.totalScore).length,
+    winner: view.winnerIds.includes(player.id),
+    you: player.id === playerId,
+  })).sort((a, b) => a.place - b.place));
+
+  function isPlayable(card: Card): boolean {
+    return view.canPass
+      ? selected.length < 3 || includes(selected, card)
+      : includes(view.playableCards, card);
   }
 
   function includes(cards: Card[], card: Card): boolean {
@@ -29,6 +44,7 @@
   }
 
   async function send(action: HeartsAction) {
+    if (pending) return;
     pending = true;
     error = '';
     try {
@@ -52,212 +68,108 @@
   }
 </script>
 
-{#snippet face(card: Card)}
-  <span aria-hidden="true">{card.rank}</span>
-  <span class="suit" aria-hidden="true">{SUIT_SYMBOLS[card.suit]}</span>
-{/snippet}
-
-<div class="hearts">
-  <header>
-    <h1>Hearts</h1>
-    <p>Round {view.round} · Low score wins at {view.goal}</p>
-  </header>
-
-  <ul class="scores" aria-label="Scores">
-    {#each view.players as player (player.id)}
-      <li class:active={player.id === view.activePlayerId}>
-        <span class="name">{player.id === playerId ? 'You' : player.name}</span>
-        <strong>{player.totalScore}<span class="unit"> pts</span></strong>
-        {#if view.phase === 'passing'}
-          <small>{player.passed ? 'Ready' : 'Choosing'}</small>
-        {:else}
-          <small>+{player.roundScore} this round</small>
-        {/if}
-      </li>
-    {/each}
-  </ul>
-
-  <section class="table" aria-label="Hearts table">
-    {#if view.phase === 'passing'}
-      <h2>{view.canPass ? `Pass three cards ${view.passDirection}` : 'Passing cards'}</h2>
-      <p role="status">
-        {view.canPass ? `${selected.length} of 3 selected` : 'Waiting for everyone to finish choosing.'}
-      </p>
-    {:else if view.phase === 'round-scoring' || view.phase === 'game-over'}
-      {#if view.phase === 'game-over'}
-        <h2>{winners.map((player) => player.name).join(' & ')} {winners.length === 1 ? 'wins' : 'tie'}</h2>
-      {:else}
-        <h2>Round {view.round} complete</h2>
-      {/if}
-      {#if moonShooter}<p>{moonShooter} shot the moon!</p>{/if}
-      {#if view.phase === 'game-over' && isHost}
-        <div class="actions">
-          <button type="button" class="primary" onclick={() => socket.emit('lobby:restartGame')}>Play again</button>
-          <button type="button" class="secondary" onclick={() => socket.emit('lobby:resetGame')}>Back to lobby</button>
-        </div>
-      {/if}
+<CardBoard label="Hearts game">
+  {#if view.phase === 'game-over'}
+    <GameOver
+      headline={winners.length === 1 ? standings[0].you ? 'You win!' : `${winners[0].name} wins!` : 'Shared win!'}
+      detail={moonShooter ? `${moonShooter} shot the moon!` : undefined}
+      {standings}
+      onplayagain={isHost ? () => socket.emit('lobby:restartGame') : undefined}
+      onlobby={isHost ? () => socket.emit('lobby:resetGame') : undefined}
+    />
+  {:else}
+    {#if passing}
+      <TurnBanner mine={view.canPass}
+        title={view.canPass ? `Pass three cards ${view.passDirection}` : 'Passing cards'}
+        detail={view.canPass ? `${selected.length} of 3 selected` : 'Waiting for everyone to finish choosing.'} />
+    {:else if scoring}
+      <TurnBanner mine={false} title={`Round ${view.round} complete`}
+        detail={moonShooter ? `${moonShooter} shot the moon!` : undefined} />
     {:else}
-      <div class="trick-heading">
-        <span>Trick {view.trickNumber} of 13</span>
-        {#if view.trick[0]}<span class="led-suit">{view.trick[0].card.suit} led</span>{/if}
-        <span>Hearts {view.heartsBroken ? 'broken' : 'unbroken'}</span>
-      </div>
-      <h2 aria-live="polite">
-        {#if trickWinner}{trickWinner} took the trick
-        {:else if playing}Your turn
-        {:else}{activeName} to play{/if}
-      </h2>
-      <ul class="trick" aria-label="Cards played">
-        {#each view.players as player (player.id)}
-          {@const play = view.trick.find((entry) => entry.playerId === player.id)}
-          <li>
-            {#if play}
-              <span class="card" class:red={isRedSuit(play.card.suit)}
-                class:winning={player.id === view.trickWinnerId}>
-                <span class="sr-only">{label(play.card)}</span>
-                {@render face(play.card)}
-              </span>
-            {:else}
-              <span class="card-slot" aria-hidden="true"></span>
-            {/if}
-            <small>{player.id === playerId ? 'You' : player.name}</small>
-          </li>
-        {/each}
-      </ul>
+      <TurnBanner mine={playing}
+        title={trickWinner ? `${trickWinner} took the trick` : playing ? 'Your turn' : `${activeName} to play`}
+        detail={playing && lead ? `Follow ${SUIT_NAMES[lead].toLowerCase()} if you can.` : undefined} />
     {/if}
-  </section>
 
-  {#if view.myHand.length}
-    <section class="hand-area" aria-label="Your hand">
-      <div class="hand-heading">
-        <h2>Your hand</h2>
-        {#if view.canPass}
-          <button class="primary" type="button" disabled={selected.length !== 3 || pending}
-            onclick={() => { void send({ type: 'pass-cards', cards: $state.snapshot(selected) }); }}>Confirm pass</button>
-        {:else if view.trickNumber === 1 && view.receivedCards.length}
-          <small>Outlined cards were passed to you</small>
-        {/if}
-      </div>
-      <div class="hand">
-        {#each view.myHand as card (`${card.suit}-${card.rank}`)}
-          <button type="button" class="card" class:red={isRedSuit(card.suit)}
-            class:received={view.trickNumber === 1 && includes(view.receivedCards, card)}
-            aria-label={label(card)} aria-pressed={view.canPass ? includes(selected, card) : undefined}
-            disabled={pending || (!view.canPass && !includes(view.playableCards, card))}
-            onclick={() => choose(card)}>
-            {@render face(card)}
-          </button>
-        {/each}
-      </div>
-    </section>
+    <ul class="seats" aria-label="Scores">
+      {#each view.players as player, seat (player.id)}
+        {@const progress = passing ? player.passed ? 'Ready' : 'Choosing' : `+${player.roundScore} this round`}
+        <li><SeatChip name={player.name} {seat} you={player.id === playerId}
+          active={player.id === view.activePlayerId} stat={`${player.totalScore} pts · ${progress}`} /></li>
+      {/each}
+    </ul>
+
+    {#if passing}
+      <Felt label="Hearts pass table">
+        <div class="pass-slots" aria-label="Cards selected to pass" role="group">
+          {#each [0, 1, 2] as index (index)}
+            {#if selected[index]}
+              <PlayingCard rank={selected[index].rank} suit={selected[index].suit} />
+            {:else}
+              <div class="card-slot" aria-hidden="true"></div>
+            {/if}
+          {/each}
+        </div>
+      </Felt>
+    {:else if !scoring}
+      <Felt label="Hearts table">
+        <div class="table">
+          <div class="trick-heading">
+            <span>Trick {view.trickNumber} of 13</span>
+            <span>Hearts {view.heartsBroken ? 'broken' : 'unbroken'}</span>
+          </div>
+          <ul class="trick" aria-label="Cards played">
+            {#each view.players as player (player.id)}
+              {@const play = view.trick.find((entry) => entry.playerId === player.id)}
+              <li>
+                {#if play}
+                  <div class:winning={player.id === view.trickWinnerId}>
+                    <PlayingCard rank={play.card.rank} suit={play.card.suit} />
+                  </div>
+                {:else}
+                  <div class="card-slot" aria-hidden="true"></div>
+                {/if}
+                <small title={player.name}>{player.id === playerId ? 'You' : player.name}</small>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      </Felt>
+    {/if}
+
+    {#if view.myHand.length}
+      <CardHand cards={view.myHand} active={(view.canPass || playing) && !pending}
+        {isPlayable} selected={view.canPass ? selected : null}
+        isMarked={(card) => view.trickNumber === 1 && includes(view.receivedCards, card)}
+        onpick={choose} />
+      {#if view.canPass}
+        <div class="pass">
+          <Button shout disabled={selected.length !== 3 || pending}
+            onclick={() => { void send({ type: 'pass-cards', cards: $state.snapshot(selected) }); }}>Confirm pass</Button>
+        </div>
+      {:else if view.trickNumber === 1 && view.receivedCards.length}
+        <p class="note">Outlined cards were passed to you</p>
+      {/if}
+    {/if}
+    <p class="note">Round {view.round} · Low score wins at {view.goal}</p>
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
   {/if}
-  {#if error}<p class="error" role="alert">{error}</p>{/if}
-</div>
+</CardBoard>
 
 <style>
-  .hearts {
-    --card-width: clamp(2.65rem, 8vw, 3.7rem);
-    max-width: 48rem;
-    margin: 0 auto;
-    padding: 0.5rem 1rem 2rem;
-    color: var(--color-espresso, #30221c);
-  }
-
-  header, .hand-heading, .trick-heading {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.25rem 1rem;
-  }
-
-  h1, h2, p { margin: 0; }
-  h1, h2 { font-family: var(--font-heading, Georgia), serif; }
-  h1 { font-size: 2.1rem; }
-  h2 { font-size: 1.35rem; }
-  header p, .hand-heading small { font-size: 0.85rem; }
-
-  ul { list-style: none; padding: 0; }
-  .scores, .trick {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.5rem;
-  }
-  .scores { margin: 0.65rem 0; }
-  .scores li {
-    display: grid;
-    gap: 0.2rem;
-    border: 1px solid #d8c6ad;
-    border-bottom-width: 3px;
-    border-radius: 0.5rem;
-    padding: 0.45rem;
-    background: #fff8e9;
-  }
-  .scores li.active { border-color: #2e6b54; }
-  .name, .trick small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .scores strong { font-size: 1.35rem; }
-  .unit, small { font-size: 0.75rem; }
-
-  .table {
-    min-height: 13rem;
-    display: grid;
-    align-content: center;
-    gap: 0.5rem;
-    padding: 1rem;
-    border: 3px solid #17392e;
-    border-radius: 0.85rem;
-    background: radial-gradient(ellipse at top, #2e614f, #214537);
-    color: #fff8e9;
-    text-align: center;
-  }
-  .trick-heading { font-size: 0.8rem; color: #e1eee5; }
-  .led-suit { text-transform: capitalize; }
-  .trick { margin: 0.25rem 0 0; }
-  .trick li { display: grid; justify-items: center; gap: 0.35rem; min-width: 0; }
-  .trick small { width: 100%; }
-  .card-slot, .card { width: var(--card-width); height: 3.85rem; border-radius: 0.35rem; }
-  .card-slot { border: 1px dashed #a1bbab; }
-  .card {
-    display: inline-grid;
-    place-content: center;
-    justify-items: center;
-    box-sizing: border-box;
-    flex: 0 0 var(--card-width);
-    border: 1px solid #b9a58d;
-    border-bottom-width: 3px;
-    background: #fffaf0;
-    color: #2b2622;
-    font-family: Georgia, serif;
-    font-size: 1.2rem;
-    font-weight: 700;
-    line-height: 1;
-  }
-  .card.red { color: #a12633; }
-  .card.winning { outline: 2px solid #f4c965; outline-offset: 2px; }
-  .suit { font-size: 1.45rem; }
-
-  .hand-area { margin-top: 0.9rem; }
-  .hand { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.65rem; }
-  button { cursor: pointer; }
-  button:disabled { cursor: default; }
-  button.card:disabled { opacity: 0.69; }
-  button.card.received { border-color: #2e6b54; }
-  button.card[aria-pressed='true'] { background: #f4d58c; border-color: #7b5629; }
-  button.card:enabled:hover { transform: translateY(-2px); }
-  button:focus-visible { outline: 3px solid #c77a37; outline-offset: 2px; }
-  .actions { display: flex; justify-content: center; gap: 0.5rem; }
-  .primary, .secondary {
-    min-height: 2.75rem;
-    padding: 0.3rem 0.9rem;
-    border: 1px solid #7b5629;
-    border-radius: 0.45rem;
-    color: #30221c;
-    background: #f4d58c;
-    font: inherit;
-    font-weight: 700;
-  }
-  .secondary { background: #fff8e9; }
-  .primary:disabled { opacity: 0.62; }
-  .error { margin-top: 1rem; color: #a12633; }
-  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .seats, .trick { list-style: none; margin: 0; padding: 0; }
+  .seats { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .seats li { max-width: 100%; }
+  .table { width: 100%; min-width: 0; --card-w: clamp(45px, 13vw, 80px); }
+  .trick-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: .85rem; }
+  .trick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+  .trick li { display: grid; justify-items: center; gap: 6px; min-width: 0; }
+  .trick small { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-slot { box-sizing: border-box; width: var(--card-w); height: calc(var(--card-w) * 1.42); border: 1px dashed currentColor; border-radius: 8px; opacity: .55; }
+  .winning { outline: 2px solid var(--color-mustard); outline-offset: 2px; border-radius: 8px; }
+  .pass-slots { display: flex; justify-content: center; gap: 8px; }
+  .pass { display: flex; justify-content: center; }
+  .note, .error { text-align: center; margin: 0; }
+  .note { font-size: .85rem; color: var(--color-ink-muted); }
+  .error { color: var(--color-terracotta-deep); }
 </style>

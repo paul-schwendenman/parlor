@@ -1,7 +1,7 @@
 <script lang="ts">
   import { cardEquals, type Card } from '@parlor/cards';
   import type { GameSocket } from '@parlor/multiplayer/client';
-  import { Button, CardHand, Felt, GameOver, PlayingCard, SuitIcon, TurnBanner, SUIT_NAMES } from '@parlor/ui';
+  import { Button, CardBoard, CardHand, Felt, GameOver, PlayingCard, SeatChip, SuitIcon, TurnBanner, SUIT_NAMES } from '@parlor/ui';
   import type { OhHellAction, OhHellView } from './types.js';
 
   let { view, socket, playerId, isHost }: {
@@ -49,12 +49,7 @@
   }
 </script>
 
-<section class="board" aria-label="Oh Hell game">
-  <header class="heading">
-    <h1>Oh Hell</h1>
-    <p>Hand {view.round} of {view.rounds} <span aria-hidden="true">·</span> {view.handSize} {view.handSize === 1 ? 'card' : 'cards'}</p>
-  </header>
-
+<CardBoard label="Oh Hell game">
   {#if view.phase === 'game-over'}
     <GameOver
       headline={view.winnerIds.length > 1 ? 'Shared win!' : standings[0].you ? 'You win!' : `${standings[0].name} wins!`}
@@ -75,23 +70,14 @@
         detail={myTurn && lead ? `Follow ${SUIT_NAMES[lead].toLowerCase()} if you can.` : undefined} />
     {/if}
 
-    <table>
-      <caption class="sr-only">Scores and bids</caption>
-      <thead>
-        <tr><th scope="col">Player</th><th scope="col">Bid</th><th scope="col">Taken</th><th scope="col">Score</th>{#if scoring}<th scope="col">Hand</th>{/if}</tr>
-      </thead>
-      <tbody>
-        {#each view.players as player (player.id)}
-          <tr class:active={player.id === view.activePlayerId}>
-            <th scope="row">{player.id === playerId ? 'You' : player.name}{#if player.id === view.dealerId} <small>Dealer</small>{/if}</th>
-            <td>{player.bid ?? '—'}</td>
-            <td>{player.tricks}</td>
-            <td>{player.score}</td>
-            {#if scoring}<td class:made={!!player.roundPoints}>+{player.roundPoints}</td>{/if}
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+    <ul class="seats" aria-label="Scores and bids">
+      {#each view.players as player, seat (player.id)}
+        {@const progress = player.bid === null ? 'Waiting to bid' : `${player.tricks}/${player.bid} tricks`}
+        {@const score = scoring ? `${progress} · +${player.roundPoints} · ${player.score} pts` : `${progress} · ${player.score} pts`}
+        <li><SeatChip name={player.name} {seat} you={player.id === playerId}
+          active={player.id === view.activePlayerId} stat={player.id === view.dealerId ? `Dealer · ${score}` : score} /></li>
+      {/each}
+    </ul>
 
     {#if !scoring}
       <Felt label="Oh Hell trick table">
@@ -127,29 +113,20 @@
         {/each}
       </section>
     {/if}
+    <p class="game-info">Hand {view.round} of {view.rounds} · {view.handSize} {view.handSize === 1 ? 'card' : 'cards'}</p>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   {/if}
-</section>
+</CardBoard>
 
 <style>
-  .board { max-width: 720px; margin: auto; display: grid; gap: 14px; padding-bottom: 24px; }
-  .heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
-  h1 { margin: 0; font-family: var(--font-heading); font-size: clamp(2rem, 6vw, 3.25rem); line-height: 1; }
-  .heading p { margin: 0; font-weight: 700; color: var(--color-ink-muted); }
-  table { width: 100%; border-spacing: 0; border: 1px solid var(--color-espresso); border-radius: 12px; overflow: hidden; font-variant-numeric: tabular-nums; }
-  th, td { padding: 5px clamp(5px, 1.8vw, 14px); text-align: right; }
-  th:first-child { text-align: left; overflow-wrap: anywhere; }
-  thead { background: var(--color-espresso); color: var(--color-cream); font-size: .8rem; }
-  tbody tr + tr > * { border-top: 1px solid color-mix(in srgb, var(--color-espresso) 16%, transparent); }
-  tr.active { background: color-mix(in srgb, var(--color-mustard) 26%, transparent); }
-  th small { font-weight: 500; color: var(--color-ink-muted); }
-  .made { color: var(--color-forest-deep); font-weight: 800; }
-  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .table { min-width: 0; width: 100%; display: grid; justify-items: center; gap: 12px; }
+  .seats { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; list-style: none; margin: 0; padding: 0; }
+  .seats li { max-width: 100%; }
+  .game-info { margin: 0; text-align: center; color: var(--color-ink-muted); font-size: .85rem; }
+  .table { min-width: 0; width: 100%; display: grid; justify-items: center; gap: 12px; --card-w: clamp(42px, 10vw, 64px); }
   .trump { display: flex; gap: 6px; align-items: center; font-weight: 800; }
   ol { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-  li { display: grid; align-content: start; justify-items: center; gap: 4px; width: var(--card-w, 64px); }
-  li small { max-width: 100%; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+  ol li { display: grid; align-content: start; justify-items: center; gap: 4px; width: var(--card-w, 64px); }
+  ol li small { max-width: 100%; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
   .winner small { color: #ffe2a1; font-weight: 900; }
   .lead { margin: 12px 0; }
   .bids { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }

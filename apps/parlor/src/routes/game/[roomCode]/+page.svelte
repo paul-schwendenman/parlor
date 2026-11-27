@@ -19,6 +19,10 @@
     'kings-corner': 'Kings Corner',
     'booty-dice': 'Booty Dice',
     'liars-dice': "Liar's Dice",
+    hearts: 'Hearts',
+    spades: 'Spades',
+    euchre: 'Euchre',
+    'oh-hell': 'Oh Hell',
   };
 
   let roomCode = $derived($page.params.roomCode ?? '');
@@ -45,7 +49,7 @@
   // Games whose rules the shared RulesModal carries and that have no rules
   // button of their own yet. Booty Dice and Liar's Dice still ship their own
   // drawer; they join this list as they move to the shared board kit.
-  const SHELL_RULES = new Set(['quixx', 'crazy-eights', 'kings-corner']);
+  const SHELL_RULES = new Set(['quixx', 'crazy-eights', 'kings-corner', 'hearts', 'spades', 'euchre', 'oh-hell']);
   let hadView = false;
 
   $effect(() => {

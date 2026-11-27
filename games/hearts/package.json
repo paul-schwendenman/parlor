@@ -11,7 +11,8 @@
   "dependencies": {
     "@parlor/cards": "workspace:*",
     "@parlor/game-types": "workspace:*",
-    "@parlor/multiplayer": "workspace:*"
+    "@parlor/multiplayer": "workspace:*",
+    "@parlor/ui": "workspace:*"
   },
   "peerDependencies": {
     "svelte": "^5.0.0"

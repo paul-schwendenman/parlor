@@ -276,6 +276,9 @@ importers:
       '@parlor/multiplayer':
         specifier: workspace:*
         version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       svelte:
         specifier: ^5.0.0
         version: 5.53.7

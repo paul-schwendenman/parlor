@@ -12,14 +12,19 @@
     /** Whether the viewer can act on their hand right now. */
     active: boolean;
     isPlayable: (card: Card) => boolean;
-    selected: Card | null;
+    selected: Card | readonly Card[] | null;
+    isMarked?: (card: Card) => boolean;
     onpick: (card: Card) => void;
   }
 
-  let { cards, active, isPlayable, selected, onpick }: Props = $props();
+  let { cards, active, isPlayable, selected, isMarked, onpick }: Props = $props();
+
+  let multiple = $derived(Array.isArray(selected));
 
   const isSelected = (card: Card) =>
-    selected !== null && cardEquals(selected, card);
+    selected !== null && (
+      'suit' in selected ? cardEquals(selected, card) : selected.some((choice) => cardEquals(choice, card))
+    );
 
   // Every column but the last can shrink below a card's width, so the cards
   // fan over each other rather than wrapping onto a second line.
@@ -31,15 +36,16 @@
 </script>
 
 <section class="hand-area" aria-label="Your hand, {cards.length} {cards.length === 1 ? 'card' : 'cards'}">
-  <div class="hand" style:grid-template-columns={columns}>
+  <div class="hand" class:multiple style:grid-template-columns={columns}>
     {#each cards as card (card.suit + card.rank)}
-      <div class="hand-card" class:raised={isSelected(card)}>
+      <div class="hand-card" class:raised={!multiple && isSelected(card)}>
         <PlayingCard
           rank={card.rank}
           suit={card.suit}
           playable={active && isPlayable(card)}
           dimmed={active && !isPlayable(card)}
           selected={isSelected(card)}
+          marked={isMarked?.(card)}
           onclick={active ? () => onpick(card) : undefined}
         />
       </div>
@@ -66,7 +72,7 @@
   /* The lifted or hovered card sits above its neighbours, so its whole face
      is readable before you commit. */
   .hand-card.raised,
-  .hand-card:hover {
+  .hand:not(.multiple) .hand-card:hover {
     z-index: 2;
   }
 </style>
