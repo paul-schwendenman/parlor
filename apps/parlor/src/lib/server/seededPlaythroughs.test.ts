@@ -361,7 +361,7 @@ it.each(trials)('$gameId seed $seed plays legal moves and delivers recipient-saf
 		expect(spectatorFrames.length, `step ${step}, spectator broadcast count`).toBeGreaterThan(0);
 		const views = batches.map(({ id, frames }) => {
 			expect(frames, `step ${step}, recipient ${id ?? 'spectator'}`).toHaveLength(spectatorFrames.length);
-			const seededFrames = frames.filter((frame): frame is SeededFrame => frame.gameId !== 'hearts');
+			const seededFrames = frames.filter((frame): frame is SeededFrame => games.some((id) => id === frame.gameId));
 			for (const frame of seededFrames) {
 				assertView(frame, gameId, id, room.gameData);
 				if (frame.gameId === 'quixx' && frame.view.phase === 'phase1') {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { spadesMeta } from '@parlor/spades/meta';
   import { heartsMeta } from '@parlor/hearts/meta';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
@@ -62,6 +63,7 @@
       displayModes: ['peer'],
     },
     heartsMeta,
+    spadesMeta,
   ];
 
   // Shelf blocks rotate through the palette like box spines (DESIGN.md: Game shelf).
@@ -72,6 +74,7 @@
   let joinCode = $state('');
   let error = $state('');
   let loading = $state(false);
+  let interactive = $state(false);
 
   // For game card "create" flow
   let selectedGameForCreate = $state<string | undefined>();
@@ -92,6 +95,7 @@
   });
 
   onMount(() => {
+    interactive = true;
     if (browser) {
       getSocket();
     }
@@ -253,7 +257,7 @@
   <!-- Game shelf -->
   <section class="shelf" aria-labelledby="shelf-title">
     <h2 id="shelf-title" class="shelf-title">Or start a new room</h2>
-    <button type="button" class="btn btn-accent create-room" onclick={() => openCreateRoom()} disabled={loading}>Create a room</button>
+    <button type="button" class="btn btn-accent create-room" onclick={() => openCreateRoom()} disabled={!interactive || loading}>Create a room</button>
     <div class="game-grid">
       {#each games as game, i (game.id)}
         <article class="game-card {spines[i % spines.length]}">
@@ -264,8 +268,8 @@
           <p class="game-desc">{game.description}</p>
           <p class="game-tags">{game.tags.join(' · ')}</p>
           <div class="game-actions">
-            <button type="button" class="spine-ghost" onclick={() => openRules(game.id)}>How to play</button>
-            <button type="button" class="spine-solid" onclick={() => openCreateRoom(game.id)}>Start Game</button>
+            <button type="button" class="spine-ghost" onclick={() => openRules(game.id)} disabled={!interactive}>How to play</button>
+            <button type="button" class="spine-solid" onclick={() => openCreateRoom(game.id)} disabled={!interactive}>Start Game</button>
           </div>
         </article>
       {/each}
