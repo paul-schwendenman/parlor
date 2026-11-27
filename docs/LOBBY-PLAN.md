@@ -149,7 +149,45 @@ Redesign the voting state. It should feel like pulling a box off the shelf, not 
 
 ## Phase 7: Re-critique
 
-- [ ] **7.1** Run `/impeccable critique` on the lobby again and compare against 21/40. Then run `/impeccable polish` on whatever's left.
+- [x] **7.1** Run `/impeccable critique` on the lobby again and compare against 21/40. Then run `/impeccable polish` on whatever's left.
+  - **Done:** the re-critique scored **28/40 (Good)**. The report is at `apps/parlor/.impeccable/critique/2026-11-27T17-25-23Z__src-routes-lobby-roomcode-page-svelte.md`. Polish hasn't been run yet; the remaining issues are below.
+  - **Remaining issues:**
+    - **[P1] Change game can keep a game the room can't seat.** With 6 players, it still shows "Leading · Hearts (current game)" and a live Keep Hearts (`leadSummary`, `playHint` and the Keep button ignore seat fit).
+    - **[P1] Rules can't be opened once a game is confirmed.** The game panel needs a "?".
+    - **[P2] A host alone sees nine "Needs 1 more player" notes** instead of an invite prompt.
+    - **[P2] On a phone the ballot is about three screens long.** The leader is often out of view, and the summary has no vote counts.
+    - **[P3] There's no "everyone's ready" moment,** and the Ready chips are hidden while the ballot is reopened.
+  - **Decision needed (not a design issue):** reloading the host's tab hands the host role to a guest for good. This is the intended hand-off from core hardening 3.7, but nothing gives the role back when the host reconnects within the grace period.
+
+## Phase 8: Re-critique follow-up (all five issues + host hand-off)
+
+From the 7.1 re-critique (28/40). The user chose to fix all five issues and to keep today's host hand-off, adding a way to pass the host role on by hand.
+
+- [ ] **8.1 [P1] Change game respects seat count.**
+  - If the room no longer fits the current game, it loses its default lead and its tie-break.
+  - The standing line shows the real leader instead.
+  - Keep becomes a disabled line explaining why, e.g. "Hearts seats 4. Remove 2 bots to keep it."
+  - Code: `leadSummary`, `playHint` and the Keep button in the lobby page. If the server's `lobby:keepGame` doesn't already refuse a game the room can't seat, add that check with a test.
+- [ ] **8.2 [P1] Rules from the confirmed game panel.** Add a cream "?" icon button on the green panel that opens `RulesModal`: Close only for guests, Close plus "Change game" for the host.
+- [ ] **8.3 [P2] Invite first when the host is alone.**
+  - While the host is the only player, show an invite prompt in place of the standing line: "Share the code so others can join. You can vote while you wait."
+  - Hide the fit note on each row when every row's note is the same.
+- [ ] **8.4 [P2] Shorter ballot on phones.**
+  - Pin the leading game above the list, or sort voted games to the top.
+  - Cut descriptions to one line under 520px.
+  - Add counts to the standing line, e.g. "Leading · Hearts, 2 of 3 votes".
+- [ ] **8.5 [P3] The finish line.**
+  - When everyone is ready, show an "Everyone's ready" line above START.
+  - While the ballot is reopened and there's a current game, keep the Ready chips on player rows and a small check on the strip avatars.
+- [ ] **8.6 Pass the host role by hand.**
+  - The host keeps today's automatic hand-off on disconnect (core hardening 3.7). Add a host-only "Make host" action on each human player row.
+  - New event `lobby:transferHost(playerId)`: host-only, target must be a connected, seated human, rate-limited. Emits `lobby:hostChanged`.
+  - Server tests: a rejected transfer leaves the room unchanged, and a valid one still works afterwards.
+  - The UI asks for confirmation before passing the role on.
+- [ ] **8.7 (Optional) The host gets the role back on a quick reconnect.** Choose one:
+  - (a) If the original host reconnects within the grace window, they become host again, unless the new host has already done something as host. Or:
+  - (b) Wait about 10 seconds after the host disconnects before handing the role on.
+  - Either needs server tests that include a host action racing the reconnect.
 
 ---
 
@@ -164,6 +202,7 @@ Redesign the voting state. It should feel like pulling a box off the shelf, not 
 | 2026-11-27 | 4 | Changing games safely: "Change game" keeps the confirmed game as the reopened ballot's `currentGameId` (Current tag, leads by default, felt panel with Keep for the host, "choosing again" line for guests); new `lobby:keepGame` restores the room exactly; readiness kept on reopen, cleared (humans only) when a different game is chosen via `RoomManager.clearReadiness`; server + e2e tests | uncommitted |
 | 2026-11-27 | 5 | Address-bar links: `lobby:roomExists` (yes/no, lookup rate budget, tests); a pasted `/lobby/CODE` for a live room redirects to `/?join=CODE` (name field focused, "Add your name to join room CODE."), not-found only when the room is gone, a separate "couldn't open" state when the check fails; `lobbyLink` e2e | uncommitted |
 | 2026-11-27 | 6 | Rules sheet and sharing: pinned rules footer, fit line ("4 players · bots can fill seats"), vote toggle ("Your vote", `aria-pressed`) instead of a filled Clear vote, "Play Hearts", sentence-case rule headings, plain-language trick jargon in Hearts/Spades/Euchre/Oh Hell; lid "Share invite" (native share, copy fallback) and "Show QR code" sheet with a locally drawn QR (`qrcode-generator`); `inviteQr` e2e | uncommitted |
+| 2026-11-27 | 7 | Re-critique: 28/40, up from 21/40; remaining issues listed under 7.1 | uncommitted |
 
 ## Notes
 
