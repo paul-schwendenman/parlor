@@ -151,13 +151,23 @@ export interface GameBallotSnapshot {
   currentGameId: string | null;
 }
 
+/** Why the host role moved, sent with `lobby:hostChanged`. */
+export type HostChangeReason = 'transfer' | 'handoff' | 'left';
+
 export type ServerToClientEvents = {
   'room:closed': (roomCode: string) => void;
   'game:state': (state: GameStateEnvelope) => void;
   'error': (message: string) => void;
 
   'lobby:state': (players: LobbyPlayer[], canStart: boolean) => void;
-  'lobby:hostChanged': (newHostId: string) => void;
+  /**
+   * Who holds the host role. `reason` is set only when the role just moved:
+   * `transfer` (the host passed it on), `handoff` (the host has been
+   * disconnected past the short grace, and may come back), `left` (the host
+   * left the room or was removed). With no reason this is a sync (on join,
+   * spectate or reconnect) and nothing changed for the room.
+   */
+  'lobby:hostChanged': (newHostId: string, reason?: HostChangeReason) => void;
   /** Player kept during the disconnect grace window (grey them out, do not remove). */
   'player:disconnected': (playerId: string) => void;
   /** Player rejoined within the grace window (un-grey them). */

@@ -5,6 +5,7 @@ import { connectionState } from './connectionStore.svelte.js';
 import { lobbyState } from './lobbyStore.svelte.js';
 import { gameState } from './gameStore.svelte.js';
 import { playerState } from './playerStore.svelte.js';
+import { roomNotice } from './roomNotice.svelte.js';
 
 const runtime = createParlorRuntime({
 	browser,
@@ -22,6 +23,7 @@ function clearRoomState(): void {
 	playerState.reset();
 	lobbyState.reset();
 	gameState.reset();
+	roomNotice.reset();
 }
 
 let boundSocket: GameSocket | undefined;
@@ -32,6 +34,13 @@ export function getSocket(): GameSocket {
 		boundSocket = socket;
 		socket.on('lobby:ballot', (roomCode, ballot) => {
 			if (playerState.roomCode === roomCode) lobbyState.ballot = ballot;
+		});
+		// Host changes are announced room-wide (plan 9.3); the runtime keeps `hostId`.
+		socket.on('lobby:state', (players) => {
+			roomNotice.rememberPlayers(playerState.roomCode, lobbyState.hostId, players);
+		});
+		socket.on('lobby:hostChanged', (newHostId, reason) => {
+			roomNotice.hostChanged(playerState.roomCode, playerState.id, newHostId, reason);
 		});
 		socket.on('room:closed', (roomCode) => {
 			if (playerState.roomCode === roomCode) clearRoomState();

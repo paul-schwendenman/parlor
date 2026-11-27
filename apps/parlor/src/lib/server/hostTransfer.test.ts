@@ -30,7 +30,12 @@ async function participant(url: string) {
 	const socket = connect(url, { transports: ['websocket'], reconnection: false });
 	clients.push(socket);
 	const hosts: string[] = [];
-	socket.on('lobby:hostChanged', id => hosts.push(id));
+	/** The reason sent with each change (undefined for a sync). */
+	const reasons: (string | undefined)[] = [];
+	socket.on('lobby:hostChanged', (id, reason) => {
+		hosts.push(id);
+		reasons.push(reason);
+	});
 	await new Promise<void>((resolve, reject) => {
 		socket.once('connect', resolve);
 		socket.once('connect_error', reject);
@@ -43,7 +48,7 @@ async function participant(url: string) {
 				else resolve(reply);
 			});
 		});
-	return { request: socket.timeout(2000), socket, hosts, ask };
+	return { request: socket.timeout(2000), socket, hosts, reasons, ask };
 }
 
 async function lobby(url: string) {
@@ -55,7 +60,10 @@ async function lobby(url: string) {
 	await friend.request.emitWithAck('lobby:join', roomCode, 'Friend');
 	const watcher = await participant(url);
 	expect(await watcher.request.emitWithAck('lobby:spectate', roomCode)).toBe(true);
-	for (const p of [host, guest, friend, watcher]) p.hosts.length = 0;
+	for (const p of [host, guest, friend, watcher]) {
+		p.hosts.length = 0;
+		p.reasons.length = 0;
+	}
 	return { host, guest, friend, watcher, roomCode, hostId, guestId: guestId!, reconnectToken };
 }
 
@@ -70,6 +78,7 @@ it('tells every player and spectator about a hand-over, and nobody about a refus
 	expect(await host.ask('lobby:transferHost', guestId)).toEqual([true]);
 
 	for (const p of [host, guest, friend, watcher]) await expect.poll(() => p.hosts).toEqual([guestId]);
+	for (const p of [host, guest, friend, watcher]) expect(p.reasons).toEqual(['transfer']);
 	expect(rm.getRoom(roomCode)?.hostId).toBe(guestId);
 
 	// The new host can drive the ballot; the old one can't.
@@ -78,7 +87,9 @@ it('tells every player and spectator about a hand-over, and nobody about a refus
 });
 
 it('keeps the role through a quick reconnect and hands it on after the window', async () => {
-	const rm = new RoomManager(5_000, undefined, 300);
+	// A window long enough that reconnecting a fresh socket fits inside it even
+	// when the whole test suite runs in parallel.
+	const rm = new RoomManager(5_000, undefined, 1_500);
 	const url = await start(rm);
 	const { host, guest, watcher, roomCode, hostId, guestId, reconnectToken } = await lobby(url);
 
@@ -87,13 +98,17 @@ it('keeps the role through a quick reconnect and hands it on after the window', 
 	const back = await participant(url);
 	expect(await back.request.emitWithAck('player:reconnect', roomCode, hostId, reconnectToken)).toBe(true);
 	await expect.poll(() => back.hosts).toEqual([hostId]);
-	await new Promise(resolve => setTimeout(resolve, 400));
+	// The returning host is only told who hosts: a sync, with no reason.
+	expect(back.reasons).toEqual([undefined]);
+	await new Promise(resolve => setTimeout(resolve, 1_700));
 	expect(guest.hosts).toEqual([]);
 	expect(rm.getRoom(roomCode)?.hostId).toBe(hostId);
 
 	back.socket.close();
 	await new Promise(resolve => setTimeout(resolve, 100));
 	expect(guest.hosts).toEqual([]);
-	await expect.poll(() => guest.hosts).toEqual([guestId]);
-	await expect.poll(() => watcher.hosts).toEqual([guestId]);
+	await expect.poll(() => guest.hosts, { timeout: 4_000 }).toEqual([guestId]);
+	await expect.poll(() => watcher.hosts, { timeout: 4_000 }).toEqual([guestId]);
+	expect(guest.reasons).toEqual(['handoff']);
+	expect(watcher.reasons).toEqual(['handoff']);
 });

@@ -85,7 +85,7 @@ function emitExpiry(
     );
     callbacks?.onLobbyRosterChanged?.(outcome.roomCode);
     if (outcome.newHostId) {
-      io.to(outcome.roomCode).emit('lobby:hostChanged', outcome.newHostId);
+      io.to(outcome.roomCode).emit('lobby:hostChanged', outcome.newHostId, 'left');
     }
   }
 }
@@ -460,7 +460,7 @@ export function setupLobbyHandlers(
       }
 
       ack(true);
-      io.to(roomCode).emit('lobby:hostChanged', targetId);
+      io.to(roomCode).emit('lobby:hostChanged', targetId, 'transfer');
       // The host's own seat needs no Ready, so whether the room can start may change.
       io.to(roomCode).emit('lobby:state', roomManager.getPlayersInRoom(roomCode), roomManager.canStartGame(roomCode));
     } catch (err) {
@@ -673,7 +673,7 @@ export function setupLobbyHandlers(
       }, (outcome) => {
         // Fired later, when a disconnected host's short grace ends without a reconnect.
         try {
-          io.to(outcome.roomCode).emit('lobby:hostChanged', outcome.newHostId);
+          io.to(outcome.roomCode).emit('lobby:hostChanged', outcome.newHostId, 'handoff');
           io.to(outcome.roomCode).emit(
             'lobby:state',
             roomManager.getPlayersInRoom(outcome.roomCode),

@@ -453,6 +453,10 @@ describe('lobbyHandlers disconnect grace', () => {
     expect(io.emitted.some((e) => e.event === 'lobby:hostChanged' && e.args[0] === guestId)).toBe(
       true,
     );
+    // Whether the short hand-off or the removal moved the role, the room hears why.
+    expect(
+      io.emitted.filter((e) => e.event === 'lobby:hostChanged').map((e) => e.args[1]),
+    ).not.toContain(undefined);
   });
 });
 
@@ -477,6 +481,23 @@ describe('lobbyHandlers room:leave', () => {
     expect(io.emitted.filter((e) => e.event === 'lobby:state').at(-1)?.payload).toEqual([
       expect.objectContaining({ id: host.data.playerId }),
     ]);
+  });
+
+  it('tells the room the host left, with the reason, when the host leaves', () => {
+    const rm = new RoomManager();
+    const io = createFakeIo();
+    const host = connectFakeSocket(io, rm, undefined, 's1');
+    const guest = connectFakeSocket(io, rm, undefined, 's2');
+    host.fire('lobby:create', 'Ann', vi.fn());
+    const roomCode = host.data.roomCode;
+    guest.fire('lobby:join', roomCode, 'Bob', vi.fn());
+    const before = io.emitted.length;
+
+    host.fire('room:leave', vi.fn());
+
+    const changes = io.emitted.slice(before).filter((e) => e.event === 'lobby:hostChanged');
+    expect(changes.map((e) => [e.to, ...e.args])).toEqual([[roomCode, guest.data.playerId, 'left']]);
+    expect(rm.getRoom(roomCode)?.hostId).toBe(guest.data.playerId);
   });
 });
 
@@ -783,6 +804,8 @@ describe('lobbyHandlers lobby:transferHost (plan 8.6)', () => {
       [roomCode, 'lobby:hostChanged', guestId],
       [roomCode, 'lobby:state', rm.getPlayersInRoom(roomCode)],
     ]);
+    // Marked as a hand-over by the host, so clients can say who made whom host.
+    expect(hostChanges(io).at(-1)?.args).toEqual([guestId, 'transfer']);
     // Nothing went to sockets privately.
     expect(host.received.filter((e) => e.event === 'error')).toEqual([]);
 
@@ -869,7 +892,8 @@ describe('lobbyHandlers lobby:transferHost (plan 8.6)', () => {
     vi.advanceTimersByTime(9_999);
     expect(hostChanges(io)).toEqual([]);
     vi.advanceTimersByTime(1);
-    expect(hostChanges(io).map((e) => [e.to, e.payload])).toEqual([[roomCode, guest.data.playerId]]);
+    // Marked as a hand-off, so clients can say the host is away rather than gone.
+    expect(hostChanges(io).map((e) => [e.to, ...e.args])).toEqual([[roomCode, guest.data.playerId, 'handoff']]);
     expect(io.emitted.at(-1)).toMatchObject({ to: roomCode, event: 'lobby:state' });
     vi.advanceTimersByTime(60_000);
     expect(hostChanges(io)).toHaveLength(1);

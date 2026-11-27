@@ -50,6 +50,7 @@ for (const game of ['Crazy Eights', 'Quixx', 'Kings Corner']) {
       await expect(guest).toHaveURL(`/game/${roomCode}`);
 
       await guest.getByRole('button', { name: 'Leave room' }).click();
+      await guest.getByRole('dialog').getByRole('button', { name: 'Leave room' }).click();
       const back = host.getByRole('button', { name: 'Back to Lobby' });
       await expect(back).toBeVisible();
 

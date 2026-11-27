@@ -20,9 +20,11 @@ test('a player can pass cards and play a trick in a Hearts room with bots', asyn
 	const addBot = page.getByRole('button', { name: /^Add bot to seat/ }).first();
 	for (let count = 1; count <= 3; count++) {
 		await addBot.click();
-		await expect(page.getByText('Bot', { exact: true })).toHaveCount(count);
+		await expect(page.getByRole('button', { name: /^Remove Bot / })).toHaveCount(count);
 	}
 	await page.getByRole('button', { name: 'Start Game' }).click();
+	// The lobby's panel has its own "How to play Hearts"; wait for the table.
+	await expect(page).toHaveURL(/\/game\/[A-Z2-9]{6}$/);
 
 	await page.getByRole('button', { name: 'How to play Hearts' }).click();
 	await expect(rules.getByRole('heading', { name: 'Taking Tricks' })).toBeVisible();

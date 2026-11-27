@@ -2,7 +2,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { browser } from '$app/environment';
   import { lobbyState } from '$lib/stores/lobbyStore.svelte.js';
   import { gameState } from '$lib/stores/gameStore.svelte.js';
@@ -10,12 +10,12 @@
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
   import { getSocket, ballotAction, readyAction, roomExistsAction, startGameAction } from '$lib/stores/socketClient.js';
   import { catalog as games, findGame, minutesRange, playerCount, playerRange, playersNeeded, type CatalogGame } from '$lib/games/catalog.js';
-  import { MAX_BOTS, type LobbyPlayer } from '@parlor/game-types';
+  import { MAX_BOTS, ROOM_CODE_LENGTH, type LobbyPlayer } from '@parlor/game-types';
   import { seatTone, initial } from '@parlor/ui';
   import LeaveRoomButton from '$lib/components/LeaveRoomButton.svelte';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
   import QrModal from '$lib/components/lobby/QrModal.svelte';
-  import MakeHostButton from '$lib/components/lobby/MakeHostButton.svelte';
+  import PlayerActions from '$lib/components/lobby/PlayerActions.svelte';
 
   // While voting there is no game to size the room by, so Add bot stops at the
   // largest table any game in the catalogue can seat.
@@ -25,6 +25,8 @@
   /** Why this page can't show the room: it's gone, or we couldn't check. */
   let roomMissing = $state<'gone' | 'unchecked' | null>(null);
   let copyStatus = $state<'idle' | 'copied' | 'failed'>('idle');
+  /** Which invite button was used, so a copy failure shows beside it. */
+  let copyFrom = $state<'lid' | 'bar'>('lid');
   let botError = $state('');
   let ballotError = $state('');
   let ballotPending = $state(false);
@@ -56,12 +58,41 @@
         goto(`${resolve('/')}?join=${encodeURIComponent(code)}`, { replaceState: true }).catch(console.error);
       } else {
         roomMissing = exists === false ? 'gone' : 'unchecked';
+        retryInput = code;
+        retryError = '';
       }
     });
     return () => {
       cancelled = true;
     };
   });
+
+  // The not-found page's code field: retype a code with a typo and join.
+  let retryInput = $state('');
+  let retryError = $state('');
+  let retryPending = $state(false);
+
+  async function retryCode(event: SubmitEvent) {
+    event.preventDefault();
+    if (retryPending) return;
+    const code = retryInput.trim().toUpperCase();
+    if (code.length !== ROOM_CODE_LENGTH) {
+      retryError = `Room codes have ${ROOM_CODE_LENGTH} letters and numbers.`;
+      return;
+    }
+    retryError = '';
+    retryPending = true;
+    const exists = await roomExistsAction(code);
+    retryPending = false;
+    if (exists) {
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve('/') plus a query string
+      await goto(`${resolve('/')}?join=${encodeURIComponent(code)}`);
+    } else {
+      retryError = exists === false
+        ? `There's no room ${code} either. Check the code and try again.`
+        : "Couldn't check that code. Check your connection and try again.";
+    }
+  }
 
   $effect(() => {
     if (playerState.roomCode === roomCode && (lobbyState.gameStarting || gameState.view)) {
@@ -82,6 +113,21 @@
   let seatCount = $derived(lobbyState.players.length);
   let hostName = $derived(lobbyState.players.find(p => p.id === lobbyState.hostId)?.name ?? 'the host');
   let codeChars = $derived(roomCode.split(''));
+  /**
+   * "Tap" on a touch screen, "Click" with a mouse. Phones are the common case,
+   * so that's the default until the browser says otherwise.
+   */
+  let tapWord = $state<'Tap' | 'Click'>('Tap');
+  onMount(() => {
+    if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) tapWord = 'Click';
+  });
+  // The phone strip shows at most five tokens so it never wraps: four faces and
+  // a "+N" when the room is bigger than that.
+  const STRIP_MAX = 5;
+  let stripShown = $derived(
+    lobbyState.players.length > STRIP_MAX ? lobbyState.players.slice(0, STRIP_MAX - 1) : lobbyState.players,
+  );
+  let stripRest = $derived(lobbyState.players.slice(stripShown.length));
 
   // Ballot. Every game is ranked by votes, playable or not, so the summary
   // never hides a leader; what stands in its way is said alongside it.
@@ -168,6 +214,25 @@
     return `Leading · ${lead.name}, ${voteCount(topVotes)}${note ? ` (${note})` : ''}`;
   });
 
+  /**
+   * Screen readers hear the standing only when the leader (or the set of
+   * tied games) changes, not on every vote.
+   */
+  let leaderKey = $derived(ballot ? leaders.map(game => game.id).join(',') : null);
+  let leaderAnnouncement = $state('');
+  let lastLeaderKey: string | null = null;
+  $effect(() => {
+    const key = leaderKey;
+    if (key === null) {
+      leaderAnnouncement = '';
+    } else if (lastLeaderKey !== null && key !== lastLeaderKey) {
+      leaderAnnouncement = untrack(() => leaders.length > 1
+        ? `Tied: ${nameList(leaders)}.`
+        : leaders[0] ? `${leaders[0].name} is leading.` : 'No game is leading.');
+    }
+    lastLeaderKey = key;
+  });
+
   /** "Margaret", "Margaret and Joe", "Margaret, Joe and Ann". */
   function nameList(list: { name: string }[]): string {
     const names = list.map(p => p.name);
@@ -183,6 +248,11 @@
     const count = voters.length === 0 ? 'no votes' : `${voters.length} ${voters.length === 1 ? 'vote' : 'votes'}, ${nameList(voters)}`;
     const note = fitNote(game);
     return `${game.name}: ${game === currentGame ? 'current game, ' : ''}${count}.${note ? ` ${note}.` : ''}`;
+  }
+
+  /** Bot names already carry the word ("Bot Alice"), so the role isn't repeated. */
+  function isBotName(name: string): boolean {
+    return /^bot\b/i.test(name.trim());
   }
 
   function seatOf(player: LobbyPlayer): string {
@@ -217,9 +287,19 @@
     }
     return '';
   });
+  let playEnabled = $derived(!!playTarget && !playKeeps && canPlay(playTarget));
+  /**
+   * Playing a game other than the current one clears every guest's Ready.
+   * When anyone is ready for the current game, the hint says so first.
+   */
+  let readyGuests = $derived(lobbyState.players.filter(p => !p.isBot && p.isReady && p.id !== lobbyState.hostId));
+  let replaceNote = $derived(currentGame && playEnabled && playTarget && playTarget !== currentGame && readyGuests.length
+    ? `Everyone gets ready again for ${playTarget.name}.`
+    : '');
+  let playLine = $derived([playHint, replaceNote].filter(Boolean).join(' '));
   let ballotIntro = $derived(spectator
     ? `${hostName} picks the game.`
-    : isHost ? 'Tap a game to vote, then play the winner.' : `Tap a game to vote. ${hostName} picks the game.`);
+    : isHost ? `${tapWord} a game to vote, then play the winner.` : `${tapWord} a game to vote. ${hostName} picks the game.`);
   // Seats: once a game is confirmed, the list fills out to its minimum with
   // open seats, and says how much room is left up to its maximum.
   let openSeats = $derived(selectedGame ? Math.max(0, selectedGame.minPlayers - seatCount) : 0);
@@ -232,14 +312,19 @@
   /** Why Add bot is off right now, or '' when the host can add one. */
   let botBlockReason = $derived.by(() => {
     if (seatCount >= seatCap) {
-      return selectedGame
-        ? `${selectedGame.name} seats ${seatsPhrase(selectedGame.minPlayers, selectedGame.maxPlayers)}, and every seat is taken.`
-        : `No game here seats more than ${votingSeatCap}.`;
+      if (selectedGame) {
+        return `${selectedGame.name} seats ${seatsPhrase(selectedGame.minPlayers, selectedGame.maxPlayers)}, and every seat is taken.`;
+      }
+      return hasBots
+        ? `That's a full table: no game here seats more than ${votingSeatCap}. Remove a bot to make room for a friend.`
+        : `That's a full table: no game here seats more than ${votingSeatCap}.`;
     }
     if (botCount >= MAX_BOTS) return `Rooms can have ${MAX_BOTS} bots at most. Invite someone for the next seat.`;
     return '';
   });
   let botCanFill = $derived(botsAllowed && botCount < MAX_BOTS);
+  /** Every seat is taken: Add bot can't help, so it isn't shown at all. */
+  let seatsFull = $derived(seatCount >= seatCap);
 
   function seatsPhrase(min: number, max: number): string {
     return min === max ? `${max}` : `up to ${max}`;
@@ -360,7 +445,13 @@
       return `${hostName} is choosing again. ${currentGame.name} ${why}, so it can't stay as things are.`;
     }
     if (isHost) return 'Choosing again. Anyone ready stays ready if you keep it.';
-    if (me?.isReady) return `${hostName} is choosing again. You stay ready if ${currentGame.name} stays.`;
+    if (me?.isReady) {
+      // Another game is ahead and could be played: say what that would mean.
+      const ahead = leaders.length === 1 && leaders[0] !== currentGame && canPlay(leaders[0]) ? leaders[0] : undefined;
+      return ahead
+        ? `${hostName} is choosing again. If ${ahead.name} is played, you'll get ready again.`
+        : `${hostName} is choosing again. You stay ready if ${currentGame.name} stays.`;
+    }
     return `${hostName} is choosing again. ${currentGame.name} stays unless another game is played.`;
   });
 
@@ -400,6 +491,9 @@
   let inviteUrl = $derived(browser ? `${window.location.origin}/?join=${roomCode}` : '');
   // Phones (and some desktops) have a share sheet; elsewhere we copy.
   let canShare = $state(false);
+  let inviteLabel = $derived(copyStatus === 'copied' ? 'Link copied' : canShare ? 'Share invite' : 'Copy invite link');
+  /** The host is the only one here: the bottom bar invites instead of playing. */
+  let inviteFirst = $derived(isHost && alone);
   let qrOpen = $state(false);
 
   onMount(() => {
@@ -423,7 +517,13 @@
     setTimeout(() => (copyStatus = 'idle'), ok ? 2000 : 4000);
   }
 
-  async function shareInvite() {
+  /**
+   * The one invite action, used by the lid pill and, while the host is alone,
+   * the shouted button at the bottom: the share sheet where there is one,
+   * otherwise copy the link.
+   */
+  async function shareInvite(from: 'lid' | 'bar' = 'lid') {
+    copyFrom = from;
     if (!canShare) return copyLink();
     try {
       await navigator.share({
@@ -451,9 +551,28 @@
   </header>
   <div class="content not-found">
     {#if roomMissing === 'gone'}
-      <h1 class="not-found-title">This lobby doesn't exist or has ended.</h1>
-      <p class="not-found-body">Check the code with whoever invited you, or start a new room.</p>
-      <a href={resolve('/')} class="btn btn-accent">Back to home</a>
+      <h1 class="not-found-title">There's no room {roomCode}.</h1>
+      <p class="not-found-body">It may have ended, or the code has a typo. Check it with whoever invited you and try again.</p>
+      <form class="retry-form" onsubmit={retryCode} novalidate>
+        <label class="field">
+          <span class="field-label">Room code</span>
+          <input
+            type="text"
+            bind:value={retryInput}
+            placeholder="ABCDEF"
+            maxlength={ROOM_CODE_LENGTH}
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            class="input-code"
+            aria-invalid={!!retryError}
+            aria-describedby={retryError ? 'retry-error' : undefined}
+          />
+        </label>
+        {#if retryError}<p id="retry-error" class="action-error retry-error" role="alert">{retryError}</p>{/if}
+        <button type="submit" class="btn btn-primary" aria-disabled={retryPending || undefined}>Join</button>
+      </form>
+      <a href={resolve('/')} class="home-link">Or start a new room</a>
     {:else}
       <h1 class="not-found-title">Couldn't open lobby {roomCode}.</h1>
       <p class="not-found-body">Check your connection, then try again.</p>
@@ -461,7 +580,7 @@
     {/if}
   </div>
 {:else}
-  <header class="lid" class:wide={!selectedGame && !!ballot}>
+  <header class="lid" class:wide={!!selectedGame || !!ballot}>
     <div class="lid-inner">
       <div class="lid-bar">
         <a href={resolve('/')} class="wordmark">PARLOR</a>
@@ -476,28 +595,53 @@
           {/each}
         </div>
         <div class="share-row">
-          <button type="button" class="copy" onclick={shareInvite}>
-            {#if canShare}
-              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
-            {:else}
-              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
-            {/if}
-            {copyStatus === 'copied' ? 'Link copied' : canShare ? 'Share invite' : 'Copy invite link'}
+          <button type="button" class="copy" onclick={() => shareInvite('lid')}>
+            {@render shareIcon(16)}
+            {inviteLabel}
           </button>
           <button type="button" class="copy" onclick={() => (qrOpen = true)}>
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3"/><path d="M21 14v.01"/><path d="M14 21h.01"/><path d="M17.5 21H21v-3.5"/></svg>
+            {@render qrIcon(16)}
             Show QR code
           </button>
         </div>
         <span class="sr-only" aria-live="polite">
           {copyStatus === 'copied' ? 'Invite link copied' : copyStatus === 'failed' ? "Couldn't copy the link. Read the code out instead." : ''}
         </span>
-        {#if copyStatus === 'failed'}
+        {#if copyStatus === 'failed' && copyFrom === 'lid'}
           <p class="copy-failed">Couldn't copy here. Read the code out instead.</p>
         {/if}
       </div>
     </div>
   </header>
+
+  {#snippet shareIcon(size: number)}
+    {#if canShare}
+      <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+    {:else}
+      <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+    {/if}
+  {/snippet}
+
+  {#snippet qrIcon(size: number)}
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3"/><path d="M21 14v.01"/><path d="M14 21h.01"/><path d="M17.5 21H21v-3.5"/></svg>
+  {/snippet}
+
+  <!-- While the host is alone, inviting is the next step: the bottom bar's
+       shouted button shares the invite (it is the screen's one shout, since
+       PLAY / START can't do anything yet), with the QR sheet beside it. -->
+  {#snippet inviteBar()}
+    <div class="invite-actions">
+      <button type="button" class="btn btn-primary invite-main" onclick={() => shareInvite('bar')}>{inviteLabel}</button>
+      <!-- "QR code" fits beside the shout at 390px; the name says what it does. -->
+      <button type="button" class="pill invite-qr" aria-label="Show QR code" onclick={() => (qrOpen = true)}>
+        {@render qrIcon(18)}
+        QR code
+      </button>
+    </div>
+    {#if copyStatus === 'failed' && copyFrom === 'bar'}
+      <p class="action-error">Couldn't copy here. Read the code out instead.</p>
+    {/if}
+  {/snippet}
 
   {#snippet addBotLine()}
     {#if isHost && botsAllowed && botBlockReason && (seatsLeft > 0 || !selectedGame)}
@@ -515,7 +659,9 @@
       <span class="row-name">{game.name}</span>
       <span class="row-meta">{playerRange(game)} · {minutesRange(game)}m</span>
     </span>
+    <!-- Phones get the one-line tagline; the description would be cut off. -->
     <span class="row-desc">{game.description}</span>
+    <span class="row-tagline">{game.tagline}</span>
     {#if note || voters.length || voted || current}
       <span class="row-foot">
         {#if current}<span class="row-current">Current</span>{/if}
@@ -558,12 +704,15 @@
     </li>
   {/snippet}
 
-  <div class="content" class:voting={!selectedGame && !!ballot} class:reopened={!selectedGame && !!currentGame}>
+  <div class="content" class:voting={!selectedGame && !!ballot} class:reopened={!selectedGame && !!currentGame}
+    class:confirmed={!!selectedGame}>
     {#if selectedGame}
       <section class="game-panel" aria-label="Selected game">
         <div class="game-panel-text">
           <h2 class="game-panel-name" tabindex="-1" bind:this={gameHeading}>{selectedGame.name}</h2>
           <span class="game-panel-meta">{playerCount(selectedGame)} · {minutesRange(selectedGame)} min</span>
+          <!-- Wide screens only, where the panel heads a column of its own. -->
+          <p class="game-panel-desc">{selectedGame.description}</p>
         </div>
         <div class="game-panel-actions">
           <button type="button" class="icon-btn icon-on-dark" onclick={() => (rulesGameId = selectedGame?.id ?? null)}
@@ -594,7 +743,7 @@
       <section class="table-strip" aria-label="Players">
         <div class="strip-bar">
           <ul class="strip-avatars">
-            {#each lobbyState.players as player (player.id)}
+            {#each stripShown as player (player.id)}
               <li class="avatar strip-avatar seat-{seatOf(player)}" title={player.name}>
                 {#if player.isBot}
                   <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg>
@@ -606,12 +755,18 @@
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
                   </span>
                 {/if}
-                <span class="sr-only">{player.name}{player.id === lobbyState.hostId ? ', host' : ''}{player.id === playerState.id ? ', you' : ''}{player.isBot ? ', bot' : ''}{currentGame && player.isReady && player.id !== lobbyState.hostId ? ', ready' : ''}</span>
+                <span class="sr-only">{player.name}{player.id === lobbyState.hostId ? ', host' : ''}{player.id === playerState.id ? ', you' : ''}{player.isBot && !isBotName(player.name) ? ', bot' : ''}{currentGame && player.isReady && player.id !== lobbyState.hostId ? ', ready' : ''}</span>
               </li>
             {/each}
+            {#if stripRest.length}
+              <li class="avatar strip-avatar strip-more" title={stripRest.map(p => p.name).join(', ')}>
+                <span aria-hidden="true">+{stripRest.length}</span>
+                <span class="sr-only">and {stripRest.map(p => p.name).join(', ')}</span>
+              </li>
+            {/if}
           </ul>
           <p class="strip-count">{seatCount} {seatCount === 1 ? 'player' : 'players'}</p>
-          {#if isHost}
+          {#if isHost && !seatsFull}
             <button type="button" class="pill pill-row" onclick={addBot} disabled={!!botBlockReason}>Add bot</button>
           {/if}
         </div>
@@ -622,13 +777,13 @@
         <h2 id="ballot-title" class="section-title" tabindex="-1" bind:this={ballotHeading}>Vote on a game</h2>
         <p class="ballot-intro">{ballotIntro}</p>
         {#if alone && !spectator}
-          <p class="ballot-summary invite-prompt" aria-live="polite" aria-atomic="true">Share the code so others can join. You can vote while you wait.</p>
+          <p class="ballot-summary invite-prompt">Share the code so others can join, or add a bot. You can vote while you wait.</p>
         {:else if leadSummary}
           <!-- On a phone a single leader is pinned above the list as a small
                status strip (its colour, the standing, its voters), so it's in
                view without reordering rows under anyone's finger. -->
           {@const pinned = leaders.length === 1 ? leaders[0] : undefined}
-          <p class="ballot-summary" class:lead-pin={!!pinned} aria-live="polite" aria-atomic="true">
+          <p class="ballot-summary" class:lead-pin={!!pinned}>
             {#if pinned}<span class="lead-swatch spine-{pinned.shelf}" aria-hidden="true"></span>{/if}
             <span class="lead-text">{leadSummary}</span>
             {#if pinned && votersFor(pinned.id).length}
@@ -640,6 +795,8 @@
             {/if}
           </p>
         {/if}
+        <!-- Announced only when the leader changes; every vote would be noise. -->
+        <p class="sr-only" aria-live="polite" aria-atomic="true">{leaderAnnouncement}</p>
         <ul class="picker-list">
           {#each shelfGames as game (game.id)}
             {@render ballotRow(game, false)}
@@ -662,10 +819,14 @@
           <!-- The one shouted action while voting: play the leader. Any other
                game the room fits can be played from its "?" rules sheet. -->
           <div class="play-bar">
-            {#if playHint}<p class="hint" aria-live="polite">{playHint}</p>{/if}
-            <button type="button" class="btn btn-primary" disabled={!playTarget || playKeeps || !canPlay(playTarget)}
-              aria-disabled={ballotPending || undefined}
-              onclick={() => playTarget && playGame(playTarget.id)}>{playTarget && !playKeeps ? `Play ${playTarget.name}` : 'Play'}</button>
+            {#if inviteFirst}
+              {@render inviteBar()}
+            {:else}
+              {#if playLine}<p class="hint" aria-live="polite">{playLine}</p>{/if}
+              <button type="button" class="btn btn-primary" disabled={!playEnabled}
+                aria-disabled={ballotPending || undefined}
+                onclick={() => playTarget && playGame(playTarget.id)}>{playTarget && !playKeeps ? `Play ${playTarget.name}` : 'Play'}</button>
+            {/if}
           </div>
         {/if}
       </section>
@@ -700,19 +861,24 @@
               <span class="roles">
                 {#if isHostRow}<span class="role">Host</span>{/if}
                 {#if player.id === playerState.id}<span class="role">You</span>{/if}
-                {#if player.isBot}<span class="role">Bot</span>{/if}
+                <!-- Bot names already say so ("Bot Alice"). -->
+                {#if player.isBot && !isBotName(player.name)}<span class="role">Bot</span>{/if}
                 {#if !player.connected}<span class="role">Reconnecting</span>{/if}
               </span>
             </span>
             <!-- Readiness only means something once a game is chosen, and the
                  host's START is their ready, so their row carries no chip. -->
             {#if (selectedGame || currentGame) && !isHostRow}
-              <span class="status" class:is-ready={player.isReady}>
-                {player.isReady ? 'Ready' : 'Not ready'}
-              </span>
+              <!-- Ready is the felt chip; waiting is plain text, so it never
+                   looks like something to tap. -->
+              {#if player.isReady}
+                <span class="status is-ready">Ready</span>
+              {:else}
+                <span class="status-wait">Not ready yet</span>
+              {/if}
             {/if}
             {#if isHost && !player.isBot && player.connected && player.id !== playerState.id}
-              <MakeHostButton playerId={player.id} playerName={player.name} />
+              <PlayerActions playerId={player.id} playerName={player.name} />
             {/if}
             {#if isHost && player.isBot}
               <button type="button" class="icon-btn" onclick={() => removeBot(player.id)} aria-label="Remove {player.name}" title="Remove {player.name}">
@@ -736,14 +902,15 @@
         {#if seatsLeft > 0 || (isHost && gameSupportsAI)}
           <div class="seat-line">
             <p>{seatsLeft > 0 ? `Room for ${seatsLeft} more` : `All ${seatCount} seats are taken`}</p>
-            {#if isHost && gameSupportsAI}
+            {#if isHost && gameSupportsAI && !seatsFull}
               <button type="button" class="pill pill-row" onclick={addBot} disabled={!!botBlockReason}>Add bot</button>
             {/if}
           </div>
         {/if}
-      {:else if !selectedGame && ballot && isHost}
+      {:else if !selectedGame && ballot && isHost && !seatsFull}
+        <!-- The invitation to add bots only while one can be added. -->
         <div class="seat-line voting-bots">
-          <p>Short on players? Bots can fill seats.</p>
+          <p>{botBlockReason ? '' : 'Short on players? Bots can fill seats.'}</p>
           <button type="button" class="pill pill-row" onclick={addBot} disabled={!!botBlockReason}>Add bot</button>
         </div>
       {/if}
@@ -769,13 +936,25 @@
         {:else}
           <p class="hint" aria-live="polite">{startHint}</p>
         {/if}
-        <button type="button" class="btn btn-primary" onclick={startGame} disabled={!canStart}>Start Game</button>
+        {#if inviteFirst}
+          {@render inviteBar()}
+        {:else}
+          <button type="button" class="btn btn-primary" onclick={startGame} disabled={!canStart}>Start Game</button>
+        {/if}
       {:else if selectedGame}
         {#if guestHint}<p class="hint" aria-live="polite">{guestHint}</p>{/if}
+        <!-- One toggle: READY is the guest's shout; once pressed it settles
+             into a felt "Ready" with a check, and pressing it again undoes it. -->
+        <button type="button" class="btn ready-toggle" class:btn-primary={!me?.isReady} class:is-ready={me?.isReady}
+          aria-pressed={!!me?.isReady} aria-describedby={me?.isReady ? 'ready-undo' : undefined}
+          disabled={!me} onclick={toggleReady}>
+          {#if me?.isReady}
+            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          {/if}
+          Ready
+        </button>
         {#if me?.isReady}
-          <button type="button" class="pill pill-wide" disabled={!me} onclick={toggleReady}>Not ready</button>
-        {:else}
-          <button type="button" class="btn btn-primary" disabled={!me} onclick={toggleReady}>Ready</button>
+          <p class="hint ready-undo" id="ready-undo">{tapWord} again if you're not ready.</p>
         {/if}
       {/if}
 
@@ -802,7 +981,6 @@
     onplay={isHost && ballot && me && rulesGame && canPlay(rulesGame)
       ? () => { if (rulesGameId) playGame(rulesGameId); }
       : undefined}
-    onchange={isHost && selectedGame && rulesGameId === selectedGame.id ? changeGame : undefined}
   />
 {/if}
 
@@ -1012,6 +1190,16 @@
     color: var(--color-cream);
   }
 
+  .game-panel-desc {
+    display: none;
+    margin: 8px 0 0;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.45;
+    color: var(--color-cream);
+    text-wrap: pretty;
+  }
+
   .game-panel :focus-visible {
     outline-color: var(--color-cream);
   }
@@ -1092,15 +1280,21 @@
       flex-shrink: 0;
     }
 
-    /* Paper behind them here, not a spine. */
-    .lead-pin .voter {
-      border-color: var(--color-paper);
+    /* Already on paper here, so the tokens need no chip of their own. */
+    .ballot-summary.lead-pin .lead-voters {
+      background: none;
+      border: 0;
+      padding: 0 0 0 4px;
     }
 
-    /* One line of description; the rules sheet has the rest. */
+    /* The one-line tagline instead of a description cut mid-sentence; the
+       rules sheet has the rest. */
     .spine-row .row-desc {
-      -webkit-line-clamp: 1;
-      line-clamp: 1;
+      display: none;
+    }
+
+    .spine-row:not(.crowded) .row-tagline {
+      display: block;
     }
   }
 
@@ -1142,6 +1336,13 @@
 
   button.spine-face:active {
     transform: scale(0.99);
+  }
+
+  /* Keyboard focus floats clear of the box in clay, so it never reads as the
+     "your vote" ring, which hugs the outline in ink. */
+  button.spine-face:focus-visible {
+    outline: 3px solid var(--color-terracotta-deep);
+    outline-offset: 4px;
   }
 
   @media (hover: hover) {
@@ -1205,6 +1406,16 @@
     overflow: hidden;
   }
 
+  .row-tagline {
+    display: none;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .row-foot {
     display: flex;
     align-items: center;
@@ -1255,20 +1466,27 @@
     white-space: nowrap;
   }
 
+  /* Voters sit on a paper chip, each an ink-ringed seat-coloured coin, so a
+     mustard voter stays visible on the mustard spine (felt on felt, and so
+     on) and every initial reads the same on any row. */
   .voters {
     display: inline-flex;
-    padding-left: 6px;
+    align-items: center;
+    height: 28px;
+    box-sizing: border-box;
+    padding: 0 1px 0 5px;
+    border: 1.5px solid var(--color-espresso);
+    border-radius: 999px;
+    background: var(--color-paper);
   }
 
-  /* Voters are their seat-coloured avatars; a cream ring keeps a clay voter
-     visible on the clay spine (and ink on ink). */
   .voter {
-    width: 26px;
-    height: 26px;
-    margin-left: -6px;
+    width: 22px;
+    height: 22px;
+    margin-left: -4px;
     box-sizing: border-box;
     border-radius: 50%;
-    border: 2px solid var(--color-cream);
+    border: 1.5px solid var(--color-espresso);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1399,7 +1617,7 @@
     gap: 8px;
   }
 
-  .play-bar .btn {
+  .play-bar > .btn {
     width: 100%;
   }
 
@@ -1421,9 +1639,14 @@
     margin: 0;
     padding: 0 0 0 8px;
     display: flex;
-    flex-wrap: wrap;
-    row-gap: 4px;
-    min-width: 0;
+    flex-shrink: 0;
+  }
+
+  .avatar.strip-more {
+    background: var(--color-linen);
+    color: var(--color-espresso);
+    font-size: 0.8125rem;
+    letter-spacing: -0.02em;
   }
 
   .avatar.strip-avatar {
@@ -1437,9 +1660,11 @@
   }
 
   /* Ready while the ballot is reopened: a small felt check on the avatar. */
+  /* Bottom-left: the next avatar overlaps this one's right edge, and later
+     avatars paint on top, so a check on the right would be hidden. */
   .strip-ready {
     position: absolute;
-    right: -3px;
+    left: -4px;
     bottom: -3px;
     width: 15px;
     height: 15px;
@@ -1629,6 +1854,14 @@
     color: var(--color-espresso);
   }
 
+  /* Waiting is a fact, not a control: plain Faded Ink, no outline. */
+  .status-wait {
+    flex-shrink: 0;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
+  }
+
   .status.is-ready {
     background: var(--color-forest-deep);
     border-color: var(--color-forest-deep);
@@ -1774,6 +2007,57 @@
     }
   }
 
+  /* The guest's Ready, pressed: settled into felt with a drawn check, in
+     sentence case (READY, unpressed, is the shout). */
+  .ready-toggle {
+    gap: 8px;
+  }
+
+  .ready-toggle.is-ready {
+    background: var(--color-forest-deep);
+    border-color: var(--color-espresso);
+    color: var(--color-cream);
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+
+  @media (hover: hover) {
+    .ready-toggle.is-ready:hover:not(:disabled) {
+      background: #264A33;
+    }
+  }
+
+  .ready-undo {
+    margin-top: -4px;
+  }
+
+  /* A lone host's invite: the shouted share button with the QR pill beside
+     it (below it when the row is too narrow for both). */
+  .invite-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Side by side when both fit, the shout taking the room; otherwise each
+     fills its own row. */
+  .invite-actions .invite-main {
+    flex: 999 1 auto;
+    padding: 0 16px;
+    white-space: nowrap;
+  }
+
+  .invite-actions .invite-qr {
+    flex: 1 0 auto;
+    height: 56px;
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
   .hint {
     margin: 0;
     text-align: center;
@@ -1906,6 +2190,44 @@
     .content.voting .actions:empty {
       display: none;
     }
+
+    /* A confirmed game keeps the same two columns, so the page doesn't snap
+       from 920px to a phone column when PLAY is pressed: tonight's game and
+       START on the left, the table on the right. */
+    .content.confirmed {
+      max-width: 920px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      grid-template-areas: 'panel players' 'actions players';
+      grid-template-rows: auto 1fr;
+      align-items: start;
+      column-gap: 32px;
+      row-gap: 20px;
+    }
+
+    .content.confirmed .game-panel {
+      grid-area: panel;
+      align-items: flex-start;
+      padding: 18px 20px 20px;
+    }
+
+    .content.confirmed .game-panel-name {
+      font-size: 2rem;
+    }
+
+    .content.confirmed .game-panel-desc {
+      display: block;
+      max-width: 44ch;
+    }
+
+    .content.confirmed .players {
+      grid-area: players;
+    }
+
+    .content.confirmed .actions {
+      grid-area: actions;
+      margin-top: 0;
+    }
   }
 
   /* Not found */
@@ -1930,5 +2252,66 @@
     font-size: 1rem;
     line-height: 1.45;
     color: var(--color-ink-muted);
+  }
+
+  .retry-form {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field-label {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--color-espresso);
+  }
+
+  /* The same butter code field as the home page's join form. */
+  .input-code {
+    width: 100%;
+    height: 56px;
+    box-sizing: border-box;
+    padding: 0 14px 0 calc(14px + 0.32em);
+    border: 2px solid var(--color-espresso);
+    border-radius: 12px;
+    background: var(--color-mustard-tint);
+    color: var(--color-espresso);
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.625rem;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  .input-code::placeholder {
+    color: var(--color-ink-muted);
+  }
+
+  .input-code[aria-invalid='true'] {
+    border-color: var(--color-danger);
+  }
+
+  .retry-error {
+    text-align: left;
+  }
+
+  .home-link {
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font-weight: 700;
+    color: var(--color-espresso);
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
   }
 </style>

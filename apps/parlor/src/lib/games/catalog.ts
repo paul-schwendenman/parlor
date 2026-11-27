@@ -17,6 +17,12 @@ export type ShelfColour = 'felt' | 'mustard' | 'clay' | 'ink' | 'linen';
 
 export interface CatalogGame extends GameMeta {
   shelf: ShelfColour;
+  /**
+   * The description cut to one short line (about 35 characters) for phone
+   * rows, where the full description would be clipped mid-sentence. Plain
+   * words, and only what the description or the rules already say.
+   */
+  tagline: string;
 }
 
 /**
@@ -26,15 +32,15 @@ export interface CatalogGame extends GameMeta {
  * both the one-column and two-column shelf.
  */
 export const catalog: readonly CatalogGame[] = [
-  { ...quixxMeta, shelf: 'felt' },
-  { ...crazyEightsMeta, shelf: 'mustard' },
-  { ...bootyDiceMeta, shelf: 'clay' },
-  { ...liarsDiceMeta, shelf: 'ink' },
-  { ...kingsCornerMeta, shelf: 'linen' },
-  { ...heartsMeta, shelf: 'clay' },
-  { ...spadesMeta, shelf: 'ink' },
-  { ...euchreMeta, shelf: 'felt' },
-  { ...ohHellMeta, shelf: 'mustard' },
+  { ...quixxMeta, shelf: 'felt', tagline: 'Roll dice and cross off numbers' },
+  { ...crazyEightsMeta, shelf: 'mustard', tagline: 'Match suit or rank. Eights are wild.' },
+  { ...bootyDiceMeta, shelf: 'clay', tagline: 'Pirate dice of treasure and attacks' },
+  { ...liarsDiceMeta, shelf: 'ink', tagline: 'Bid on hidden dice and call out liars' },
+  { ...kingsCornerMeta, shelf: 'linen', tagline: 'Stack cards down, red on black' },
+  { ...heartsMeta, shelf: 'clay', tagline: 'Pass cards and dodge penalty points' },
+  { ...spadesMeta, shelf: 'ink', tagline: 'Team up and win the tricks you bid' },
+  { ...euchreMeta, shelf: 'felt', tagline: 'Team up, call trump, take 3 tricks' },
+  { ...ohHellMeta, shelf: 'mustard', tagline: 'Bid your tricks, then hit it exactly' },
 ];
 
 export function findGame(id: string | null | undefined): CatalogGame | undefined {

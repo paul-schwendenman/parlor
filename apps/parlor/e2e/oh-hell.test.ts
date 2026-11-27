@@ -9,13 +9,15 @@ test('bids and plays through the first Oh Hell hand with bots', async ({ page })
   await dialog.getByLabel('Your name').fill('Alex');
   await dialog.getByRole('button', { name: 'Create Room' }).click();
   await page.getByRole('button', { name: 'Vote for Oh Hell', exact: true }).click();
+  // Alone, the bottom bar invites; a bot makes two and PLAY comes back.
+  await page.locator('.table-strip').getByRole('button', { name: 'Add bot', exact: true }).click();
   // The host's one Play button follows the leading game.
   await page.getByRole('button', { name: 'Play Oh Hell', exact: true }).click();
   // Each open seat has its own "Add bot to seat N"; the host's START is their ready.
   const addBot = page.getByRole('button', { name: /^Add bot to seat/ }).first();
-  for (let count = 1; count <= 2; count++) {
+  for (let count = 2; count <= 2; count++) {
     await addBot.click();
-    await expect(page.getByText('Bot', { exact: true })).toHaveCount(count);
+    await expect(page.getByRole('button', { name: /^Remove Bot / })).toHaveCount(count);
   }
   await page.getByRole('button', { name: 'Start Game' }).click();
 

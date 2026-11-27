@@ -64,8 +64,21 @@ test('friends vote together and the host plays a tied game', async ({ page, brow
 		await expect(guest.getByRole('heading', { name: 'Quixx', exact: true })).toBeVisible();
 		await expect(friend.getByRole('button', { name: 'Ready', exact: true })).toBeVisible();
 
-		await friend.getByRole('button', { name: 'Ready', exact: true }).click();
-		await expect(friend.getByRole('button', { name: 'Not ready', exact: true })).toBeVisible();
+		// Ready is one toggle: pressed it shows a check and says how to undo;
+		// the row reads plain "Not ready yet" until then.
+		const friendReady = friend.getByRole('button', { name: 'Ready', exact: true });
+		await expect(friendReady).toHaveAttribute('aria-pressed', 'false');
+		await expect(page.locator('.player', { hasText: 'Friend' }).getByText('Not ready yet', { exact: true })).toBeVisible();
+		await friendReady.click();
+		await expect(friendReady).toHaveAttribute('aria-pressed', 'true');
+		await expect(friendReady).toHaveAccessibleDescription("Click again if you're not ready.");
+		await expect(friend.getByRole('button', { name: 'Not ready', exact: true })).toHaveCount(0);
+		await expect(page.locator('.player', { hasText: 'Friend' }).getByText('Ready', { exact: true })).toBeVisible();
+		await friendReady.click();
+		await expect(friendReady).toHaveAttribute('aria-pressed', 'false');
+		await expect(page.locator('.player', { hasText: 'Friend' }).getByText('Not ready yet', { exact: true })).toBeVisible();
+		await friendReady.click();
+		await expect(friendReady).toHaveAttribute('aria-pressed', 'true');
 
 		// Change game reopens the ballot without losing Quixx: it is marked
 		// current, leads until another game gets a vote, and Keep backs out.
@@ -79,11 +92,19 @@ test('friends vote together and the host plays a tied game', async ({ page, brow
 		await expect(guest.getByRole('button', { name: 'Vote for Hearts', exact: true })).toBeVisible();
 		await expect(guest.getByText(/^[1-9]\d* votes?$/)).toHaveCount(0);
 		await expect(guest.getByRole('button', { name: /^Keep / })).toHaveCount(0);
+		// A vote for another game: PLAY would un-ready Friend, and says so.
+		const eightsVote = page.getByRole('button', { name: 'Vote for Crazy Eights', exact: true });
+		await eightsVote.click();
+		await expect(page.locator('.play-bar').getByText('Everyone gets ready again for Crazy Eights.', { exact: true })).toBeVisible();
+		await expect(friend.getByText("Host is choosing again. If Crazy Eights is played, you'll get ready again.", { exact: true })).toBeVisible();
+		await eightsVote.click();
+		await expect(page.getByText('Leading · Quixx (current game)', { exact: true })).toBeVisible();
+		await expect(page.getByText('Everyone gets ready again for Crazy Eights.', { exact: true })).toHaveCount(0);
 		// Readiness shows while choosing again: the strip says who is ready.
 		await expect(page.locator('.strip-avatars').getByText('Friend, ready', { exact: true })).toBeAttached();
 		await page.getByRole('button', { name: 'Keep Quixx', exact: true }).click();
 		await expect(page.getByRole('heading', { name: 'Quixx', exact: true })).toBeFocused();
-		await expect(friend.getByRole('button', { name: 'Not ready', exact: true })).toBeVisible();
+		await expect(friend.getByRole('button', { name: 'Ready', exact: true, pressed: true })).toBeVisible();
 
 		// The host can play any game the room fits from its rules sheet; a
 		// different game asks everyone to get ready again.
@@ -91,7 +112,7 @@ test('friends vote together and the host plays a tied game', async ({ page, brow
 		await page.getByRole('button', { name: 'How to play Crazy Eights', exact: true }).click();
 		await page.getByRole('dialog').getByRole('button', { name: 'Play Crazy Eights', exact: true }).click();
 		await expect(friend.getByRole('heading', { name: 'Crazy Eights', exact: true })).toBeVisible();
-		await expect(friend.getByRole('button', { name: 'Ready', exact: true })).toBeVisible();
+		await expect(friend.getByRole('button', { name: 'Ready', exact: true, pressed: false })).toBeVisible();
 	} finally {
 		await Promise.all(guestContexts.map(context => context.close()));
 	}
@@ -104,9 +125,18 @@ test('rules open from the confirmed game, and a room that outgrows it cannot kee
 	await dialog.getByLabel('Your name').fill('Host');
 	await dialog.getByRole('button', { name: 'Create Room' }).click();
 	await expect(page.getByRole('heading', { name: 'Vote on a game' })).toBeVisible();
-	// Alone, the standing line asks for an invite first.
-	await expect(page.getByText('Share the code so others can join. You can vote while you wait.', { exact: true })).toBeVisible();
+	// Alone, the standing line asks for an invite first, and the bottom bar's
+	// one shouted button invites (headless Chromium has no share sheet, so it
+	// copies), with the QR code beside it. There is no PLAY yet.
+	await expect(page.getByText('Share the code so others can join, or add a bot. You can vote while you wait.', { exact: true })).toBeVisible();
 	await expect(page.getByText('Needs 1 more player', { exact: true })).toHaveCount(0);
+	const playBar = page.locator('.play-bar');
+	await expect(playBar.getByRole('button', { name: 'Copy invite link', exact: true })).toBeVisible();
+	await expect(playBar.getByRole('button', { name: 'Show QR code', exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: /^Play/ })).toHaveCount(0);
+	await playBar.getByRole('button', { name: 'Show QR code', exact: true }).click();
+	await expect(page.getByRole('dialog', { name: 'Scan to join' })).toBeVisible();
+	await page.keyboard.press('Escape');
 	const roomCode = new URL(page.url()).pathname.split('/').pop();
 
 	const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -116,6 +146,10 @@ test('rules open from the confirmed game, and a room that outgrows it cannot kee
 		await guest.getByLabel('Your name').fill('Guest');
 		await guest.getByRole('button', { name: 'Join', exact: true }).click();
 		await expect(guest.getByRole('heading', { name: 'Vote on a game' })).toBeVisible();
+		// A second player: PLAY is back, and the invite lives on the lid again.
+		await expect(playBar.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+		await expect(playBar.getByRole('button', { name: 'Copy invite link', exact: true })).toHaveCount(0);
+		await expect(guest.locator('.play-bar')).toHaveCount(0);
 
 		await guest.getByRole('button', { name: 'Vote for Hearts', exact: true }).click();
 		await expect(page.getByText('Leading · Hearts, 1 vote (needs 2 more players)', { exact: true })).toBeVisible();
@@ -132,9 +166,11 @@ test('rules open from the confirmed game, and a room that outgrows it cannot kee
 		await expect(guestRules.getByRole('button')).toHaveText(['Close']);
 		await guestRules.getByRole('button', { name: 'Close', exact: true }).click();
 		await page.getByRole('button', { name: 'How to play Hearts', exact: true }).click();
+		// The host's Change game is on the panel already, so the sheet only closes.
 		const hostRules = page.getByRole('dialog');
-		await expect(hostRules.getByRole('button', { name: /^Vote|^Play / })).toHaveCount(0);
-		await hostRules.getByRole('button', { name: 'Change game', exact: true }).click();
+		await expect(hostRules.getByRole('button')).toHaveText(['Close']);
+		await hostRules.getByRole('button', { name: 'Close', exact: true }).click();
+		await page.getByRole('button', { name: 'Change game', exact: true }).click();
 		await expect(page.getByRole('heading', { name: 'Vote on a game' })).toBeFocused();
 		await expect(page.getByRole('button', { name: 'Keep Hearts', exact: true })).toBeVisible();
 
@@ -156,7 +192,7 @@ test('rules open from the confirmed game, and a room that outgrows it cannot kee
 		await expect(page.getByText('Leading · Hearts (current game)', { exact: true })).toBeVisible();
 		await page.getByRole('button', { name: 'Keep Hearts', exact: true }).click();
 		await expect(page.getByRole('heading', { name: 'Hearts', exact: true })).toBeFocused();
-		await expect(guest.getByRole('button', { name: 'Not ready', exact: true })).toBeVisible();
+		await expect(guest.getByRole('button', { name: 'Ready', exact: true, pressed: true })).toBeVisible();
 	} finally {
 		await context.close();
 	}

@@ -13,11 +13,9 @@
     /** The lobby ballot: a toggle that reads "Vote", or "Your vote" when pressed. */
     onvote?: () => void;
     voted?: boolean;
-    /** The lobby's confirmed game, for the host: back to the ballot ("Change game"). */
-    onchange?: () => void;
   }
 
-  let { open, gameId, gameName, onclose, onplay, onvote, voted = false, onchange }: Props = $props();
+  let { open, gameId, gameName, onclose, onplay, onvote, voted = false }: Props = $props();
 
   let game = $derived(findGame(gameId));
   /** "4 players · bots can fill seats", "2–5 players · no bots". */
@@ -334,7 +332,6 @@
         {/if}
       </button>
     {/if}
-    {#if onchange}<button type="button" class="btn-close" onclick={onchange}>Change game</button>{/if}
     {#if onplay}<button type="button" class="btn-play" onclick={onplay}>Play {gameName}</button>{/if}
   </div>
 </Modal>

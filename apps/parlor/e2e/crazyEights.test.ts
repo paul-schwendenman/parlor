@@ -91,8 +91,10 @@ test('a spectator can watch before play starts, leave, and rejoin a live game', 
     await expect(watcher.locator('.hand .hand-card')).toHaveCount(0);
 
     await guest.getByRole('button', { name: 'Leave room' }).click();
+    await guest.getByRole('dialog').getByRole('button', { name: 'Leave room' }).click();
     await expect(guest).toHaveURL('/');
     await host.getByRole('button', { name: 'Leave room' }).click();
+    await host.getByRole('dialog').getByRole('button', { name: 'Leave room' }).click();
     await expect(host).toHaveURL('/');
     await expect(watcher.getByText("This game doesn't exist or has ended.")).toBeVisible();
   } finally {
@@ -110,9 +112,12 @@ test('leaving the lobby removes the seat and transfers the host role', async ({ 
     await joinRoom(guest, roomCode, 'Guest');
 
     await host.getByRole('button', { name: 'Leave room' }).click();
+    await host.getByRole('dialog').getByRole('button', { name: 'Leave room' }).click();
     await expect(host).toHaveURL('/');
     await expect(guest.getByText('Host', { exact: true })).toHaveCount(1);
-    await expect(guest.getByRole('button', { name: 'Start Game' })).toBeVisible();
+    // The new host is alone, so their one shouted button invites, not START.
+    await expect(guest.locator('.actions').getByRole('button', { name: 'Copy invite link', exact: true })).toBeVisible();
+    await expect(guest.getByRole('button', { name: 'Start Game' })).toHaveCount(0);
 
     await host.reload();
     await joinRoom(host, roomCode, 'Host');

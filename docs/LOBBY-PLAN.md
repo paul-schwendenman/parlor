@@ -204,6 +204,50 @@ From the 7.1 re-critique (28/40). The user chose to fix all five issues and to k
   - (b) Wait about 10 seconds after the host disconnects before handing the role on.
   - Either needs server tests that include a host action racing the reconnect.
 
+## Phase 9: Third-critique follow-up (29/40)
+
+From the critique at `apps/parlor/.impeccable/critique/2026-11-27T20-03-47Z__src-routes-lobby-roomcode-page-svelte.md`. The user chose every item, with the three P1s together, and to keep guest Ready but make it clear.
+
+- [x] **9.1 [P1] Invite first when the host is alone.** While the host is the only player, the bottom bar's main button is "Share invite" ("Copy invite link" where the browser has no share sheet), with "Show QR code" beside it. PLAY comes back once a second player joins. Keep the One Lid and Shout Once rules: this button is the screen's one shouted action.
+  - Done: while voting and on a confirmed game (in place of START), a lone host's bar shows SHARE INVITE / COPY INVITE LINK (one `shareInvite()` shared with the lid pill) plus an outline "QR code" pill (named "Show QR code") beside it; a copy failure shows under whichever button was used. A bot counts as a second player, so the invite line now reads "…or add a bot." Bot-room e2e specs add a bot from the strip before PLAY.
+- [x] **9.2 [P1] Make Ready unambiguous.**
+  - The guest's button becomes a pressed toggle: "Ready" with a drawn check and `aria-pressed`, where tapping again undoes it.
+  - The waiting state on rows is plain Faded Ink text ("Not ready yet"), not an outlined pill, so it never looks tappable.
+  - Ready stays felt.
+  - Done: one `aria-pressed` button: shouted READY unpressed; pressed it turns felt with a drawn check and sentence-case "Ready", with "Tap again if you're not ready." (Click on a mouse) below, linked by `aria-describedby`. Rows read plain Faded Ink "Not ready yet". e2e selectors use `pressed`.
+- [x] **9.3 [P1] Host hand-off: room on the row, and everyone is told.**
+  - **Done:**
+    - A per-row "Options for Joe" button (44px, drawn dots icon) opens a small menu with "Make Joe the host", which leads to the existing confirmation (`PlayerActions.svelte`; `MakeHostButton.svelte` removed). It's a button rather than a tappable row: rows aren't interactive anywhere else, and bot rows already carry a remove button.
+    - Short names now fit in the 320px column. A 20-character name still truncates next to a status chip.
+    - `lobby:hostChanged` gains an optional reason (`transfer` / `handoff` / `left`). `RoomToast.svelte`, mounted in `+layout.svelte`, says "Margaret made Joe the host", "You're the host now", "Joe is the host while Margaret is away" or "Margaret left. Joe is the host now".
+    - The toast is always-mounted polite live region at the top, disappears after 4s, and ignores taps.
+  - Move "Make host" off the row into a tap-a-player sheet or per-row menu (choose one and explain why), so names aren't cut down in the 320px desktop column.
+  - On `lobby:hostChanged`, show a short toast that screen readers also announce: "Margaret made Joe the host" to everyone, "You're the host now" to Joe. The delayed hand-off says "Joe is the host while Margaret reconnects".
+- [x] **9.4 [P2] Voters stay visible on rows of the same colour.** Ring voter avatars in espresso, or put them on a paper chip, when their seat colour matches the row (mustard on Crazy Eights, felt on Quixx).
+  - Done: voters always sit on a paper chip (1.5px ink outline), each a 22px seat-coloured coin with a 1.5px ink ring; checked all four seat tones on all five spine colours. The pinned leader strip uses the coins without the chip.
+- [x] **9.5 [P2] Warn before replacing the current game.** On a reopened ballot, when PLAY would start a game other than the current one while people are ready, the hint says so ("Everyone gets ready again for Quixx.").
+  - Done: appended to the PLAY hint when PLAY is enabled, the target isn't the current game and any guest is ready. A ready guest's panel line reads "Margaret is choosing again. If Crazy Eights is played, you'll get ready again." while a single playable leader isn't the current game. e2e covered.
+- [x] **9.6 [P2] Confirm Leave room.** "Leave Margaret's room? You can rejoin with the code." The host's version also says the host role will pass to someone else. Used in the lobby and the game page.
+  - **Done:**
+    - `LeaveRoomButton.svelte` asks first. Guests see "Leave Margaret's room? You can rejoin with the code CODE." The host sees "Joe will become the host", or "No one else is here, so the room closes."
+    - Spectators leave without a confirm.
+    - New e2e specs: `hostNotice`, `leaveConfirm`. `hostTransfer.test.ts` (unit) widened its host window to 1.5s, because the 300ms one raced when the whole suite ran in parallel.
+- [x] **9.7 [P3] Phone taglines.** Add a short `tagline` per game to the catalogue, and use it on phone rows instead of cutting the description mid-sentence.
+  - Done: `tagline` is a required field on `CatalogGame` in `catalog.ts` (lobby presentation, like `shelf`, so `GameMeta` and the game packages are untouched); 29–37 characters each. Under 520px the row shows the tagline and hides the description (no clamp).
+- [x] **9.8 Minor fixes:**
+  - "Bot Alice · Bot" drops the repeated role.
+  - Hide "Short on players? Bots can fill seats." when nothing more fits.
+  - Turn "No game here seats more than 6." into a next step.
+  - Hide a disabled Add bot when every seat is taken.
+  - Close the blank gap above Players on a phone while voting.
+  - Don't repeat "Change game" in the host's rules sheet.
+  - Show the failed code on the not-found page, with a field to retype it.
+  - Use "Tap" on touch devices and "Click" otherwise, or neutral wording.
+  - Keep the desktop layout steady between voting and a confirmed game (no snap from two columns to one).
+  - Make the vote summary announce only when the leader changes, not on every vote.
+  - Make keyboard focus look different from the "your vote" ring.
+  - Done: "Bot" role (and ", bot" in the strip's label) hidden when the name starts with "Bot"; at the seat cap the voting Add bot (strip and side line) is hidden and the reason is a next step ("That's a full table: no game here seats more than 6. Remove a bot to make room for a friend."); "Short on players?" hidden whenever Add bot is off; a confirmed game's full table hides Add bot; Change game removed from the rules sheet (the `onchange` prop is gone); not-found reads "There's no room QQQQQQ." with a prefilled code field + JOIN that re-checks the code (`/?join=` on success, an inline error otherwise) and an "Or start a new room" link; "Tap"/"Click" from `(hover: hover) and (pointer: fine)`; the confirmed state keeps the 920px two columns at ≥900px (panel with description + START left, players right; the lid stays wide too); standing line no longer `aria-live`, a separate sr-only region says "Quixx is leading." / "Tied: …" only when the leader set changes; ballot rows focus with a 3px Deep Clay ring offset 4px. The phone gap above Players was the sticky bar's empty slot in full-page screenshots; viewport shots show no gap, so no change.
+
 ---
 
 ## Log
@@ -220,6 +264,9 @@ From the 7.1 re-critique (28/40). The user chose to fix all five issues and to k
 | 2026-11-27 | 7 | Re-critique: 28/40, up from 21/40; remaining issues listed under 7.1 | uncommitted |
 | 2026-11-27 | 8 (8.1–8.5) | Seat-aware Keep (current game loses lead/tie-break when the room outgrows it, Keep replaced by the reason, server keep test), "?" rules on the confirmed panel with host "Change game" in the sheet, invite-first standing line for a lone host and suppressed identical fit notes, pinned leader strip + one-line descriptions on phones and vote counts in the standing line, "Everyone's ready" above START and Ready chips/strip checks on a reopened ballot; e2e for 8.1/8.2 | uncommitted |
 | 2026-11-27 | 8 (8.6–8.7) | `lobby:transferHost` with a "Make host" button and confirmation on player rows; the host hand-off on disconnect now waits 10s (`hostGraceMs`), so a quick reload keeps the role; unit, real-socket and e2e tests | uncommitted |
+| 2026-11-27 | — | Polish pass: phone player strip capped at five tokens ("+N"), ready checks moved to the visible side; third critique 29/40, Phase 9 planned | uncommitted |
+| 2026-11-27 | 9 (page items) | Lone host's bar shares the invite (with QR) instead of PLAY/START; guest Ready is a pressed toggle with undo hint, rows say "Not ready yet"; voters on a paper chip with ink-ringed coins; "Everyone gets ready again for X." on a reopened ballot; phone taglines in the catalogue; 9.8 minor fixes (bot role, full-table Add bot, rules sheet without Change game, not-found retry field, Tap/Click, two-column confirmed desktop, leader-only live region, Deep Clay focus ring); e2e updated (roomVoting, lobbyLink, inviteQr, crazyEights, bot-room specs) | uncommitted |
+| 2026-11-27 | 9 (9.3, 9.6) | Per-row player options with Make host, host-change toasts with a reason on `lobby:hostChanged`, Leave room confirmation; merged with the page items, e2e 27/27 | uncommitted |
 
 ## Notes
 
@@ -232,3 +279,4 @@ From the 7.1 re-critique (28/40). The user chose to fix all five issues and to k
 - Phase 5 deferrals: the redirect happens client-side after the socket connects, so for a moment a pasted link shows the lobby shell (lid, code tiles, "Loading game choices…") before landing on the join form. A pasted link to a room that is mid-game goes to the join form too, where Join answers "Game already in progress" and Watch works; the form could say so up front, but that would need the room status, which the check deliberately doesn't reveal. The home `?join=` card doesn't re-check the code itself.
 - Phase 6 deferrals: the QR sheet and share use `window.location.origin`, so on a LAN dev address the QR points at that address (correct for local play, but a reverse proxy with a different public origin would need a configured base URL). `navigator.share` is only checked for existence, not `canShare({ url })`. The share label was checked with a stubbed `navigator.share` (headless Chromium has none); a real phone share sheet was not tried. The QR sheet's lone Close sits at the right on a phone (could go full width). The rules sheet still closes after a vote (the toggle state is seen on reopening and on the ballot row). The rules content for non-trick games is untouched apart from sentence-case headings (e.g. Quixx still says "Phase 1 — White sum" and uses colour dots `#B8372B` / `#2F5C8A`, see the first note). On the home page the sheet's "Play Quixx" opens Start a room, while the shelf pill says "Start game"; the Phase 1 naming question still stands.
 - Phase 8 (8.1–8.5) deferrals: the server's `lobby:keepGame` refuses an over-seated room but not bots in a game without bot support (every catalogue game supports bots today, so it couldn't be tested; start is still blocked by `canStartGame`). The pinned leader strip shows only for a single leader; ties stay a plain line. The strip's ready checks overlap the next avatar slightly at the strip's -8px stacking. "No votes yet" is the standing line for a reopened ballot whose current game no longer fits. The lid share pills got no extra emphasis for a lone host (see 8.3). While the e2e suite ran, a stale `pnpm dev` from this checkout on port 3010 (started 12:20) was stopped.
+- Phase 9 (page items) deferrals: 9.3 and 9.6 are being done separately. The lone-host invite bar was checked with a stubbed `navigator.share`, not a real phone share sheet. The QR pill in the bar reads "QR code" (accessible name "Show QR code") so it fits beside SHARE INVITE at 390px; COPY INVITE LINK on a narrow screen without a share sheet wraps the pill to its own row. The not-found retry depends on `lobby:roomExists` and its lookup budget, so many retries in a row read "Couldn't check that code." The confirmed two-column desktop leaves the left column short (panel + START) when the player list is long. `hearts.test.ts` now waits for the game URL before opening the rules (it raced the lobby panel's own "How to play Hearts"). One unrepeatable flake seen once in `crazyEights.test.ts` (spectator landed on `/?join=` after leaving); it passed on every other run.
