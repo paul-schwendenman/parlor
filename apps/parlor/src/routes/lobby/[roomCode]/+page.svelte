@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { euchreMeta } from '@parlor/euchre/meta';
   import { spadesMeta } from '@parlor/spades/meta';
   import { heartsMeta } from '@parlor/hearts/meta';
   import { page } from '$app/stores';
@@ -23,6 +24,7 @@
     { id: 'kings-corner', name: 'Kings Corner', description: 'Solitaire-style card game', minPlayers: 2, maxPlayers: 4, estimatedMinutes: '15-25', tags: ['cards', 'classic'], displayModes: ['peer'], supportsBots: true },
     heartsMeta,
     spadesMeta,
+    euchreMeta,
   ];
 
   // Seat colours cycle through the palette; the first is Deep Clay, not Kiln
