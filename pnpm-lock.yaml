@@ -59,6 +59,9 @@ importers:
       '@parlor/multiplayer':
         specifier: workspace:*
         version: link:../../packages/multiplayer
+      '@parlor/oh-hell':
+        specifier: workspace:*
+        version: link:../../games/oh-hell
       '@parlor/quixx':
         specifier: workspace:*
         version: link:../../games/quixx
@@ -402,6 +405,31 @@ importers:
       vitest:
         specifier: ^4.0.0
         version: 4.0.18(@types/node@22.19.15)(tsx@4.21.0)
+
+  games/oh-hell:
+    dependencies:
+      '@parlor/cards':
+        specifier: workspace:*
+        version: link:../../packages/cards
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
 
   games/quixx:
     dependencies:

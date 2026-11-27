@@ -1,5 +1,6 @@
 <script lang="ts">
   import { euchreMeta } from '@parlor/euchre/meta';
+  import { ohHellMeta } from '@parlor/oh-hell/meta';
   import { spadesMeta } from '@parlor/spades/meta';
   import { heartsMeta } from '@parlor/hearts/meta';
   import { goto } from '$app/navigation';
@@ -66,6 +67,7 @@
     heartsMeta,
     spadesMeta,
     euchreMeta,
+    ohHellMeta,
   ];
 
   // Shelf blocks rotate through the palette like box spines (DESIGN.md: Game shelf).
