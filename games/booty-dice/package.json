@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./server-definition": "./src/lib/server/definition.ts",
-    "./game-view": "./src/lib/components/game/GameView.svelte"
+    "./game-view": "./src/lib/components/game/GameView.svelte",
+    "./face-icon": "./src/lib/components/game/FaceIcon.svelte"
   },
   "scripts": {
     "dev": "vite dev",

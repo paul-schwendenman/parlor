@@ -1,31 +1,59 @@
 <script lang="ts">
   /**
-   * A player at the table, as a compact pill: seat-coloured avatar, name, and
-   * one game-specific stat ("7 cards"). The seat whose turn it is turns felt.
+   * A player at the table, as a pill: seat-coloured avatar, name, and the
+   * game's stat for them ("7 cards"), or several stats drawn by the game
+   * (`children`). The seat whose turn it is turns felt.
+   *
+   * With `onclick` the seat is a button: when `targetable` it wears the
+   * mustard "act here" ring, as when picking who a cutlass hits.
    */
+  import type { Snippet } from 'svelte';
   import { seatTone, initial } from './seat.js';
 
   interface Props {
     name: string;
     /** Position at the table; picks the avatar colour (same as the lobby). */
     seat: number;
+    /** Shown when there are no `children`; always read aloud. */
     stat?: string;
     active?: boolean;
     connected?: boolean;
     you?: boolean;
     bot?: boolean;
+    /** Knocked out of the game: printed faded, with "out". */
+    out?: boolean;
+    /** Fill the row, stats pushed right (for lists of seats). */
+    wide?: boolean;
+    targetable?: boolean;
+    onclick?: () => void;
+    children?: Snippet;
   }
 
-  let { name, seat, stat, active = false, connected = true, you = false, bot = false }: Props = $props();
+  let {
+    name,
+    seat,
+    stat,
+    active = false,
+    connected = true,
+    you = false,
+    bot = false,
+    out = false,
+    wide = false,
+    targetable = false,
+    onclick,
+    children,
+  }: Props = $props();
 
   // The robot avatar already says "bot" on screen; the label says it aloud.
-  let roles = $derived([you && 'you', !connected && 'away'].filter(Boolean).join(' · '));
+  let roles = $derived([you && 'you', out && 'out', !connected && 'away'].filter(Boolean).join(' · '));
   let label = $derived(
-    [name, you && 'you', bot && 'bot', !connected && 'away', stat, active && 'playing now'].filter(Boolean).join(', '),
+    [name, you && 'you', bot && 'bot', out && 'out', !connected && 'away', stat, active && 'playing now']
+      .filter(Boolean)
+      .join(', '),
   );
 </script>
 
-<div class="seat" class:active class:away={!connected} aria-label={label} role="group">
+{#snippet body()}
   <span class="avatar tone-{bot ? 'ink' : seatTone(seat)}" aria-hidden="true">
     {#if bot}
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg>
@@ -35,8 +63,33 @@
   </span>
   <span class="name" aria-hidden="true">{name}</span>
   {#if roles}<span class="meta" aria-hidden="true">{roles}</span>{/if}
-  {#if stat}<span class="stat" aria-hidden="true">{stat}</span>{/if}
-</div>
+  {#if children}
+    <span class="stats" aria-hidden="true">{@render children()}</span>
+  {:else if stat}
+    <span class="stat" aria-hidden="true">{stat}</span>
+  {/if}
+{/snippet}
+
+{#if onclick}
+  <button
+    type="button"
+    class="seat"
+    class:active
+    class:away={!connected}
+    class:out
+    class:wide
+    class:targetable
+    disabled={!targetable}
+    aria-label={targetable ? `Target ${label}` : label}
+    {onclick}
+  >
+    {@render body()}
+  </button>
+{:else}
+  <div class="seat" class:active class:away={!connected} class:out class:wide aria-label={label} role="group">
+    {@render body()}
+  </div>
+{/if}
 
 <style>
   .seat {
@@ -57,6 +110,69 @@
   .seat.active {
     background: var(--color-forest-deep, #2F5A3E);
     color: var(--color-cream, #FDF6EC);
+  }
+
+  .seat.wide {
+    display: flex;
+    width: 100%;
+  }
+
+  .wide .stats,
+  .wide .stat {
+    margin-left: auto;
+  }
+
+  button.seat {
+    font: inherit;
+    text-align: left;
+    cursor: default;
+  }
+
+  button.seat.targetable {
+    cursor: pointer;
+    outline: 3px solid var(--color-mustard, #D4A843);
+    outline-offset: 3px;
+    transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @media (hover: hover) {
+    button.seat.targetable:hover {
+      transform: translateY(-2px);
+    }
+  }
+
+  button.seat.targetable:active {
+    transform: scale(0.98);
+  }
+
+  button.seat:focus-visible {
+    outline: 3px solid var(--color-espresso, #3B2F2F);
+    outline-offset: 3px;
+  }
+
+  .seat.out {
+    background: var(--color-linen, #F5EDE0);
+  }
+
+  .seat.out .name {
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+  }
+
+  .seat.out .avatar,
+  .seat.out .stats {
+    opacity: 0.5;
+  }
+
+  .stats {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-body, 'DM Sans', system-ui, sans-serif);
+    font-size: 0.875rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
 
   .seat.away {
@@ -138,6 +254,11 @@
     .meta,
     .stat {
       font-size: 0.75rem;
+    }
+
+    .stats {
+      gap: 8px;
+      font-size: 0.8125rem;
     }
   }
 </style>

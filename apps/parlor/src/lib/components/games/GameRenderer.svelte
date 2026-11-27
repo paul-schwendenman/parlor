@@ -26,9 +26,9 @@
 {:else if state.gameId === 'quixx'}
   <QuixxGame view={state.view} {socket} {playerId} />
 {:else if state.gameId === 'booty-dice'}
-  <BootyDiceGame view={state.view} {socket} {playerId} {onBackToLobby} />
+  <BootyDiceGame view={state.view} {socket} {playerId} />
 {:else if state.gameId === 'liars-dice'}
-  <LiarsDiceGame view={state.view} {socket} {playerId} {onBackToLobby} />
+  <LiarsDiceGame view={state.view} {socket} {playerId} />
 {:else if state.gameId === 'hearts'}
   <HeartsGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'kings-corner'}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Modal } from '@parlor/ui';
+  import FaceIcon from '@parlor/booty-dice/face-icon';
 
   interface Props {
     open: boolean;
@@ -182,27 +183,81 @@
       <section>
         <h3>Dice Faces</h3>
         <div class="dice-list">
-          <div class="dice-item"><span class="dice-emoji">{'\u{1FA99}'}</span><div><strong>Doubloon</strong> — Gain 2 doubloons</div></div>
-          <div class="dice-item"><span class="dice-emoji">{'\u274C'}</span><div><strong>X Marks the Spot</strong> — Lose 2 doubloons</div></div>
-          <div class="dice-item"><span class="dice-emoji">{'\u2620\uFE0F'}</span><div><strong>Jolly Roger</strong> — Steal 2 doubloons from another player</div></div>
-          <div class="dice-item"><span class="dice-emoji">{'\u2694\uFE0F'}</span><div><strong>Cutlass</strong> — Target loses 1 life (blocked by shields)</div></div>
-          <div class="dice-item"><span class="dice-emoji">{'\u{1F30A}'}</span><div><strong>Walk the Plank</strong> — You lose 1 life</div></div>
-          <div class="dice-item"><span class="dice-emoji">{'\u{1F6E1}\uFE0F'}</span><div><strong>Shield</strong> — Blocks 1 cutlass attack</div></div>
+          <div class="dice-item"><span class="dice-icon"><FaceIcon face="doubloon" size={20} /></span><div><strong>Doubloon</strong> — Gain 2 doubloons</div></div>
+          <div class="dice-item"><span class="dice-icon"><FaceIcon face="x_marks_spot" size={20} /></span><div><strong>X Marks the Spot</strong> — Lose 2 doubloons</div></div>
+          <div class="dice-item"><span class="dice-icon"><FaceIcon face="jolly_roger" size={20} /></span><div><strong>Jolly Roger</strong> — Steal 2 doubloons from another player</div></div>
+          <div class="dice-item"><span class="dice-icon"><FaceIcon face="cutlass" size={20} /></span><div><strong>Cutlass</strong> — Target loses 1 life (blocked by shields)</div></div>
+          <div class="dice-item"><span class="dice-icon"><FaceIcon face="walk_plank" size={20} /></span><div><strong>Walk the Plank</strong> — You lose 1 life</div></div>
+          <div class="dice-item"><span class="dice-icon"><FaceIcon face="shield" size={20} /></span><div><strong>Shield</strong> — Blocks 1 cutlass attack</div></div>
         </div>
       </section>
 
       <section>
         <h3>Combos</h3>
         <div class="combo-list">
-          <div class="combo-item"><strong>{'\u{1F30A}'} Mutiny</strong> — 3+ planks: all enemies lose 1 life (+1 per extra plank)</div>
-          <div class="combo-item"><strong>{'\u274C'} Shipwreck</strong> — 3+ X's: all enemies lose 3 doubloons (+1 per extra X)</div>
-          <div class="combo-item"><strong>{'\u2620\uFE0F'} Blackbeard's Curse</strong> — All 6 different faces: all enemies lose 2 lives and 5 doubloons!</div>
+          <div class="combo-item"><strong>Mutiny</strong> — 3+ planks: all enemies lose 1 life (+1 per extra plank)</div>
+          <div class="combo-item"><strong>Shipwreck</strong> — 3+ X's: all enemies lose 3 doubloons (+1 per extra X)</div>
+          <div class="combo-item"><strong>Blackbeard's Curse</strong> — All 6 different faces: all enemies lose 2 lives and 5 doubloons!</div>
         </div>
       </section>
 
       <section>
         <h3>Captain's Plunder</h3>
         <p>If you eliminate another pirate, you claim <strong>all their doubloons</strong>!</p>
+      </section>
+    {:else if gameId === 'liars-dice'}
+      <section>
+        <h3>Objective</h3>
+        <p>Be the <strong>last player with dice remaining</strong>.</p>
+      </section>
+
+      <section>
+        <h3>Setup</h3>
+        <ul>
+          <li>2-6 players, 5 dice each</li>
+          <li>Everyone rolls at the start of each round. Only you can see your dice.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Bidding</h3>
+        <p>On your turn, bid how many dice of one face are on the <strong>whole table</strong>, counting everyone's dice. Each bid must beat the last one:</p>
+        <ul>
+          <li>Raise the count: "three 4s" to "four 4s"</li>
+          <li>Or keep the count and raise the face: "three 4s" to "three 5s"</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Wild Ones</h3>
+        <p><strong>1s count as every face.</strong> If someone bids "four 3s", every 1 and every 3 counts.</p>
+        <ul>
+          <li>Switching to a bid on 1s: the count can drop to half (rounded up)</li>
+          <li>Switching back from 1s: the count must be double plus one</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Liar!</h3>
+        <p>Instead of bidding, call the last bidder a liar. Everyone shows their dice:</p>
+        <ul>
+          <li>If the bid was right, <strong>you</strong> lose a die</li>
+          <li>If the bid was wrong, the <strong>bidder</strong> loses a die</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Spot On</h3>
+        <p>Think the bid is exactly right? Call Spot on:</p>
+        <ul>
+          <li>If it's exact, <strong>everyone else</strong> loses a die</li>
+          <li>If it isn't, <strong>you</strong> lose a die</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Out</h3>
+        <p>Lose your last die and you're out. The loser of each call starts the next round.</p>
       </section>
     {/if}
   </div>
@@ -350,9 +405,19 @@
     color: var(--color-espresso);
   }
 
-  .dice-emoji {
-    font-size: 1.25rem;
-    line-height: 1;
+  /* Booty Dice faces as printed on the dice: cream on Deep Clay. */
+  .dice-icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    box-sizing: border-box;
+    border: 2px solid var(--color-espresso);
+    border-radius: 8px;
+    background: var(--color-terracotta-deep);
+    color: var(--color-cream);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .combo-list {

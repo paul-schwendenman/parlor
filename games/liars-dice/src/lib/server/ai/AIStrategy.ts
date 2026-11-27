@@ -1,4 +1,5 @@
 import type { Bid } from '../../types/game.js';
+import { isValidBid } from '../../game/bidding.js';
 
 /**
  * Everything a bot may know on its turn (CORE-AUDIT D-11 / F-30): its own dice
@@ -71,7 +72,22 @@ export class AIStrategy {
     }
 
     // Otherwise, raise the bid
-    return this.makeRaiseBid(currentBid, myDice, totalDice, state.wildOnes);
+    return this.legalize(this.makeRaiseBid(currentBid, myDice, totalDice, state.wildOnes), currentBid, totalDice, state.wildOnes);
+  }
+
+  /**
+   * The raise heuristics ignore the wild-ones conversions (from 1s to another
+   * face the count must double plus one), so lift the count until the bid is
+   * legal, or challenge when no legal bid on that face fits on the table.
+   */
+  private legalize(decision: AIDecision, currentBid: Bid, totalDice: number, wildOnes: boolean): AIDecision {
+    if (decision.action !== 'bid') return decision;
+    for (let quantity = decision.quantity; quantity <= totalDice; quantity++) {
+      if (isValidBid({ quantity, faceValue: decision.faceValue }, currentBid, wildOnes)) {
+        return { action: 'bid', quantity, faceValue: decision.faceValue };
+      }
+    }
+    return { action: 'challenge' };
   }
 
   /**

@@ -19,6 +19,7 @@
     'kings-corner': 'Kings Corner',
     'booty-dice': 'Booty Dice',
     'liars-dice': "Liar's Dice",
+    hearts: 'Hearts',
   };
 
   let roomCode = $derived($page.params.roomCode ?? '');
@@ -42,10 +43,6 @@
   let view = $derived(gameState.state);
   let gameName = $derived(view ? (GAME_NAMES[view.gameId] ?? '') : '');
   let rulesOpen = $state(false);
-  // Games whose rules the shared RulesModal carries and that have no rules
-  // button of their own yet. Booty Dice and Liar's Dice still ship their own
-  // drawer; they join this list as they move to the shared board kit.
-  const SHELL_RULES = new Set(['quixx', 'crazy-eights', 'kings-corner']);
   let hadView = false;
 
   $effect(() => {
@@ -78,7 +75,7 @@
       </span>
       {#if !playerState.id}<span class="spectating">Watching as spectator</span>{/if}
       <div class="lid-actions">
-        {#if view && SHELL_RULES.has(view.gameId)}
+        {#if view && gameName}
           <button type="button" class="rules-btn" onclick={() => (rulesOpen = true)} aria-label="How to play {gameName}" title="How to play">
             <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
           </button>

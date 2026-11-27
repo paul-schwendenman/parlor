@@ -1,4 +1,5 @@
 import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
+import { isValidBid } from '../../game/bidding.js';
 import { appendGameLog, GameRuleError } from '@parlor/multiplayer';
 import { MAX_DICE_IN_PLAY } from '../validateAction.js';
 import type { LiarsDiceBotView } from '../ai/AIStrategy.js';
@@ -151,6 +152,7 @@ export class LiarsDiceEngine {
         connected: p.connected,
         diceCount: p.diceCount,
         eliminated: p.eliminated,
+        isBot: p.isAI,
         dice: this.state.revealedDice ? this.state.revealedDice[p.id] ?? null : null,
       })),
       myDice: myPlayer ? [...myPlayer.dice] : [],
@@ -187,6 +189,7 @@ export class LiarsDiceEngine {
         connected: p.connected,
         diceCount: p.diceCount,
         eliminated: p.eliminated,
+        isBot: p.isAI,
         dice: this.state.revealedDice ? this.state.revealedDice[p.id] ?? null : null,
       })),
       myDice: [],
@@ -424,26 +427,7 @@ export class LiarsDiceEngine {
   // --- Validation helpers ---
 
   isValidBid(newBid: Bid, currentBid: Bid | null): boolean {
-    if (newBid.faceValue < 1 || newBid.faceValue > 6) return false;
-    if (newBid.quantity < 1) return false;
-
-    if (!currentBid) return true;
-
-    if (this.state.wildOnes) {
-      // Bidding on 1s from another number: quantity is halved (round up)
-      if (newBid.faceValue === 1 && currentBid.faceValue !== 1) {
-        return newBid.quantity >= Math.ceil(currentBid.quantity / 2);
-      }
-      // From 1s to another number: quantity doubled + 1
-      if (newBid.faceValue !== 1 && currentBid.faceValue === 1) {
-        return newBid.quantity >= currentBid.quantity * 2 + 1;
-      }
-    }
-
-    // Standard: higher quantity, or same quantity with higher face
-    if (newBid.quantity > currentBid.quantity) return true;
-    if (newBid.quantity === currentBid.quantity && newBid.faceValue > currentBid.faceValue) return true;
-    return false;
+    return isValidBid(newBid, currentBid, this.state.wildOnes);
   }
 
   countMatchingDice(allDice: number[][], faceValue: number): number {

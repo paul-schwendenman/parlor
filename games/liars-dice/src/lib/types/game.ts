@@ -91,6 +91,7 @@ export interface LiarsDicePlayerView {
     connected: boolean;
     diceCount: number;
     eliminated: boolean;
+    isBot: boolean;
     dice: number[] | null; // only visible during reveal
   }[];
   myDice: number[];

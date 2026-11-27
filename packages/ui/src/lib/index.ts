@@ -9,5 +9,6 @@ export { default as SuitIcon } from './cards/SuitIcon.svelte';
 export { default as CardHand } from './cards/CardHand.svelte';
 export { default as DrawPile } from './cards/DrawPile.svelte';
 export { default as Felt } from './cards/Felt.svelte';
+export { default as PipDie } from './dice/PipDie.svelte';
 export { SEAT_TONES, seatTone, initial, type SeatTone, type Standing } from './seat.js';
 export { SUIT_NAMES, isRedSuit, cardName, type CardSuit } from './cards/suits.js';

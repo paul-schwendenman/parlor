@@ -1,19 +1,21 @@
 <script lang="ts">
   /**
-   * The card-game playing surface: a felt block with an ink outline and a
-   * recessed well, sitting on the cream page. Everything on it is cream-on-felt.
+   * The playing surface: a block with an ink outline and a recessed well,
+   * sitting on the cream page. Felt for cards and Quixx dice; `night` (an
+   * espresso table) for the pirate games. Everything on it is cream.
    */
   import type { Snippet } from 'svelte';
 
   interface Props {
     label?: string;
+    tone?: 'felt' | 'night';
     children: Snippet;
   }
 
-  let { label = 'Table', children }: Props = $props();
+  let { label = 'Table', tone = 'felt', children }: Props = $props();
 </script>
 
-<section class="felt" aria-label={label}>
+<section class="felt" class:night={tone === 'night'} aria-label={label}>
   {@render children()}
 </section>
 
@@ -30,5 +32,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .felt.night {
+    background: var(--color-espresso, #3B2F2F);
+    box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.45);
   }
 </style>

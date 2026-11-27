@@ -10,7 +10,9 @@ import type {
   ResolvedEffect,
   ComboType,
   BootyDicePlayerView,
+  DiceFace,
 } from '../../types/game.js';
+import { FACE_NAMES } from '../../types/game.js';
 import { DiceRoller } from './DiceRoller.js';
 import { ActionResolver } from './ActionResolver.js';
 
@@ -441,7 +443,7 @@ export class GameEngine {
       faceCounts[d.face] = (faceCounts[d.face] || 0) + 1;
     });
     return Object.entries(faceCounts)
-      .map(([face, count]) => `${count}x ${face.replace('_', ' ')}`)
+      .map(([face, count]) => `${count} ${FACE_NAMES[face as DiceFace]}`)
       .join(', ');
   }
 
