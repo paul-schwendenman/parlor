@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PlayingCard, SuitIcon, SUIT_NAMES } from '@parlor/ui';
+  import { PlayingCard, SuitIcon, DrawPile, Felt, SUIT_NAMES } from '@parlor/ui';
   import { SUITS, type Card, type Suit } from '../../types/game.js';
 
   let {
@@ -22,7 +22,8 @@
   } = $props();
 </script>
 
-<section class="table" aria-label="Table">
+<Felt>
+  <div class="table">
   {#if choosingSuit}
     <div class="suits" role="group" aria-label="Pick the suit for the next player">
       {#each SUITS as suit (suit)}
@@ -35,22 +36,7 @@
   {:else}
     <div class="piles">
       <div class="pile">
-        {#if drawCount > 0}
-          <button
-            type="button"
-            class="stack draw"
-            class:ready={canDraw}
-            disabled={!canDraw}
-            onclick={ondraw}
-            aria-label={canDraw ? `Draw a card, ${drawCount} left` : `Draw pile, ${drawCount} left`}
-          >
-            {#if drawCount > 2}<span class="under two"><PlayingCard faceDown /></span>{/if}
-            {#if drawCount > 1}<span class="under one"><PlayingCard faceDown /></span>{/if}
-            <PlayingCard faceDown />
-          </button>
-        {:else}
-          <div class="empty">Empty</div>
-        {/if}
+        <DrawPile count={drawCount} {canDraw} {ondraw} />
         <p class="caption" aria-hidden="true">{canDraw ? 'Tap to draw' : `${drawCount} left`}</p>
       </div>
 
@@ -74,18 +60,14 @@
       </div>
     </div>
   {/if}
-</section>
+  </div>
+</Felt>
 
 <style>
+  /* Keeps the felt the same height whether it shows piles or suits. */
   .table {
-    min-height: calc(var(--card-w) * 1.42 + 96px);
-    box-sizing: border-box;
-    padding: 24px 16px 18px;
-    border: 2.5px solid var(--color-espresso);
-    border-radius: 18px;
-    background: var(--color-forest-deep);
-    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.25);
-    color: var(--color-cream);
+    width: 100%;
+    min-height: calc(var(--card-w) * 1.42 + 54px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -119,39 +101,11 @@
     inset: 0;
   }
 
-  .under.one { transform: translate(3px, 3px); }
-  .under.two { transform: translate(6px, 6px); }
   .under.tilt { transform: rotate(-7deg) translate(-4px, 2px); }
 
   /* The top card is the last child, so it sits on the stack. */
   .stack > :global(:last-child) {
     position: relative;
-  }
-
-  .draw {
-    cursor: default;
-    transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .draw.ready {
-    cursor: pointer;
-    outline: 3px solid var(--color-mustard);
-    outline-offset: 4px;
-  }
-
-  @media (hover: hover) {
-    .draw.ready:hover {
-      transform: translateY(-4px);
-    }
-  }
-
-  .draw.ready:active {
-    transform: scale(0.98);
-  }
-
-  .draw:focus-visible {
-    outline: 3px solid var(--color-cream);
-    outline-offset: 4px;
   }
 
   .empty {

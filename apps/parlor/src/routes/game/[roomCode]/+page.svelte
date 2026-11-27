@@ -45,7 +45,7 @@
   // Games whose rules the shared RulesModal carries and that have no rules
   // button of their own yet. Booty Dice and Liar's Dice still ship their own
   // drawer; they join this list as they move to the shared board kit.
-  const SHELL_RULES = new Set(['quixx', 'crazy-eights']);
+  const SHELL_RULES = new Set(['quixx', 'crazy-eights', 'kings-corner']);
   let hadView = false;
 
   $effect(() => {

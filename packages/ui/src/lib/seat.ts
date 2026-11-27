@@ -25,4 +25,6 @@ export interface Standing {
   winner?: boolean;
   you?: boolean;
   bot?: boolean;
+  /** 1-based place, when ties share one; defaults to the row's position. */
+  place?: number;
 }

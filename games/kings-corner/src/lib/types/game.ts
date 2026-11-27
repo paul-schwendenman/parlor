@@ -32,6 +32,7 @@ export interface KingsCornerPlayerInfo {
   name: string;
   cardCount: number;
   connected: boolean;
+  isBot: boolean;
 }
 
 export interface PlayableCard {

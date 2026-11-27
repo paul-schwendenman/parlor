@@ -1,5 +1,5 @@
 import { fisherYatesShuffle, secureRandomInt, type RandomInt } from '@parlor/multiplayer/random';
-import { GameRuleError } from '@parlor/multiplayer';
+import { GameRuleError, RoomManager } from '@parlor/multiplayer';
 import type {
   Card,
   PilePosition,
@@ -228,6 +228,7 @@ export class KingsCornerEngine {
         name: p.name,
         cardCount: p.hand.length,
         connected: p.connected,
+        isBot: RoomManager.isBotPlayer(p.id),
       })),
       myIndex,
       activePlayerIndex: this.activePlayerIndex,
@@ -256,6 +257,7 @@ export class KingsCornerEngine {
         name: p.name,
         cardCount: p.hand.length,
         connected: p.connected,
+        isBot: RoomManager.isBotPlayer(p.id),
       })),
       myIndex: -1,
       activePlayerIndex: this.activePlayerIndex,

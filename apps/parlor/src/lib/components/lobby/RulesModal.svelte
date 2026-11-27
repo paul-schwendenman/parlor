@@ -99,6 +99,41 @@
         <p>The first player to empty their hand wins. If no one can play and the draw pile is empty, the player with the <strong>fewest cards</strong> wins.</p>
       </section>
 
+    {:else if gameId === 'kings-corner'}
+      <section>
+        <h3>Objective</h3>
+        <p>Be the first player to get rid of all your cards.</p>
+      </section>
+
+      <section>
+        <h3>The Table</h3>
+        <p>Everyone gets <strong>7 cards</strong>. Four cards are dealt face up to the north, south, east and west piles around the draw pile. The four <strong>corners</strong> start empty.</p>
+      </section>
+
+      <section>
+        <h3>Your Turn</h3>
+        <ol>
+          <li><strong>Draw</strong> a card from the draw pile</li>
+          <li>Play as many cards as you like, then <strong>end your turn</strong></li>
+        </ol>
+      </section>
+
+      <section>
+        <h3>Playing Cards</h3>
+        <ul>
+          <li>A card goes on a pile if it is <strong>one rank lower</strong> and the <strong>opposite colour</strong>: a red 9 on a black 10</li>
+          <li>Only a <strong>King</strong> can start an empty corner</li>
+          <li>Any card can fill an empty north, south, east or west pile</li>
+          <li>You can move a <strong>whole pile</strong> onto another if its first card fits there</li>
+          <li>If you hold a King and a corner is empty, you must play it before ending your turn</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>Winning</h3>
+        <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
+      </section>
+
     {:else if gameId === 'booty-dice'}
       <section>
         <h3>Objective</h3>
