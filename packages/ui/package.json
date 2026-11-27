@@ -9,7 +9,8 @@
       "types": "./dist/index.d.ts",
       "svelte": "./src/lib/index.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./tokens.css": "./src/lib/tokens.css"
   },
   "scripts": {
     "build": "svelte-package",

@@ -11,6 +11,15 @@
   import { getSocket } from '$lib/stores/socketClient.js';
   import LeaveRoomButton from '$lib/components/LeaveRoomButton.svelte';
   import GameRenderer from '$lib/components/games/GameRenderer.svelte';
+  import RulesModal from '$lib/components/lobby/RulesModal.svelte';
+
+  const GAME_NAMES: Record<string, string> = {
+    quixx: 'Quixx',
+    'crazy-eights': 'Crazy Eights',
+    'kings-corner': 'Kings Corner',
+    'booty-dice': 'Booty Dice',
+    'liars-dice': "Liar's Dice",
+  };
 
   let roomCode = $derived($page.params.roomCode ?? '');
   let roomNotFound = $state(false);
@@ -31,6 +40,12 @@
   });
 
   let view = $derived(gameState.state);
+  let gameName = $derived(view ? (GAME_NAMES[view.gameId] ?? '') : '');
+  let rulesOpen = $state(false);
+  // Games whose rules the shared RulesModal carries and that have no rules
+  // button of their own yet. Booty Dice and Liar's Dice still ship their own
+  // drawer; they join this list as they move to the shared board kit.
+  const SHELL_RULES = new Set(['quixx', 'crazy-eights']);
   let hadView = false;
 
   $effect(() => {
@@ -62,7 +77,14 @@
         {/each}
       </span>
       {#if !playerState.id}<span class="spectating">Watching as spectator</span>{/if}
-      <div class="leave"><LeaveRoomButton /></div>
+      <div class="lid-actions">
+        {#if view && SHELL_RULES.has(view.gameId)}
+          <button type="button" class="rules-btn" onclick={() => (rulesOpen = true)} aria-label="How to play {gameName}" title="How to play">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+          </button>
+        {/if}
+        <LeaveRoomButton />
+      </div>
     {/if}
   </div>
 </header>
@@ -85,6 +107,8 @@
     onBackToLobby={playerState.id ? handleBackToLobby : undefined}
   />
 {/if}
+
+<RulesModal open={rulesOpen} gameId={view?.gameId ?? null} {gameName} onclose={() => (rulesOpen = false)} />
 
 <style>
   /* A slim lid: identity and the room code without taking the board's space. */
@@ -138,10 +162,16 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Phones: keep wordmark, code and Leave on one row. */
+  /* Phones: one row for code, rules and Leave. Mid-game the room code is the
+     identity that matters, so the wordmark steps aside. */
   @media (max-width: 420px) {
     .wordmark {
-      font-size: 1.25rem;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
     }
 
     .code {
@@ -177,8 +207,37 @@
     font-weight: 700;
   }
 
-  .leave {
+  .lid-actions {
     margin-left: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  /* Rules live in the same place in every game. Cream fill on the lid
+     (DESIGN.md: pills on the lid are always cream-filled). */
+  .rules-btn {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 2px solid var(--color-espresso);
+    border-radius: 50%;
+    background: var(--color-cream);
+    color: var(--color-espresso);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.1s ease;
+  }
+
+  .rules-btn:hover {
+    background: var(--color-paper);
+  }
+
+  .rules-btn:active {
+    transform: scale(0.96);
   }
 
   .lid :global(:focus-visible) {

@@ -4,14 +4,16 @@
   interface Props {
     variant?: 'primary' | 'secondary' | 'danger';
     disabled?: boolean;
+    /** The one uppercase Nunito 900 action on a screen (DESIGN.md: Shout Once). */
+    shout?: boolean;
     onclick?: () => void;
     children: Snippet;
   }
 
-  let { variant = 'primary', disabled = false, onclick, children }: Props = $props();
+  let { variant = 'primary', disabled = false, shout = false, onclick, children }: Props = $props();
 </script>
 
-<button type="button" class="btn btn-{variant}" {disabled} {onclick}>
+<button type="button" class="btn btn-{variant}" class:shout {disabled} {onclick}>
   {@render children()}
 </button>
 
@@ -38,6 +40,16 @@
     border-style: dashed;
     color: var(--color-ink-muted, #71625A);
     cursor: not-allowed;
+  }
+
+  .btn.shout {
+    min-height: 56px;
+    padding: 0 28px;
+    font-family: var(--font-heading, 'Nunito', system-ui, sans-serif);
+    font-size: 1.1875rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
   }
 
   .btn-primary {

@@ -22,6 +22,7 @@ export interface CrazyEightsPlayerInfo {
   name: string;
   cardCount: number;
   connected: boolean;
+  isBot: boolean;
 }
 
 export interface CrazyEightsPlayerView {

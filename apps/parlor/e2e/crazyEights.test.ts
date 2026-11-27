@@ -44,7 +44,7 @@ test('Crazy Eights renders each seat its own hand from the typed envelope', asyn
     for (const page of [hostPage, guestPage]) {
       await expect(page).toHaveURL(`/game/${roomCode}`);
       await expect(page.getByText('Unknown game type')).toHaveCount(0);
-      await expect(page.locator('.discard-pile')).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Table' })).toBeVisible();
       // Two players are dealt seven cards each.
       await expect(page.locator('.hand .hand-card')).toHaveCount(7);
     }
@@ -81,14 +81,14 @@ test('a spectator can watch before play starts, leave, and rejoin a live game', 
     await host.getByRole('button', { name: 'Start Game' }).click();
 
     await expect(watcher).toHaveURL(`/game/${roomCode}`);
-    await expect(watcher.locator('.discard-pile')).toBeVisible();
+    await expect(watcher.getByRole('region', { name: 'Table' })).toBeVisible();
     await expect(watcher.locator('.hand .hand-card')).toHaveCount(0);
     await watcher.getByRole('button', { name: 'Leave room' }).click();
     await expect(watcher).toHaveURL('/');
 
     await watchRoom(watcher, roomCode);
     await expect(watcher).toHaveURL(`/game/${roomCode}`);
-    await expect(watcher.locator('.discard-pile')).toBeVisible();
+    await expect(watcher.getByRole('region', { name: 'Table' })).toBeVisible();
     await expect(watcher.locator('.hand .hand-card')).toHaveCount(0);
 
     await guest.getByRole('button', { name: 'Leave room' }).click();

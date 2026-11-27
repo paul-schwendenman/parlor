@@ -159,7 +159,7 @@ Parlor should feel like the lid of a well-made board game: printed in flat color
 
 Density is low and the targets are large. Parlor is played on phones held at arm's length and on laptops propped on a kitchen table, usually while people are also talking to each other. So everything is generous and every action is a big, obvious pill. Hierarchy comes from weight and color blocks, not from fine grey type or subtle depth. Expression sits in a few signature moves: the lid, the letter-tile room code, the ink outline and the color-blocked game shelf. Everything else stays plain so those moves read clearly.
 
-**Implementation status.** The Parlor app shell (home, lobby, game frame) and the shared `@parlor/ui` components follow this system. Individual game boards under `games/*` predate it and are migrated game by game; where a board and this file disagree, this file wins.
+**Implementation status.** The Parlor app shell (home, lobby, game frame) and the shared `@parlor/ui` components follow this system. Game boards under `games/*` are migrated to the shared board kit one game at a time (Crazy Eights first, 2026-11-27); where a board and this file disagree, this file wins. See Game boards.
 
 **Key Characteristics:**
 - Terracotta "lid" header on every main screen, outlined at the bottom in ink.
@@ -293,6 +293,25 @@ Each game is a solid color block: 2.5px espresso outline, 18px corners, 18px pad
 
 ### Lid header / navigation
 A terracotta block running edge to edge with a 3px espresso bottom edge. The wordmark sits at the left (PARLOR, Nunito 900, links home), with a cream-filled, ink-outlined "Leave room" pill on the right when the player is in a room. Pills on the lid are always cream-filled: cream text on Kiln Terracotta would break the Deep Clay Rule. The home lid holds the 76px display wordmark and the tagline. The connection-status bar sits above the lid: mustard for disconnected, Deep Clay for reconnecting and Spilled Wine for errors, always with text in the passing color.
+
+## Game boards
+
+Every game is a box in the same collection. The boards don't share a colour scheme, but they share the way the box is printed, so moving from Crazy Eights to Quixx feels like opening a different box from the same shelf.
+
+**Shared by every board** (built once, in `@parlor/ui`):
+- **Turn banner** (`TurnBanner`): the first thing on every board. Felt with cream text when it's your move, paper while you wait. The title is Nunito 900 ("Your turn", "Margaret's turn", "Pick a suit"), and one optional sentence of DM Sans tells you what you can do right now.
+- **Seats** (`SeatChip`): other players as outlined pills with the seat-coloured avatar from the lobby (robot glyph for bots), the name in Nunito 800 and one game stat ("7 cards"). The seat whose turn it is turns felt. A disconnected seat is dashed on linen.
+- **How to play**: a cream "?" button on the game lid, beside Leave room. Boards don't carry their own rules buttons.
+- **Game over** (`GameOver`): a felt result block (mustard trophy, "You win!"), standings as outlined rows with place, avatar and the game's own measure, then PLAY AGAIN (the one shouted action) and an outline "Back to lobby".
+- **Buttons** are `Button` pills; the board's single primary move is `shout`.
+- **Seat colours** come from `seatTone(index)`, so a player has the same colour in the lobby, on the board and in the standings.
+
+**Owned by each game:**
+- **Its colour** is its shelf spine on the home page: Quixx felt, Crazy Eights mustard, Booty Dice clay, Liar's Dice espresso, Kings Corner linen. It shows up on the game's printed pieces (card backs, dice, sheet headers), not as a second lid.
+- **Its playing surface**: card games play on a felt table (felt-well inset, ink outline, 18px corners); Quixx on a printed paper scoresheet; the pirate games on espresso "night table" blocks with cream text. A surface is always an outlined block on cream, never a full-page theme.
+- **Its pieces**: cards are `PlayingCard` (paper stock, ink outline, Nunito index top-left, drawn SVG suits, backs printed in the game's colour via `--card-back`). Dice and sheets follow the same printed-ink rules.
+
+**The Collection Rule.** If two games show the same kind of thing (whose turn it is, who's at the table, how it ended), they show it with the same component. A game's own identity goes into its pieces and its surface, never into the chrome around them.
 
 ## Do's and Don'ts
 
