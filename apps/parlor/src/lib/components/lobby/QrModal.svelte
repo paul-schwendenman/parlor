@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Modal } from '@parlor/ui';
+  import { Button, Modal } from '@parlor/ui';
   import { qrPath } from '$lib/qr.js';
 
   interface Props {
@@ -7,16 +7,19 @@
     /** The invite link the code encodes (origin + '?join=' + code). */
     url: string;
     roomCode: string;
+    shareLabel?: string;
+    onshare?: () => void;
+    shareFailed?: boolean;
     onclose: () => void;
   }
 
-  let { open, url, roomCode, onclose }: Props = $props();
+  let { open, url, roomCode, shareLabel, onshare, shareFailed, onclose }: Props = $props();
 
   let qr = $derived(url ? qrPath(url) : null);
 </script>
 
 {#if open}
-<Modal open={true} {onclose} title="Scan to join">
+<Modal open={true} {onclose} title={onshare ? 'Invite players' : 'Scan to join'}>
   <div class="qr-sheet">
     {#if qr}
       <svg
@@ -38,7 +41,11 @@
     </div>
     <p class="hint">Scan with a phone camera to join.</p>
   </div>
+  {#if shareFailed}<p class="hint" role="status">Couldn't copy the link. Read the code out instead.</p>{/if}
   <div class="footer">
+    {#if onshare}
+      <Button onclick={onshare}>{shareLabel}</Button>
+    {/if}
     <button type="button" class="btn-close" onclick={onclose}>Close</button>
   </div>
 </Modal>
@@ -115,6 +122,8 @@
   .footer {
     display: flex;
     justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
     margin-top: 20px;
   }
 

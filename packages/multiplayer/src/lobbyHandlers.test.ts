@@ -677,7 +677,7 @@ it('shares the lookup limit across join and spectate, and refills while other re
 });
 
 describe('lobby:roomExists', () => {
-  it('returns the selected game without joining the room', () => {
+  it('returns a limited invite preview without joining the room', () => {
     const rm = new RoomManager();
     const io = createFakeIo();
     const host = connectFakeSocket(io, rm, undefined, 'host');
@@ -690,7 +690,7 @@ describe('lobby:roomExists', () => {
     const emittedBefore = io.emitted.length;
     const live = vi.fn();
     visitor.fire('lobby:roomExists', roomCode.toLowerCase(), live);
-    expect(live).toHaveBeenCalledExactlyOnceWith(true, undefined, gameRules.id);
+    expect(live).toHaveBeenCalledExactlyOnceWith(true, undefined, gameRules.id, { hostName: 'Margaret', peopleCount: 1 });
     const missing = vi.fn();
     visitor.fire('lobby:roomExists', 'NOPE99', missing);
     expect(missing).toHaveBeenCalledExactlyOnceWith(false);
@@ -701,8 +701,7 @@ describe('lobby:roomExists', () => {
     }
     expect(() => visitor.fire('lobby:roomExists', roomCode)).not.toThrow();
 
-    // No player names, no room membership, no broadcast, no change to the room.
-    expect(JSON.stringify(live.mock.calls)).not.toContain('Margaret');
+    // The lookup does not join, broadcast or change the room.
     expect(visitor.received).toEqual([]);
     expect(visitor.data.roomCode).toBe('');
     expect(io.emitted.length).toBe(emittedBefore);
@@ -729,7 +728,7 @@ describe('lobby:roomExists', () => {
       now = 500;
       const ack = vi.fn();
       visitor.fire('lobby:roomExists', host.data.roomCode, ack);
-      expect(ack).toHaveBeenCalledExactlyOnceWith(true, undefined, null);
+      expect(ack).toHaveBeenCalledExactlyOnceWith(true, undefined, null, { hostName: 'Host', peopleCount: 1 });
     } finally {
       clock.mockRestore();
     }

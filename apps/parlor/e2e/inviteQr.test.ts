@@ -11,8 +11,8 @@ test('the lobby shows a QR code of the invite link with the room code', async ({
 	await expect(page.getByRole('heading', { name: 'Vote on a game' })).toBeVisible();
 	const roomCode = new URL(page.url()).pathname.split('/').pop()!;
 
-	// The lid's pill (a lone host also has one in the bottom bar).
-	const show = page.locator('.lid').getByRole('button', { name: 'Show QR code', exact: true });
+	// The lone host has one set of invite controls in the bottom bar.
+	const show = page.getByRole('button', { name: 'Show QR code', exact: true });
 	await show.click();
 	const sheet = page.getByRole('dialog', { name: 'Scan to join' });
 	await expect(sheet).toBeVisible();

@@ -2,18 +2,20 @@
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/stores';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { browser } from '$app/environment';
   import { getSocket, createRoomAction, joinRoomAction, lookupRoomAction, spectateRoomAction } from '$lib/stores/socketClient.js';
   import { PLAYER_NAME_MAX_LENGTH, ROOM_CODE_LENGTH } from '@parlor/game-types';
   import { catalog as games, findGame, minutesRange, playerRange } from '$lib/games/catalog.js';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
-  let prefillCode = $derived($page.url.searchParams.get('join') ?? '');
+  let prefillCode = $derived(($page.url.searchParams.get('join') ?? '').trim().toUpperCase());
+  let editingCode = $derived(prefillCode.length !== ROOM_CODE_LENGTH || !/^[A-Z0-9]+$/.test(prefillCode));
+  let codeInput = $state<HTMLInputElement | null>(null);
   let joinName = $state('');
-  let joinCode = $state('');
+  let joinCode = $derived(prefillCode);
   let normalizedCode = $derived(joinCode.trim().toUpperCase());
-  let roomPreview = $state<{ code: string; exists: boolean; gameId?: string | null } | null>(null);
+  let roomPreview = $state<({ code: string } & NonNullable<Awaited<ReturnType<typeof lookupRoomAction>>>) | null>(null);
   let visiblePreview = $derived(roomPreview?.code === normalizedCode ? roomPreview : null);
   let previewGame = $derived(findGame(visiblePreview?.gameId));
   let error = $state('');
@@ -27,10 +29,6 @@
   let createName = $state('');
   let createDialog = $state<HTMLDialogElement | null>(null);
   let createGame = $derived(findGame(selectedGameForCreate));
-
-  $effect(() => {
-    if (prefillCode) joinCode = prefillCode;
-  });
 
   $effect(() => {
     const code = normalizedCode;
@@ -66,6 +64,13 @@
       getSocket();
     }
   });
+
+  async function changeCode() {
+    editingCode = true;
+    await tick();
+    codeInput?.focus();
+    codeInput?.select();
+  }
 
   async function handleJoin() {
     if (loading) return;
@@ -178,27 +183,37 @@
 <div class="home">
   <!-- Join -->
   <section class="join" aria-labelledby="join-title">
-    <h2 id="join-title" class="join-title">Join a room</h2>
-    {#if prefillCode}
-      <p class="join-invite">Add your name to join room {prefillCode.toUpperCase()}.</p>
-    {/if}
+    <div aria-live="polite">
+      <h2 id="join-title" class="join-title">{prefillCode && visiblePreview?.preview?.hostName ? `Join ${visiblePreview.preview.hostName}’s room` : 'Join a room'}</h2>
+      {#if prefillCode && visiblePreview?.preview}
+        {@const count = visiblePreview.preview.peopleCount}
+        <p class="join-invite">{count} {count === 1 ? 'person' : 'people'} here</p>
+      {/if}
+    </div>
     <form class="join-form" onsubmit={handleJoinSubmit} novalidate>
       <div>
-        <label class="field">
-          <span class="field-label">Room code</span>
-          <input
-            type="text"
-            bind:value={joinCode}
-            placeholder="ABCD"
-            maxlength={ROOM_CODE_LENGTH}
-            autocomplete="off"
-            autocapitalize="characters"
-            spellcheck="false"
-            class="input input-code"
-            aria-invalid={!!error && !creatingRoom && !joinCode.trim()}
-            aria-describedby={error && !creatingRoom ? 'join-error' : undefined}
-          />
-        </label>
+        <div class="code-field">
+          <label class="field">
+            <span class="field-label">Room code</span>
+            <input
+              type="text"
+              bind:value={joinCode}
+              bind:this={codeInput}
+              readonly={!!prefillCode && !editingCode}
+              placeholder="ABCD"
+              maxlength={ROOM_CODE_LENGTH}
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              class="input input-code"
+              aria-invalid={!!error && !creatingRoom && !joinCode.trim()}
+              aria-describedby={error && !creatingRoom ? 'join-error' : undefined}
+            />
+          </label>
+          {#if prefillCode && !editingCode}
+            <button type="button" class="btn-watch change-code" onclick={changeCode}>Change</button>
+          {/if}
+        </div>
         <div role="status">
           {#if previewGame}
             <div class="room-preview spine-{previewGame.shelf}">
@@ -231,38 +246,52 @@
       {/if}
       <button type="submit" class="btn btn-primary" disabled={!interactive || loading}>Join</button>
     </form>
+    {#if prefillCode}
+      <details class="invite-options">
+        <summary>Not what you meant?</summary>
+        {@render watchButton()}
+        <a href={resolve('/')}>Start a new room</a>
+      </details>
+    {:else}
+      {@render watchButton()}
+    {/if}
+  </section>
+
+  {#snippet watchButton()}
     <button type="button" class="btn-watch" onclick={handleWatch} disabled={!interactive || loading}>Watch as spectator</button>
-  </section>
+  {/snippet}
 
-  <!-- Game shelf -->
-  <section class="shelf" aria-labelledby="shelf-title">
-    <h2 id="shelf-title" class="shelf-title">Or start a new room</h2>
-    <button type="button" class="btn btn-accent create-room" onclick={() => openCreateRoom()} disabled={!interactive || loading}>Create a room</button>
-    <div class="game-grid">
-      {#each games as game (game.id)}
-        <article class="game-card spine-{game.shelf}">
-          <div class="game-head">
-            <h3 class="game-name">{game.name}</h3>
-            <span class="game-meta">{playerRange(game)} · {minutesRange(game)}m</span>
-          </div>
-          <p class="game-desc">{game.description}</p>
-          <p class="game-tags">{game.tags.join(' · ')}</p>
-          <div class="game-actions">
-            <button type="button" class="spine-ghost" onclick={() => openRules(game.id)} disabled={!interactive}>How to play</button>
-            <button type="button" class="spine-solid" onclick={() => openCreateRoom(game.id)} disabled={!interactive}>Start game</button>
-          </div>
-        </article>
-      {/each}
-    </div>
-  </section>
+  {#if !prefillCode}
+    <!-- Game shelf -->
+    <section class="shelf" aria-labelledby="shelf-title">
+      <h2 id="shelf-title" class="shelf-title">Or start a new room</h2>
+      <button type="button" class="btn btn-accent create-room" onclick={() => openCreateRoom()} disabled={!interactive || loading}>Create a room</button>
+      <div class="game-grid">
+        {#each games as game (game.id)}
+          <article class="game-card spine-{game.shelf}">
+            <div class="game-head">
+              <h3 class="game-name">{game.name}</h3>
+              <span class="game-meta">{playerRange(game)} · {minutesRange(game)}m</span>
+            </div>
+            <p class="game-desc">{game.description}</p>
+            <p class="game-tags">{game.tags.join(' · ')}</p>
+            <div class="game-actions">
+              <button type="button" class="spine-ghost" onclick={() => openRules(game.id)} disabled={!interactive}>How to play</button>
+              <button type="button" class="spine-solid" onclick={() => openCreateRoom(game.id)} disabled={!interactive}>Start game</button>
+            </div>
+          </article>
+        {/each}
+      </div>
+    </section>
 
-  <RulesModal
-    open={rulesOpen}
-    gameId={rulesGameId}
-    gameName={rulesGame?.name ?? ''}
-    onclose={closeRules}
-    onplay={playFromRules}
-  />
+    <RulesModal
+      open={rulesOpen}
+      gameId={rulesGameId}
+      gameName={rulesGame?.name ?? ''}
+      onclose={closeRules}
+      onplay={playFromRules}
+    />
+  {/if}
 </div>
 
 <!-- Create room dialog -->
@@ -305,6 +334,34 @@
 </dialog>
 
 <style>
+  .code-field {
+    display: flex;
+    align-items: end;
+    gap: 12px;
+  }
+
+  .code-field .field {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .invite-options {
+    margin-top: 16px;
+    color: var(--color-espresso);
+  }
+
+  .invite-options summary,
+  .invite-options a {
+    min-height: 44px;
+    align-content: center;
+    cursor: pointer;
+  }
+
+  .invite-options a {
+    display: block;
+    color: inherit;
+  }
+
   /* Lid */
   .lid {
     background: var(--color-terracotta);

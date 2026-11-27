@@ -128,7 +128,7 @@ test('rules open from the confirmed game, and a room that outgrows it cannot kee
 	// Alone, the standing line asks for an invite first, and the bottom bar's
 	// one shouted button invites (headless Chromium has no share sheet, so it
 	// copies), with the QR code beside it. There is no PLAY yet.
-	await expect(page.getByText('Share the code so others can join, or add a bot. You can vote while you wait.', { exact: true })).toBeVisible();
+	await expect(page.getByText('Share the code so others can join, or add a bot.', { exact: true })).toBeVisible();
 	await expect(page.getByText('Needs 1 more player', { exact: true })).toHaveCount(0);
 	const playBar = page.locator('.play-bar');
 	await expect(playBar.getByRole('button', { name: 'Copy invite link', exact: true })).toBeVisible();
@@ -150,8 +150,14 @@ test('rules open from the confirmed game, and a room that outgrows it cannot kee
 		await expect(playBar.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 		await expect(playBar.getByRole('button', { name: 'Copy invite link', exact: true })).toHaveCount(0);
 		await expect(guest.locator('.play-bar')).toHaveCount(0);
+		await guest.getByRole('button', { name: 'Invite', exact: true }).click();
+		const invite = guest.getByRole('dialog', { name: 'Invite players' });
+		await expect(invite.getByRole('img')).toBeVisible();
+		await expect(invite.getByRole('button', { name: 'Copy invite link' })).toBeVisible();
+		await invite.getByRole('button', { name: 'Close' }).click();
 
 		await guest.getByRole('button', { name: 'Vote for Hearts', exact: true }).click();
+		await expect(guest.getByText('Your vote: Hearts', { exact: true })).toBeVisible();
 		await expect(page.getByText('Leading · Hearts, 1 vote (needs 2 more players)', { exact: true })).toBeVisible();
 		await page.getByRole('button', { name: 'Play Hearts', exact: true }).click();
 		await page.getByRole('button', { name: 'Add bot to seat 3', exact: true }).click();
@@ -190,7 +196,10 @@ test('rules open from the confirmed game, and a room that outgrows it cannot kee
 		await expect(page.getByText('Hearts seats 4. Remove 1 bot to keep it.', { exact: true })).toBeVisible();
 		await page.getByRole('button', { name: /^Remove Bot / }).first().click();
 		await expect(page.getByText('Leading · Hearts (current game)', { exact: true })).toBeVisible();
-		await page.getByRole('button', { name: 'Keep Hearts', exact: true }).click();
+		await guest.getByRole('button', { name: 'Vote for Crazy Eights', exact: true }).click();
+		await expect(page.getByText('Guest suggested Crazy Eights.', { exact: true })).toBeVisible();
+		await page.getByRole('button', { name: 'Keep Hearts anyway', exact: true }).click();
+		await expect(guest.getByTestId('room-toast')).toHaveText('Host kept Hearts.');
 		await expect(page.getByRole('heading', { name: 'Hearts', exact: true })).toBeFocused();
 		await expect(guest.getByRole('button', { name: 'Ready', exact: true, pressed: true })).toBeVisible();
 	} finally {

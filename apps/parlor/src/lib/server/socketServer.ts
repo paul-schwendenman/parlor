@@ -36,6 +36,18 @@ export function setupParlorSocketHandlers(io: AppServer, roomManager = new RoomM
 		return ballot;
 	}
 
+	function tallyVotes(room: GameRoom, ballot: Ballot): Map<string, number> {
+		const totals = new Map<string, number>();
+		for (const [playerId, gameId] of ballot.votes) {
+			if (!room.players.has(playerId)) {
+				ballot.votes.delete(playerId);
+				continue;
+			}
+			totals.set(gameId, (totals.get(gameId) ?? 0) + 1);
+		}
+		return totals;
+	}
+
 	function publishBallot(roomCode: string): void {
 		const room = roomManager.getRoom(roomCode);
 		if (!room) return;
@@ -47,14 +59,7 @@ export function setupParlorSocketHandlers(io: AppServer, roomManager = new RoomM
 			return;
 		}
 
-		const totals = new Map<string, number>();
-		for (const [playerId, gameId] of ballot.votes) {
-			if (!room.players.has(playerId)) {
-				ballot.votes.delete(playerId);
-				continue;
-			}
-			totals.set(gameId, (totals.get(gameId) ?? 0) + 1);
-		}
+		const totals = tallyVotes(room, ballot);
 		const counts = Object.fromEntries(totals);
 		const votes = Object.fromEntries(ballot.votes);
 		for (const socketId of io.sockets.adapter.rooms.get(roomCode) ?? []) {
@@ -254,6 +259,12 @@ export function setupParlorSocketHandlers(io: AppServer, roomManager = new RoomM
 				if (room.players.size > maxPlayers || !roomManager.selectGame(roomCode, definition.meta)) {
 					ack(false, `${name} seats ${maxPlayers}. Remove a bot or play another game.`);
 					return;
+				}
+				const totals = tallyVotes(room, ballot);
+				const keptVotes = totals.get(definition.meta.id) ?? 0;
+				if ([...totals.values()].some(count => count > keptVotes)) {
+					const hostName = room.players.get(playerId)?.name ?? 'The host';
+					io.to(roomCode).emit('lobby:gameKept', roomCode, hostName, name);
 				}
 				ballots.delete(room);
 				io.to(roomCode).emit('lobby:gameSelected', room.gameId);

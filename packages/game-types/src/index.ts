@@ -133,6 +133,11 @@ export type GameStateEnvelope<K extends GameId = GameId> = {
   [P in K]: { gameId: P; view: GameViewMap[P] };
 }[K];
 
+export interface RoomInvitePreview {
+  hostName?: string;
+  peopleCount: number;
+}
+
 export interface GameBallotSnapshot {
   roundId: string;
   totals: Partial<Record<string, number>>;
@@ -167,6 +172,7 @@ export type ServerToClientEvents = {
    * left the room or was removed). With no reason this is a sync (on join,
    * spectate or reconnect) and nothing changed for the room.
    */
+  'lobby:gameKept': (roomCode: string, hostName: string, gameName: string) => void;
   'lobby:hostChanged': (newHostId: string, reason?: HostChangeReason) => void;
   /** Player kept during the disconnect grace window (grey them out, do not remove). */
   'player:disconnected': (playerId: string) => void;
@@ -196,7 +202,7 @@ export type LobbyClientEvents = {
    * Whether a room with this code exists, for a pasted `/lobby/CODE` link with
    * no session. Reveals nothing a join attempt by code wouldn't.
    */
-  'lobby:roomExists': (roomCode: string, callback: (exists: boolean, error?: string, gameId?: string | null) => void) => void;
+  'lobby:roomExists': (roomCode: string, callback: (exists: boolean, error?: string, gameId?: string | null, preview?: RoomInvitePreview) => void) => void;
   'lobby:join': (
     roomCode: string,
     playerName: string,
