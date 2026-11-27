@@ -138,7 +138,7 @@ test('a Quixx spectator sees the table without a player scoresheet', async ({ br
     await watchRoom(watcher, roomCode);
     await expect(watcher).toHaveURL(`/game/${roomCode}`);
     await expect(watcher.getByText('Watching as spectator')).toBeVisible();
-    await expect(watcher.getByRole('heading', { name: 'Players' })).toBeVisible();
+    await expect(watcher.getByRole('list', { name: 'Players' })).toBeVisible();
     await expect(watcher.getByText(/Bot Alice/)).toBeVisible();
     await expect(watcher.locator('.scoresheet')).toHaveCount(0);
   } finally {

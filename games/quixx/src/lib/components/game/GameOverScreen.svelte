@@ -1,11 +1,13 @@
 <script lang="ts">
-  import type { PlayerScore, RowColor, Scoresheet } from '../../types/game.js';
   import type { GameSocket } from '@parlor/multiplayer/client';
+  import { GameOver, Button } from '@parlor/ui';
+  import type { PlayerScore, RowColor, Scoresheet } from '../../types/game.js';
   import ScoresheetViewer from './ScoresheetViewer.svelte';
 
   interface PlayerData {
     id: string;
     name: string;
+    isBot: boolean;
     sheet: Scoresheet;
     penalties: number;
     lockedRows: RowColor[];
@@ -18,146 +20,74 @@
     myPlayerId,
   }: {
     socket: GameSocket<'quixx'>;
+    /** Best first. */
     scores: PlayerScore[];
     players: PlayerData[];
     myPlayerId: string;
   } = $props();
 
   let viewerOpen = $state(false);
-  let viewerInitialPlayer = $state(myPlayerId);
 
-  function playAgain() {
-    socket.emit('lobby:restartGame');
-  }
+  let best = $derived(scores[0]?.total ?? 0);
+  let leaders = $derived(scores.filter((s) => s.total === best));
 
-  function backToLobby() {
-    socket.emit('lobby:resetGame');
-  }
+  let headline = $derived(
+    leaders.length > 1
+      ? "It's a tie"
+      : leaders[0]?.playerId === myPlayerId
+        ? 'You win!'
+        : `${leaders[0]?.name ?? 'Nobody'} wins!`,
+  );
 
-  function openViewer(playerId: string) {
-    viewerInitialPlayer = playerId;
-    viewerOpen = true;
-  }
+  let standings = $derived(
+    scores.map((s) => {
+      const seat = players.findIndex((p) => p.id === s.playerId);
+      return {
+        id: s.playerId,
+        name: s.name,
+        seat: Math.max(seat, 0),
+        place: scores.findIndex((o) => o.total === s.total) + 1,
+        detail: `${s.total} ${Math.abs(s.total) === 1 ? 'point' : 'points'}`,
+        winner: s.total === best,
+        you: s.playerId === myPlayerId,
+        bot: players[seat]?.isBot ?? false,
+      };
+    }),
+  );
+
+  const playAgain = () => socket.emit('lobby:restartGame');
+  const backToLobby = () => socket.emit('lobby:resetGame');
 </script>
 
-<div class="game-over">
-  <h2>Game Over!</h2>
-
-  <div class="rankings">
-    {#each scores as score, i}
-      <button class="rank" class:winner={i === 0} class:me={score.playerId === myPlayerId} onclick={() => openViewer(score.playerId)}>
-        <span class="position">{i + 1}{i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th'}</span>
-        <span class="name">{score.name} {score.playerId === myPlayerId ? '(You)' : ''}</span>
-        <span class="total">{score.total} pts</span>
-        <span class="chevron">›</span>
-      </button>
-    {/each}
-  </div>
-
-  <div class="actions">
-    <button class="primary" onclick={playAgain}>Play Again</button>
-    <button class="secondary" onclick={backToLobby}>Back to Lobby</button>
-    <button class="secondary" onclick={() => openViewer(myPlayerId)}>View Scoresheets</button>
-  </div>
-</div>
+<GameOver
+  {headline}
+  detail={leaders.length > 1 ? `${leaders.map((l) => l.name).join(' and ')} share the top score.` : 'Highest score after the game closes.'}
+  {standings}
+  onplayagain={myPlayerId ? playAgain : undefined}
+  onlobby={myPlayerId ? backToLobby : undefined}
+>
+  {#snippet more()}
+    <div class="sheets">
+      <Button variant="secondary" onclick={() => (viewerOpen = true)}>See everyone's scoresheets</Button>
+    </div>
+  {/snippet}
+</GameOver>
 
 <ScoresheetViewer
   {players}
   {scores}
   {myPlayerId}
-  initialPlayerId={viewerInitialPlayer}
+  initialPlayerId={myPlayerId || scores[0]?.playerId || ''}
   bind:open={viewerOpen}
 />
 
 <style>
-  .game-over {
-    max-width: 400px;
-    margin: 0 auto;
-    padding: 32px 16px;
-    text-align: center;
-  }
-  h2 {
-    font-size: 32px;
-    margin-bottom: 24px;
-  }
-  .rankings {
-    margin-bottom: 24px;
-  }
-  .rank {
+  .sheets {
     display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 8px;
-    background: #f9fafb;
-    border: 2px solid transparent;
+    justify-content: center;
+  }
+
+  .sheets :global(.btn) {
     width: 100%;
-    font-size: inherit;
-    cursor: pointer;
-    text-align: left;
-    transition: background 0.15s;
-  }
-  .rank:hover {
-    background: #f3f4f6;
-  }
-  .rank.winner {
-    background: #fef9c3;
-    border-color: #eab308;
-  }
-  .rank.winner:hover {
-    background: #fef08a;
-  }
-  .rank.me {
-    border-color: #3b82f6;
-  }
-  .chevron {
-    font-size: 20px;
-    color: #9ca3af;
-    font-weight: 700;
-  }
-  .position {
-    font-weight: 700;
-    font-size: 18px;
-    width: 40px;
-  }
-  .name {
-    flex: 1;
-    text-align: left;
-    font-weight: 600;
-  }
-  .total {
-    font-size: 18px;
-    font-weight: 700;
-  }
-  .actions {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    align-items: center;
-  }
-  .actions button {
-    padding: 12px 32px;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    width: 100%;
-    max-width: 280px;
-  }
-  .primary {
-    background: #3b82f6;
-    color: white;
-  }
-  .primary:hover {
-    background: #2563eb;
-  }
-  .secondary {
-    background: #f3f4f6;
-    color: #374151;
-  }
-  .secondary:hover {
-    background: #e5e7eb;
   }
 </style>
