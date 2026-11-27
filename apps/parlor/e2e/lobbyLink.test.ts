@@ -34,18 +34,18 @@ test('a pasted lobby link offers to join a live room, and a bogus code is not fo
 
 		// A room that isn't there still says so.
 		const stranger = await strangerContext.newPage();
-		await stranger.goto('/lobby/QQQQQQ');
-		await expect(stranger.getByRole('heading', { name: "There's no room QQQQQQ.", exact: true })).toBeVisible();
-		await expect(stranger).toHaveURL('/lobby/QQQQQQ');
+		await stranger.goto('/lobby/QQQQ');
+		await expect(stranger.getByRole('heading', { name: "There's no room QQQQ.", exact: true })).toBeVisible();
+		await expect(stranger).toHaveURL('/lobby/QQQQ');
 		// The code is there to fix: a wrong one says so, the right one joins.
 		const retry = stranger.getByLabel('Room code');
-		await expect(retry).toHaveValue('QQQQQQ');
+		await expect(retry).toHaveValue('QQQQ');
 		await retry.fill('QQQ');
 		await stranger.getByRole('button', { name: 'Join', exact: true }).click();
-		await expect(stranger.getByText('Room codes have 6 letters and numbers.', { exact: true })).toBeVisible();
-		await retry.fill('ZZZZZZ');
+		await expect(stranger.getByText('Room codes have 4 letters and numbers.', { exact: true })).toBeVisible();
+		await retry.fill('ZZZZ');
 		await stranger.getByRole('button', { name: 'Join', exact: true }).click();
-		await expect(stranger.getByText("There's no room ZZZZZZ either. Check the code and try again.", { exact: true })).toBeVisible();
+		await expect(stranger.getByText("There's no room ZZZZ either. Check the code and try again.", { exact: true })).toBeVisible();
 		await retry.fill(roomCode.toLowerCase());
 		await stranger.getByRole('button', { name: 'Join', exact: true }).click();
 		await expect(stranger).toHaveURL(`/?join=${roomCode}`);

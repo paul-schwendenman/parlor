@@ -18,7 +18,7 @@ test.describe('Homepage', () => {
 	test('shows join section with inputs', async ({ page }) => {
 		await page.goto('/');
 
-		await expect(page.getByPlaceholder('ABCDEF')).toBeVisible();
+		await expect(page.getByLabel('Room code')).toBeVisible();
 		await expect(page.getByPlaceholder('Your name')).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Join' })).toBeVisible();
 	});
@@ -46,7 +46,7 @@ test.describe('Create Room Flow', () => {
 		await page.getByRole('button', { name: 'Create Room' }).click();
 
 		// Should navigate to lobby
-		await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
+		await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
 
 		// Lobby should show the player and host badge
 		await expect(page.getByText('TestHost')).toBeVisible();
@@ -65,7 +65,7 @@ test.describe('Multiplayer Flow', () => {
 		await hostPage.getByPlaceholder('Enter your name').fill('Alex');
 		await hostPage.getByRole('button', { name: 'Create Room' }).click();
 
-		await expect(hostPage).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
+		await expect(hostPage).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
 
 		// Extract room code from URL
 		const roomCode = hostPage.url().split('/').pop()!;
@@ -75,7 +75,7 @@ test.describe('Multiplayer Flow', () => {
 		const guestPage = await guestContext.newPage();
 
 		await guestPage.goto('/');
-		await guestPage.getByPlaceholder('ABCDEF').fill(roomCode);
+		await guestPage.getByLabel('Room code').fill(roomCode);
 		await guestPage.getByPlaceholder('Your name').fill('Guest');
 		await guestPage.getByRole('button', { name: 'Join' }).click();
 
@@ -98,7 +98,7 @@ test.describe('Multiplayer Flow', () => {
 		await page.getByPlaceholder('Enter your name').fill('Player1');
 		await page.getByRole('button', { name: 'Create Room' }).click();
 
-		await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
+		await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
 
 		// Add a bot
 		await page.getByRole('button', { name: 'Add bot to seat 2' }).click();
@@ -113,7 +113,7 @@ test.describe('Multiplayer Flow', () => {
 		await page.getByRole('button', { name: 'Start Game' }).click();
 
 		// Should navigate to game page
-		await expect(page).toHaveURL(/\/game\/[A-Z2-9]{6}$/);
+		await expect(page).toHaveURL(/\/game\/[A-Z2-9]{4}$/);
 
 		// Game view should load (generic check - "Playing" in title)
 		await expect(page).toHaveTitle(/Playing/);

@@ -16,7 +16,7 @@ test('a player can bid and play a trick in a Spades room with bots', async ({ pa
 	await page.getByRole('button', { name: 'Create a room', exact: true }).click();
 	await page.getByPlaceholder('Enter your name').fill('Alex');
 	await page.getByRole('button', { name: 'Create Room' }).click();
-	await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
+	await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
 
 	await page.getByRole('button', { name: 'Vote for Spades', exact: true }).click();
 	// Alone, the bottom bar invites; a bot makes two and PLAY comes back.

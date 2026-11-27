@@ -7,13 +7,13 @@ test('the host can pass the host role to another player', async ({ browser }) =>
 	await hostPage.getByRole('button', { name: 'Start Game' }).first().click();
 	await hostPage.getByPlaceholder('Enter your name').fill('Alex');
 	await hostPage.getByRole('button', { name: 'Create Room' }).click();
-	await expect(hostPage).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
+	await expect(hostPage).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
 	const roomCode = hostPage.url().split('/').pop()!;
 
 	const guestContext = await browser.newContext();
 	const guestPage = await guestContext.newPage();
 	await guestPage.goto('/');
-	await guestPage.getByPlaceholder('ABCDEF').fill(roomCode);
+	await guestPage.getByLabel('Room code').fill(roomCode);
 	await guestPage.getByPlaceholder('Your name').fill('Joe');
 	await guestPage.getByRole('button', { name: 'Join' }).click();
 	await expect(guestPage).toHaveURL(`/lobby/${roomCode}`);

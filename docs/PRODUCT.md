@@ -139,7 +139,7 @@ The host selects the display mode when starting a game (if the game supports bot
 
 ### Join Mechanisms
 
-- **Room code** - Short alphanumeric code (currently 6 characters, `ROOM_CODE_LENGTH` in `@parlor/game-types`), easy to say out loud
+- **Room code** - Short alphanumeric code (currently 4 characters, `ROOM_CODE_LENGTH` in `@parlor/game-types`), easy to say out loud
 - **Share link** - URL with embedded room code, shareable via native share sheet / messaging
 - **QR code** - Displayed on host screen or in lobby, scannable by phone camera
 

@@ -1,4 +1,4 @@
-export const ROOM_CODE_LENGTH = 6;
+export const ROOM_CODE_LENGTH = 4;
 
 /** Longest player name the server accepts, in characters. Name inputs use it as their maxlength. */
 export const PLAYER_NAME_MAX_LENGTH = 20;

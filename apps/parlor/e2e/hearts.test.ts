@@ -14,7 +14,7 @@ test('a player can pass cards and play a trick in a Hearts room with bots', asyn
 	await game.getByRole('button', { name: 'Start Game' }).click();
 	await page.getByPlaceholder('Enter your name').fill('Alex');
 	await page.getByRole('button', { name: 'Create Room' }).click();
-	await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
+	await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
 
 	// Each open seat has its own "Add bot to seat N"; the host's START is their ready.
 	const addBot = page.getByRole('button', { name: /^Add bot to seat/ }).first();
@@ -24,7 +24,7 @@ test('a player can pass cards and play a trick in a Hearts room with bots', asyn
 	}
 	await page.getByRole('button', { name: 'Start Game' }).click();
 	// The lobby's panel has its own "How to play Hearts"; wait for the table.
-	await expect(page).toHaveURL(/\/game\/[A-Z2-9]{6}$/);
+	await expect(page).toHaveURL(/\/game\/[A-Z2-9]{4}$/);
 
 	await page.getByRole('button', { name: 'How to play Hearts' }).click();
 	await expect(rules.getByRole('heading', { name: 'Taking Tricks' })).toBeVisible();

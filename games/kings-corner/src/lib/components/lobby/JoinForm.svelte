@@ -93,7 +93,7 @@
             id="join-code"
             type="text"
             bind:value={roomCode}
-            placeholder="ABCDEF"
+            placeholder="ABCD"
             maxlength={ROOM_CODE_LENGTH}
             class="input input-code"
             onkeydown={handleJoinKeydown}

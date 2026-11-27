@@ -15,13 +15,13 @@ async function createRoom(page: Page, game: string): Promise<string> {
   await card.getByRole('button', { name: 'Start Game' }).click();
   await page.getByPlaceholder('Enter your name').fill('Host');
   await page.getByRole('button', { name: 'Create Room' }).click();
-  await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
+  await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
   return page.url().split('/').pop()!;
 }
 
 async function joinRoom(page: Page, roomCode: string, name: string): Promise<void> {
   await page.goto(`/?join=${roomCode}`);
-  await expect(page.getByPlaceholder('ABCDEF')).toHaveValue(roomCode);
+  await expect(page.getByLabel('Room code')).toHaveValue(roomCode);
   await page.getByPlaceholder('Your name').fill(name);
   await page.getByRole('button', { name: 'Join' }).click();
   await expect(page).toHaveURL(`/lobby/${roomCode}`);

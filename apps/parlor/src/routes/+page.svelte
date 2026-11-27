@@ -186,7 +186,7 @@
           <input
             type="text"
             bind:value={joinCode}
-            placeholder="ABCDEF"
+            placeholder="ABCD"
             maxlength={ROOM_CODE_LENGTH}
             autocomplete="off"
             autocapitalize="characters"

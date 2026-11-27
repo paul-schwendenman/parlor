@@ -10,7 +10,7 @@ async function createRoom(browser: Browser, name: string) {
 	await page.getByRole('button', { name: 'Start Game' }).first().click();
 	await page.getByPlaceholder('Enter your name').fill(name);
 	await page.getByRole('button', { name: 'Create Room' }).click();
-	await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{6}$/);
+	await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
 	return { context, page, roomCode: page.url().split('/').pop()! };
 }
 
@@ -18,7 +18,7 @@ async function joinRoom(browser: Browser, roomCode: string, name: string) {
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	await page.goto('/');
-	await page.getByPlaceholder('ABCDEF').fill(roomCode);
+	await page.getByLabel('Room code').fill(roomCode);
 	await page.getByPlaceholder('Your name').fill(name);
 	await page.getByRole('button', { name: 'Join' }).click();
 	await expect(page).toHaveURL(`/lobby/${roomCode}`);
@@ -68,7 +68,7 @@ test('a spectator leaves without a confirmation', async ({ browser }) => {
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	await page.goto('/');
-	await page.getByPlaceholder('ABCDEF').fill(margaret.roomCode);
+	await page.getByLabel('Room code').fill(margaret.roomCode);
 	await page.getByRole('button', { name: 'Watch as spectator' }).click();
 	await expect(page).toHaveURL(`/lobby/${margaret.roomCode}`);
 

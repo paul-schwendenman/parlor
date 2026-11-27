@@ -59,7 +59,7 @@ afterEach(async () => {
 describe('malformed ack arguments (F-01)', () => {
   it.each(BAD_ACKS)('lobby:ready with ack=%j does not crash, and the server keeps serving', async (bad) => {
     const [create] = await ackOnce<[{ roomCode: string }]>((cb) => client.emit('lobby:create', 'Host', cb));
-    expect(create.roomCode).toMatch(/^[A-Z2-9]{6}$/);
+    expect(create.roomCode).toMatch(/^[A-Z2-9]{4}$/);
 
     client.emit('lobby:ready', true, bad);
     await settle();
