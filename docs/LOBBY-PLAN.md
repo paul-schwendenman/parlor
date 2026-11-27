@@ -248,6 +248,43 @@ From the critique at `apps/parlor/.impeccable/critique/2026-11-27T20-03-47Z__src
   - Make keyboard focus look different from the "your vote" ring.
   - Done: "Bot" role (and ", bot" in the strip's label) hidden when the name starts with "Bot"; at the seat cap the voting Add bot (strip and side line) is hidden and the reason is a next step ("That's a full table: no game here seats more than 6. Remove a bot to make room for a friend."); "Short on players?" hidden whenever Add bot is off; a confirmed game's full table hides Add bot; Change game removed from the rules sheet (the `onchange` prop is gone); not-found reads "There's no room QQQQQQ." with a prefilled code field + JOIN that re-checks the code (`/?join=` on success, an inline error otherwise) and an "Or start a new room" link; "Tap"/"Click" from `(hover: hover) and (pointer: fine)`; the confirmed state keeps the 920px two columns at ≥900px (panel with description + START left, players right; the lid stays wide too); standing line no longer `aria-live`, a separate sr-only region says "Quixx is leading." / "Tied: …" only when the leader set changes; ballot rows focus with a 3px Deep Clay ring offset 4px. The phone gap above Players was the sticky bar's empty slot in full-page screenshots; viewport shots show no gap, so no change.
 
+## Backlog: fourth-critique findings (not scheduled)
+
+The critique at `apps/parlor/.impeccable/critique/2026-11-27T21-10-15Z__src-routes-lobby-roomcode-page-svelte.md` scored 28/40. The trend is 21 → 28 → 29 → 28. Each run uses a fresh, unanchored reviewer, so ±1 is noise. None of phase 9's P1s came back. On 2026-11-27 the user chose to stop here and move on. These items are recorded for later and are not planned work.
+
+**Decision: what voting is for.** Voting is a way to *suggest* a game. It's an optional step that helps the host choose, not a democracy, and the host's pick is final. Don't turn it into majority rule. Future copy and UI should frame it that way ("Suggest a game", "Margaret picks"), and Keep overriding the leader is expected. Guests should be told plainly rather than left to discover it.
+
+- **[P1] Join page from a pasted link.**
+  - The problem: `/lobby/CODE` sends a new browser to `/?join=CODE`, the full home page. Below the join card sit "Or start a new room", Create a room and nine "Start game" buttons, so a relative can start their own room by mistake. The card never says whose room it is.
+  - The idea: when `?join` is present, show a focused screen instead: "Join Margaret's room · 3 people here", the code read-only with "Change", the name field and JOIN. Put the shelf and spectating behind "Not what you meant?" This lives in `apps/parlor/src/routes/+page.svelte`, and may need `lobby:roomExists` to return the host's name and player count. Check that doesn't reveal more than joining by code already does.
+- **[P2] Phone chrome.**
+  - The header (code tiles and two buttons) is about 215px for everyone in every state.
+  - A lone host gets the invite controls twice: header buttons plus a two-row bar.
+  - A guest's own vote is usually below the fold.
+  - The idea:
+    - Shrink the header to a one-line code with a single "Invite" button (opening share and QR) once 2 or more people are seated, and for guests.
+    - Keep only one set of invite controls when the host is alone.
+    - Show "Your vote: Hearts" in the standing strip.
+- **[P2] Keep overriding the leader.** This is allowed by the decision above, but it's currently silent. The idea: label it "Keep Hearts anyway" when another game leads, add a panel line ("Joe and Ana suggested Crazy Eights"), and send guests a toast, "Margaret kept Hearts", reusing `RoomToast`.
+- **[P2] Game colour on the panel.**
+  - The problem: the confirmed and current-game panel is always felt, so Hearts, Booty Dice and Spades turn green. That breaks the Collection Rule's one fixed colour per game.
+  - The idea: paint the panel with the game's `spine-{shelf}` class, and keep felt for Ready.
+- **[P3] Copy and shorthand.**
+  - Write the chips out as "4 players · 25–40 min".
+  - Rename "Not for 6 players (6)".
+  - Keep the panel's play time on one line at 390px (it wraps "15–30 / min").
+  - Tell guests that tapping their pick again takes the vote back, and that the host picks. Under the decision above, that means "Margaret picks", not "breaks ties".
+- **Minor notes:**
+  - The Kings Corner linen row looks like the dashed linen "doesn't fit" rows.
+  - About half the desktop screen is empty below a confirmed lobby.
+  - After a hand-off, the old host isn't hinted to ready up, and the new host isn't told "You start the game now".
+  - The host can't remove a human player (a duplicate join or a stranger with the link); the "…" menu has only Make host.
+  - The host-change toast covers the wordmark and "Leave room" on phones for 4s; taps still go through.
+  - The design-system type scale is missing 0.9375rem, which is used in 10 places, so the detector flags it.
+- **Open questions from the critique:**
+  - Should the big room code shrink once the table is full?
+  - Should the lobby show only the 3 best-fitting games, with "More games" behind them?
+
 ---
 
 ## Log
@@ -267,6 +304,7 @@ From the critique at `apps/parlor/.impeccable/critique/2026-11-27T20-03-47Z__src
 | 2026-11-27 | — | Polish pass: phone player strip capped at five tokens ("+N"), ready checks moved to the visible side; third critique 29/40, Phase 9 planned | uncommitted |
 | 2026-11-27 | 9 (page items) | Lone host's bar shares the invite (with QR) instead of PLAY/START; guest Ready is a pressed toggle with undo hint, rows say "Not ready yet"; voters on a paper chip with ink-ringed coins; "Everyone gets ready again for X." on a reopened ballot; phone taglines in the catalogue; 9.8 minor fixes (bot role, full-table Add bot, rules sheet without Change game, not-found retry field, Tap/Click, two-column confirmed desktop, leader-only live region, Deep Clay focus ring); e2e updated (roomVoting, lobbyLink, inviteQr, crazyEights, bot-room specs) | uncommitted |
 | 2026-11-27 | 9 (9.3, 9.6) | Per-row player options with Make host, host-change toasts with a reason on `lobby:hostChanged`, Leave room confirmation; merged with the page items, e2e 27/27 | uncommitted |
+| 2026-11-27 | — | Fourth critique 28/40 (trend 21 → 28 → 29 → 28); findings and the voting decision recorded as an unscheduled backlog; stopping here for now | — |
 
 ## Notes
 

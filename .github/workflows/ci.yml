@@ -30,6 +30,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - run: pnpm --filter @parlor/app exec svelte-kit sync
+
       - run: pnpm turbo check test --continue
 
       # Runs after check so .svelte-kit/tsconfig.json exists for type-aware linting.
@@ -37,7 +39,8 @@ jobs:
 
   e2e:
     name: Playwright e2e
-    runs-on: ubuntu-latest
+    # Keep the runner on an Ubuntu release supported by the locked Playwright version.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
