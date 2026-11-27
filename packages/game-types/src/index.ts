@@ -127,6 +127,12 @@ export type GameStateEnvelope<K extends GameId = GameId> = {
   [P in K]: { gameId: P; view: GameViewMap[P] };
 }[K];
 
+export interface GameBallotSnapshot {
+  roundId: string;
+  totals: Partial<Record<string, number>>;
+  myVote: string | null;
+}
+
 export type ServerToClientEvents = {
   'room:closed': (roomCode: string) => void;
   'game:state': (state: GameStateEnvelope) => void;
@@ -140,6 +146,7 @@ export type ServerToClientEvents = {
   'player:reconnected': (playerId: string) => void;
   'lobby:gameStarting': () => void;
   'lobby:returned': (gameId: string | null) => void;
+  'lobby:ballot': (roomCode: string, ballot: GameBallotSnapshot | null) => void;
   'lobby:gameSelected': (gameId: string | null) => void;
 };
 
@@ -152,6 +159,8 @@ export type LobbyClientEvents = {
     callback: (result: CreateRoomResult | null, error?: string) => void,
     gameId?: string,
   ) => void;
+  'lobby:vote': (roundId: string, gameId: string | null, callback: (success: boolean, error?: string) => void) => void;
+  'lobby:confirmGame': (roundId: string, gameId: string, callback: (success: boolean, error?: string) => void) => void;
   'lobby:selectGame': (gameId: string | null, callback?: (success: boolean, error?: string) => void) => void;
   'lobby:join': (
     roomCode: string,

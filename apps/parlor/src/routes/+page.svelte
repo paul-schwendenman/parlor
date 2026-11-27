@@ -72,7 +72,8 @@
   let loading = $state(false);
 
   // For game card "create" flow
-  let selectedGameForCreate = $state<string | null>(null);
+  let selectedGameForCreate = $state<string | undefined>();
+  let creatingRoom = $state(false);
   let createName = $state('');
   let createDialog = $state<HTMLDialogElement | null>(null);
   let createGame = $derived(games.find((g) => g.id === selectedGameForCreate));
@@ -84,8 +85,8 @@
   // Native <dialog>: focus moves inside, Escape closes, background is inert.
   $effect(() => {
     if (!createDialog) return;
-    if (selectedGameForCreate && !createDialog.open) createDialog.showModal();
-    if (!selectedGameForCreate && createDialog.open) createDialog.close();
+    if (creatingRoom && !createDialog.open) createDialog.showModal();
+    if (!creatingRoom && createDialog.open) createDialog.close();
   });
 
   onMount(() => {
@@ -131,14 +132,14 @@
     }
   }
 
-  function handleGameClick(gameId: string) {
+  function openCreateRoom(gameId?: string) {
     error = '';
     selectedGameForCreate = gameId;
+    creatingRoom = true;
   }
 
-  async function handleCreateWithGame() {
+  async function handleCreateRoom() {
     if (!createName.trim()) { error = 'Enter your name'; return; }
-    if (!selectedGameForCreate) return;
     loading = true;
     error = '';
     try {
@@ -152,7 +153,8 @@
   }
 
   function cancelCreate() {
-    selectedGameForCreate = null;
+    creatingRoom = false;
+    selectedGameForCreate = undefined;
     createName = '';
     error = '';
   }
@@ -176,7 +178,7 @@
 
   function playFromRules() {
     if (rulesGameId) {
-      handleGameClick(rulesGameId);
+      openCreateRoom(rulesGameId);
       rulesGameId = null;
     }
   }
@@ -188,7 +190,7 @@
 
   function handleCreateSubmit(e: SubmitEvent) {
     e.preventDefault();
-    handleCreateWithGame().catch(console.error);
+    handleCreateRoom().catch(console.error);
   }
 
   function range(value: string): string {
@@ -221,8 +223,8 @@
           autocapitalize="characters"
           spellcheck="false"
           class="input input-code"
-          aria-invalid={!!error && !selectedGameForCreate && !joinCode.trim()}
-          aria-describedby={error && !selectedGameForCreate ? 'join-error' : undefined}
+          aria-invalid={!!error && !creatingRoom && !joinCode.trim()}
+          aria-describedby={error && !creatingRoom ? 'join-error' : undefined}
         />
       </label>
       <label class="field">
@@ -234,11 +236,11 @@
           maxlength="20"
           autocomplete="nickname"
           class="input"
-          aria-invalid={!!error && !selectedGameForCreate && !!joinCode.trim() && !joinName.trim()}
-          aria-describedby={error && !selectedGameForCreate ? 'join-error' : undefined}
+          aria-invalid={!!error && !creatingRoom && !!joinCode.trim() && !joinName.trim()}
+          aria-describedby={error && !creatingRoom ? 'join-error' : undefined}
         />
       </label>
-      {#if error && !selectedGameForCreate}
+      {#if error && !creatingRoom}
         <p id="join-error" class="error" role="alert">{error}</p>
       {/if}
       <button type="submit" class="btn btn-primary" disabled={loading}>Join</button>
@@ -249,6 +251,7 @@
   <!-- Game shelf -->
   <section class="shelf" aria-labelledby="shelf-title">
     <h2 id="shelf-title" class="shelf-title">Or start a new room</h2>
+    <button type="button" class="btn btn-accent create-room" onclick={() => openCreateRoom()} disabled={loading}>Create a room</button>
     <div class="game-grid">
       {#each games as game, i (game.id)}
         <article class="game-card {spines[i % spines.length]}">
@@ -260,7 +263,7 @@
           <p class="game-tags">{game.tags.join(' · ')}</p>
           <div class="game-actions">
             <button type="button" class="spine-ghost" onclick={() => openRules(game.id)}>How to play</button>
-            <button type="button" class="spine-solid" onclick={() => handleGameClick(game.id)}>Start Game</button>
+            <button type="button" class="spine-solid" onclick={() => openCreateRoom(game.id)}>Start Game</button>
           </div>
         </article>
       {/each}
@@ -285,10 +288,10 @@
   onclose={cancelCreate}
   onclick={handleDialogClick}
 >
-  {#if createGame}
+  {#if creatingRoom}
     <form class="create-form" onsubmit={handleCreateSubmit} novalidate>
-      <h2 id="create-title" class="create-title">Create {createGame.name} Room</h2>
-      <p id="create-desc" class="create-desc">{createGame.description}</p>
+      <h2 id="create-title" class="create-title">{createGame ? `Create ${createGame.name} Room` : 'Create Room'}</h2>
+      <p id="create-desc" class="create-desc">{createGame?.description ?? 'Invite friends and vote on what to play.'}</p>
       <label class="field">
         <span class="field-label">Your name</span>
         <input
@@ -665,6 +668,10 @@
 
   .game-card:not(.spine-mustard):not(.spine-linen) :focus-visible {
     outline-color: var(--color-cream);
+  }
+
+  .create-room {
+    margin-bottom: 16px;
   }
 
   /* Create dialog */

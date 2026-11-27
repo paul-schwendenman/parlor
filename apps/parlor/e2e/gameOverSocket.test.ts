@@ -68,6 +68,11 @@ for (const game of ['Crazy Eights', 'Quixx', 'Kings Corner']) {
       await host.reload();
       await expect(host).toHaveURL(`/lobby/${roomCode}`);
       await expect(host.locator('.player-name', { hasText: 'Host' })).toBeVisible();
+
+      await host.getByRole('button', { name: 'Vote for next game' }).click();
+      await expect(host.getByText('0 votes', { exact: true })).toHaveCount(5);
+      await host.getByRole('button', { name: `Confirm ${game}`, exact: true }).click();
+      await expect(host.getByRole('heading', { name: game, exact: true })).toBeVisible();
     } finally {
       await hostContext.close();
       await guestContext.close();

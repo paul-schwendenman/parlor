@@ -6,10 +6,11 @@
     gameId: string | null;
     gameName: string;
     onclose: () => void;
-    onplay: () => void;
+    onplay?: () => void;
+    playLabel?: string;
   }
 
-  let { open, gameId, gameName, onclose, onplay }: Props = $props();
+  let { open, gameId, gameName, onclose, onplay, playLabel = 'Play Now' }: Props = $props();
 </script>
 
 {#if open}
@@ -152,7 +153,7 @@
 
   <div class="modal-footer">
     <button class="btn-close" onclick={onclose}>Close</button>
-    <button class="btn-play" onclick={onplay}>Play Now</button>
+    {#if onplay}<button class="btn-play" onclick={onplay}>{playLabel}</button>{/if}
   </div>
 </Modal>
 {/if}

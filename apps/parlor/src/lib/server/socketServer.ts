@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { LobbyPlayer } from '@parlor/game-types';
 import {
 	RoomManager,
@@ -9,12 +10,55 @@ import {
 	setupLobbyHandlers,
 	toPublicError
 } from '@parlor/multiplayer';
-import type { AppServer, AppSocket, GameIo, LobbyCallbacks } from '@parlor/multiplayer';
+import type { AppServer, AppSocket, GameIo, GameRoom, LobbyCallbacks } from '@parlor/multiplayer';
 import { registerAllGames } from './games/index.js';
 import { getGameDefinition } from './gameRegistry.js';
 
+interface Ballot {
+	roundId: string;
+	votes: Map<string, string>;
+}
+
 export function setupParlorSocketHandlers(io: AppServer, roomManager = new RoomManager()): void {
 	const callbackCache = new Map<string, LobbyCallbacks>();
+
+	const ballots = new WeakMap<GameRoom, Ballot>();
+
+	function openBallot(room: GameRoom): Ballot {
+		const ballot = { roundId: randomUUID(), votes: new Map<string, string>() };
+		ballots.set(room, ballot);
+		return ballot;
+	}
+
+	function publishBallot(roomCode: string): void {
+		const room = roomManager.getRoom(roomCode);
+		if (!room) return;
+		const ballot = room.gameId === null && room.status === 'waiting'
+			? ballots.get(room) ?? openBallot(room)
+			: undefined;
+		if (!ballot) {
+			io.to(roomCode).emit('lobby:ballot', roomCode, null);
+			return;
+		}
+
+		const totals = new Map<string, number>();
+		for (const [playerId, gameId] of ballot.votes) {
+			if (!room.players.has(playerId)) {
+				ballot.votes.delete(playerId);
+				continue;
+			}
+			totals.set(gameId, (totals.get(gameId) ?? 0) + 1);
+		}
+		const counts = Object.fromEntries(totals);
+		for (const socketId of io.sockets.adapter.rooms.get(roomCode) ?? []) {
+			const playerId = roomManager.getPlayerIdBySocket(socketId);
+			io.to(socketId).emit('lobby:ballot', roomCode, {
+				roundId: ballot.roundId,
+				totals: counts,
+				myVote: playerId ? ballot.votes.get(playerId) ?? null : null
+			});
+		}
+	}
 
 	function getCallbacksForGame(gameId: string): LobbyCallbacks | null {
 		const cached = callbackCache.get(gameId);
@@ -34,6 +78,7 @@ export function setupParlorSocketHandlers(io: AppServer, roomManager = new RoomM
 	io.on('connection', (socket: AppSocket) => {
 		// Create dynamic lobby callbacks that delegate to the correct game based on room's gameId
 		const dynamicCallbacks: LobbyCallbacks = {
+			onLobbyRosterChanged: publishBallot,
 			onGameStart: (roomCode: string, players: LobbyPlayer[], io: GameIo) => {
 				// Throw (rather than silently return) so the lobby rolls the start back.
 				const gameId = roomManager.getGameId(roomCode);
@@ -85,63 +130,78 @@ export function setupParlorSocketHandlers(io: AppServer, roomManager = new RoomM
 		// Set up lobby handlers with dynamic callbacks
 		setupLobbyHandlers(io, socket, roomManager, dynamicCallbacks);
 
-		// Handle game selection by host
-		socket.on('lobby:selectGame', (gameId: string | null, callback) => {
+		function updateGameChoice(
+			action: 'select' | 'confirm' | 'vote',
+			gameId: unknown,
+			callback: ((success: boolean, error?: string) => void) | undefined,
+			roundId?: unknown
+		): void {
 			const ack = safeAck(callback);
 			try {
 				if (!allowSocketRequest(socket)) {
 					ack(false, RATE_LIMIT_MESSAGE);
 					return;
 				}
-				const roomCode = socket.data.roomCode;
+				const { roomCode, playerId } = socket.data;
 				if (!roomCode) {
 					ack(false, 'Not in a room');
 					return;
 				}
-				if (!roomManager.isHost(roomCode, socket.data.playerId)
-					|| !roomManager.isSeatedPlayer(roomCode, socket.data.playerId, socket.id)) {
-					ack(false, 'Only the host can select the game');
+				if (!roomManager.isSeatedPlayer(roomCode, playerId, socket.id)
+					|| (action !== 'vote' && !roomManager.isHost(roomCode, playerId))) {
+					ack(false, action === 'vote' ? 'Only seated players can vote' : 'Only the host can select the game');
 					return;
 				}
-
 				const room = roomManager.getRoom(roomCode);
 				if (!room || room.status !== 'waiting') {
 					ack(false, 'Cannot change game after it has started');
 					return;
 				}
-
-				// null clears the current selection (host pressed "Change").
-				if (gameId === null) {
-					roomManager.selectGame(roomCode, null);
-					io.to(roomCode).emit('lobby:gameSelected', null);
-					io.to(roomCode).emit('lobby:state', roomManager.getPlayersInRoom(roomCode), false);
+				const ballot = ballots.get(room);
+				if (action !== 'select' && (!ballot || ballot.roundId !== roundId)) {
+					ack(false, 'This vote has closed. Use the current lobby to vote again.');
+					return;
+				}
+				if (gameId === null ? action === 'confirm' : typeof gameId !== 'string' || !gameId.trim()) {
+					ack(false, 'Invalid game');
+					return;
+				}
+				const definition = typeof gameId === 'string' ? getGameDefinition(gameId) : undefined;
+				if (gameId !== null && !definition) {
+					if (action === 'select') socket.emit('error', 'Unknown game');
+					ack(false, 'Unknown game');
+					return;
+				}
+				if (definition && room.players.size > definition.meta.maxPlayers) {
+					ack(false, `This game supports up to ${definition.meta.maxPlayers} players`);
+					return;
+				}
+				if (action === 'vote' && ballot) {
+					if (typeof gameId === 'string') ballot.votes.set(playerId, gameId);
+					else ballot.votes.delete(playerId);
+					publishBallot(roomCode);
 					ack(true);
 					return;
 				}
 
-				if (typeof gameId !== 'string' || !gameId.trim()) {
-					ack(false, 'Invalid game');
+				// An already-open ballot is preserved if the request to open it is retried.
+				if (!roomManager.selectGame(roomCode, definition?.meta ?? null)) {
+					ack(false, 'Could not select this game');
 					return;
 				}
-
-				const definition = getGameDefinition(gameId);
-				if (!definition) {
-					socket.emit('error', 'Unknown game');
-					ack(false, 'Unknown game');
-					return;
-				}
-
-				if (!roomManager.selectGame(roomCode, definition.meta)) {
-					ack(false, `This game supports up to ${definition.meta.maxPlayers} players`);
-					return;
-				}
-				io.to(roomCode).emit('lobby:gameSelected', gameId);
+				if (definition) ballots.delete(room);
+				io.to(roomCode).emit('lobby:gameSelected', room.gameId);
 				io.to(roomCode).emit('lobby:state', roomManager.getPlayersInRoom(roomCode), roomManager.canStartGame(roomCode));
+				publishBallot(roomCode);
 				ack(true);
 			} catch (err) {
-				ack(false, toPublicError(err, 'Failed to select game', roomManager.getErrorContext(socket.data.roomCode, socket.data.playerId)).message);
+				ack(false, toPublicError(err, 'Could not update game choice', roomManager.getErrorContext(socket.data.roomCode, socket.data.playerId)).message);
 			}
-		});
+		}
+
+		socket.on('lobby:selectGame', (gameId, callback) => updateGameChoice('select', gameId, callback));
+		socket.on('lobby:confirmGame', (roundId, gameId, callback) => updateGameChoice('confirm', gameId, callback, roundId));
+		socket.on('lobby:vote', (roundId, gameId, callback) => updateGameChoice('vote', gameId, callback, roundId));
 
 		// Unified game:action handler: the core boundary validates, checks
 		// membership, and routes to the room's game.

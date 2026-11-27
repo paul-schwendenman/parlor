@@ -8,6 +8,7 @@ import { allowSocketRequest, RATE_LIMIT_MESSAGE } from './rateLimit.js';
 import type { GameIo, LobbyIo, LobbySocket } from './gameDefinition.js';
 
 export interface LobbyCallbacks {
+  onLobbyRosterChanged?: (roomCode: string) => void;
   onGameStart?: (roomCode: string, players: LobbyPlayer[], io: GameIo) => void;
   onGameReset?: (roomCode: string, io: GameIo) => void;
   /** Called on room deletion after scheduled game work has been invalidated. */
@@ -82,6 +83,7 @@ function emitExpiry(
       players,
       roomManager.canStartGame(outcome.roomCode),
     );
+    callbacks?.onLobbyRosterChanged?.(outcome.roomCode);
     if (outcome.newHostId) {
       io.to(outcome.roomCode).emit('lobby:hostChanged', outcome.newHostId);
     }
@@ -190,6 +192,7 @@ export function setupLobbyHandlers(
 
       const players = roomManager.getPlayersInRoom(roomCode);
       io.to(roomCode).emit('lobby:state', players, false);
+      callbacks?.onLobbyRosterChanged?.(roomCode);
     } catch (err) {
       const { message } = toPublicError(err, 'Failed to create room', context());
       if (!acknowledged && typeof callback === 'function') callback(null, message);
@@ -241,6 +244,7 @@ export function setupLobbyHandlers(
       }
       const players = roomManager.getPlayersInRoom(normalizedCode);
       io.to(normalizedCode).emit('lobby:state', players, roomManager.canStartGame(normalizedCode));
+      callbacks?.onLobbyRosterChanged?.(normalizedCode);
     } catch (err) {
       if (typeof callback === 'function') {
         callback({
@@ -280,6 +284,7 @@ export function setupLobbyHandlers(
       socket.emit('lobby:gameSelected', room.gameId);
       socket.emit('lobby:hostChanged', room.hostId);
       socket.emit('lobby:state', roomManager.getPlayersInRoom(normalizedCode), roomManager.canStartGame(normalizedCode));
+      callbacks?.onLobbyRosterChanged?.(normalizedCode);
       if (room.status !== 'waiting') {
         socket.emit('lobby:gameStarting');
         callbacks?.onSpectatorJoin?.(normalizedCode, socket.id);
@@ -358,6 +363,7 @@ export function setupLobbyHandlers(
       callback(true);
       const updatedPlayers = roomManager.getPlayersInRoom(roomCode);
       io.to(roomCode).emit('lobby:state', updatedPlayers, roomManager.canStartGame(roomCode));
+      callbacks?.onLobbyRosterChanged?.(roomCode);
     } catch (err) {
       if (typeof callback === 'function') {
         callback(false, toPublicError(err, 'Failed to add bot', context()).message);
@@ -396,6 +402,7 @@ export function setupLobbyHandlers(
       callback(true);
       const updatedPlayers = roomManager.getPlayersInRoom(roomCode);
       io.to(roomCode).emit('lobby:state', updatedPlayers, roomManager.canStartGame(roomCode));
+      callbacks?.onLobbyRosterChanged?.(roomCode);
     } catch (err) {
       if (typeof callback === 'function') {
         callback(false, toPublicError(err, 'Failed to remove bot', context()).message);
@@ -579,6 +586,7 @@ export function setupLobbyHandlers(
       const players = roomManager.getPlayersInRoom(normalizedCode);
       io.to(normalizedCode).emit('player:reconnected', playerId);
       io.to(normalizedCode).emit('lobby:state', players, roomManager.canStartGame(normalizedCode));
+      callbacks?.onLobbyRosterChanged?.(normalizedCode);
       if (result.newHostId) {
         io.to(normalizedCode).emit('lobby:hostChanged', result.newHostId);
       } else if (room) {

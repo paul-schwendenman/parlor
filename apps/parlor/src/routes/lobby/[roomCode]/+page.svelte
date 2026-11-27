@@ -2,13 +2,13 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { browser } from '$app/environment';
   import { lobbyState } from '$lib/stores/lobbyStore.svelte.js';
   import { gameState } from '$lib/stores/gameStore.svelte.js';
   import { playerState } from '$lib/stores/playerStore.svelte.js';
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
-  import { getSocket, selectGameAction, readyAction, startGameAction } from '$lib/stores/socketClient.js';
+  import { getSocket, ballotAction, readyAction, startGameAction } from '$lib/stores/socketClient.js';
   import type { GameMeta } from '@parlor/game-types';
   import LeaveRoomButton from '$lib/components/LeaveRoomButton.svelte';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
@@ -29,6 +29,10 @@
   let roomNotFound = $state(false);
   let copyStatus = $state<'idle' | 'copied' | 'failed'>('idle');
   let botError = $state('');
+  let ballotError = $state('');
+  let ballotPending = $state(false);
+  let gameHeading = $state<HTMLHeadingElement>();
+  let ballotHeading = $state<HTMLHeadingElement>();
 
   onMount(() => {
     if (browser) getSocket();
@@ -60,6 +64,14 @@
   let hasBots = $derived(lobbyState.players.some(p => p.isBot));
   let botsBlockStart = $derived(hasBots && !gameSupportsAI);
   let canStart = $derived(lobbyState.canStart && !!lobbyState.selectedGameId && !botsBlockStart);
+  let ballot = $derived(lobbyState.ballot);
+  let seatCount = $derived(lobbyState.players.length);
+  let leaders = $derived.by(() => {
+    const playable = games.filter(game => seatCount >= game.minPlayers && seatCount <= game.maxPlayers
+      && (!hasBots || game.supportsBots));
+    const high = Math.max(0, ...playable.map(game => ballot?.totals[game.id] ?? 0));
+    return high ? playable.filter(game => ballot?.totals[game.id] === high) : [];
+  });
   let codeChars = $derived(roomCode.split(''));
 
   let startHint = $derived.by(() => {
@@ -81,8 +93,24 @@
   let rulesOpen = $derived(rulesGameId !== null);
   let rulesGame = $derived(games.find((g) => g.id === rulesGameId));
 
-  function selectGame(gameId: string) {
-    selectGameAction(gameId);
+  async function updateBallot(action: 'open' | 'vote' | 'confirm', gameId: string | null = null) {
+    if (ballotPending) return;
+    ballotError = '';
+    ballotPending = true;
+    try {
+      await ballotAction(action, gameId, ballot?.roundId);
+      await tick();
+      if (action === 'confirm') gameHeading?.focus();
+      if (action === 'open') ballotHeading?.focus();
+    } catch (error) {
+      ballotError = error instanceof Error ? error.message : 'Could not update your game choice.';
+    } finally {
+      ballotPending = false;
+    }
+  }
+
+  function voteFor(gameId: string) {
+    void updateBallot('vote', ballot?.myVote === gameId ? null : gameId);
   }
 
   function addBot() {
@@ -184,32 +212,66 @@
     {#if selectedGame}
       <section class="game-panel" aria-label="Selected game">
         <div class="game-panel-text">
-          <h2 class="game-panel-name">{selectedGame.name}</h2>
+          <h2 class="game-panel-name" tabindex="-1" bind:this={gameHeading}>{selectedGame.name}</h2>
           <span class="game-panel-meta">{selectedGame.minPlayers}–{selectedGame.maxPlayers} players · {selectedGame.estimatedMinutes.replace('-', '–')} min</span>
         </div>
         {#if isHost}
-          <button type="button" class="pill pill-on-dark" onclick={() => selectGameAction(null)} aria-label="Change game">Change</button>
+          <button type="button" class="pill pill-on-dark" onclick={() => updateBallot('open')} disabled={ballotPending}>Vote for next game</button>
         {/if}
       </section>
-    {:else if isHost}
-      <section class="picker">
-        <h2 class="section-title">Choose a game</h2>
+    {:else if ballot}
+      <section class="picker" aria-labelledby="ballot-title">
+        <h2 id="ballot-title" class="section-title" tabindex="-1" bind:this={ballotHeading}>Vote on a game</h2>
+        <p class="ballot-summary" aria-live="polite">
+          {#if leaders.length > 1}
+            Tied for the lead · {leaders.map(game => game.name).join(', ')}
+          {:else if leaders[0]}
+            Leading · {leaders[0].name}
+          {:else if isHost}
+            Confirm a game when your group is ready.
+          {:else}
+            The host will confirm the game.
+          {/if}
+        </p>
         <ul class="picker-list">
           {#each games as game (game.id)}
-            <li class="picker-row">
-              <button type="button" class="picker-pick" onclick={() => selectGame(game.id)}>
-                <span class="picker-name">{game.name}</span>
-                <span class="picker-meta">{game.minPlayers}–{game.maxPlayers} players</span>
-              </button>
-              <button type="button" class="icon-btn" onclick={() => (rulesGameId = game.id)} aria-label="How to play {game.name}" title="How to play {game.name}">
-                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><path d="M12 17.5h.01"/></svg>
-              </button>
+            {@const voteCount = ballot.totals[game.id] ?? 0}
+            {@const voted = ballot.myVote === game.id}
+            {@const tooMany = seatCount > game.maxPlayers}
+            <li class="picker-row" class:voted>
+              <div class="picker-details">
+                <div>
+                  <h3 class="picker-name">{game.name}</h3>
+                  <p class="picker-meta">
+                    {game.minPlayers}–{game.maxPlayers} players
+                    {#if tooMany}
+                      · Too many players
+                    {:else if seatCount < game.minPlayers}
+                      · Need {game.minPlayers - seatCount} more
+                    {/if}
+                  </p>
+                </div>
+                <span class="vote-count">{voteCount} {voteCount === 1 ? 'vote' : 'votes'}</span>
+                <button type="button" class="icon-btn" onclick={() => (rulesGameId = game.id)} aria-label="How to play {game.name}" title="How to play {game.name}">
+                  <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><path d="M12 17.5h.01"/></svg>
+                </button>
+              </div>
+              {#if me && !spectator}
+                <div class="vote-actions">
+                  <button type="button" class="pill" aria-pressed={voted} aria-label="Vote for {game.name}" aria-disabled={ballotPending || undefined} disabled={tooMany && !voted} onclick={() => voteFor(game.id)}>
+                    {voted ? 'Voted ✓' : 'Vote'}
+                  </button>
+                  {#if isHost}
+                    <button type="button" class="pill confirm-game" aria-label="Confirm {game.name}" aria-disabled={ballotPending || undefined} disabled={tooMany} onclick={() => updateBallot('confirm', game.id)}>Confirm</button>
+                  {/if}
+                </div>
+              {/if}
             </li>
           {/each}
         </ul>
       </section>
     {:else}
-      <p class="waiting-game">Waiting for the host to choose a game…</p>
+      <p class="waiting-game">Loading game choices…</p>
     {/if}
 
     <!-- Players -->
@@ -255,7 +317,7 @@
 
       {#if spectator}
         <p class="hint">Watching as spectator</p>
-      {:else if isHost}
+      {:else if selectedGame && isHost}
         {#if !canStart}<p class="hint">{startHint}</p>{/if}
         <button type="button" class="btn btn-primary" onclick={startGame} disabled={!canStart}>Start Game</button>
         <div class="secondary" class:single={!gameSupportsAI}>
@@ -266,7 +328,7 @@
             <button type="button" class="pill" onclick={addBot}>Add Bot</button>
           {/if}
         </div>
-      {:else}
+      {:else if selectedGame}
         {#if me?.isReady}
           <p class="hint">Waiting for the host to start…</p>
           <button type="button" class="pill pill-wide" disabled={!me} onclick={toggleReady}>Not Ready</button>
@@ -275,6 +337,9 @@
         {/if}
       {/if}
 
+      {#if ballotError}
+        <p class="action-error" role="alert">{ballotError}</p>
+      {/if}
       {#if botError}
         <p class="action-error" role="alert">{botError}</p>
       {/if}
@@ -289,7 +354,10 @@
     gameId={rulesGameId}
     gameName={rulesGame?.name ?? ''}
     onclose={() => (rulesGameId = null)}
-    onplay={() => { if (rulesGameId) { selectGame(rulesGameId); rulesGameId = null; } }}
+    playLabel={ballot?.myVote === rulesGameId ? 'Clear vote' : 'Vote'}
+    onplay={ballot && me && rulesGame && (seatCount <= rulesGame.maxPlayers || ballot.myVote === rulesGameId)
+      ? () => { if (rulesGameId) voteFor(rulesGameId); rulesGameId = null; }
+      : undefined}
   />
 {/if}
 
@@ -500,50 +568,68 @@
   }
 
   .picker-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding-right: 4px;
+    padding: 8px 10px 10px;
     border: 2px solid var(--color-espresso);
     border-radius: 14px;
     background: var(--color-paper);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
 
-  @media (hover: hover) {
-    .picker-row:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 16px rgba(59, 47, 47, 0.12);
-    }
+  .picker-row.voted {
+    background: var(--color-mustard-tint);
   }
 
-  .picker-pick {
-    flex: 1;
-    min-height: 52px;
-    padding: 8px 14px;
-    border: 0;
-    border-radius: 12px;
-    background: transparent;
-    color: var(--color-espresso);
+  .picker-details,
+  .vote-actions {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 12px;
-    text-align: left;
-    cursor: pointer;
+    gap: 8px;
+  }
+
+  .picker-details > div {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .vote-actions {
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+
+  .vote-actions .pill {
+    height: 44px;
+    font-size: 0.875rem;
+  }
+
+  .vote-actions .pill[aria-pressed='true'],
+  .vote-actions .confirm-game:not(:disabled) {
+    background: var(--color-espresso);
+    color: var(--color-cream);
   }
 
   .picker-name {
+    margin: 0;
     font-family: var(--font-heading);
     font-weight: 800;
     font-size: 1.0625rem;
   }
 
-  .picker-meta {
+  .picker-meta,
+  .ballot-summary {
+    margin: 0;
     font-size: 0.8125rem;
     font-weight: 600;
     color: var(--color-ink-muted);
+  }
+
+  .ballot-summary {
+    margin-bottom: 10px;
+  }
+
+  .vote-count {
+    font-weight: 700;
+    font-size: 0.875rem;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
   .waiting-game {
@@ -775,8 +861,8 @@
   }
 
   .pill-on-dark {
-    flex-shrink: 0;
-    height: 40px;
+    min-height: 44px;
+    height: auto;
     padding: 0 14px;
     border-color: var(--color-cream);
     color: var(--color-cream);
