@@ -38,9 +38,12 @@
     if (code.length !== ROOM_CODE_LENGTH || !/^[A-Z0-9]+$/.test(code)) return;
 
     let cancelled = false;
-    const timer = setTimeout(async () => {
-      const result = await lookupRoomAction(code);
-      if (!cancelled && result) roomPreview = { code, ...result };
+    const timer = setTimeout(() => {
+      void lookupRoomAction(code).then((result) => {
+        if (!cancelled && result) roomPreview = { code, ...result };
+      }).catch(() => {
+        // Room previews are optional when the lookup fails.
+      });
     }, 250);
     return () => {
       cancelled = true;
