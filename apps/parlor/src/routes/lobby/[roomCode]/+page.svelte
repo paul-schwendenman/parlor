@@ -726,7 +726,7 @@
   <div class="content" class:voting={!selectedGame && !!ballot} class:reopened={!selectedGame && !!currentGame}
     class:confirmed={!!selectedGame}>
     {#if selectedGame}
-      <section class="game-panel spine-{selectedGame.shelf}" aria-label="Selected game">
+      <section class="game-panel spine-{selectedGame.shelf}" class:has-shared-screen={selectedGame.displayModes.includes('jackbox') && isHost} aria-label="Selected game">
         <div class="game-panel-text">
           <h2 class="game-panel-name" tabindex="-1" bind:this={gameHeading}>{selectedGame.name}</h2>
           <span class="game-panel-meta">{playerCount(selectedGame)} · <span class="play-time">{minutesRange(selectedGame)} min</span></span>
@@ -742,6 +742,9 @@
             <button type="button" class="pill pill-on-spine" onclick={changeGame} disabled={ballotPending}>Change game</button>
           {/if}
         </div>
+        {#if selectedGame.displayModes.includes('jackbox') && isHost}
+          <a class="pill pill-on-spine shared-screen" href={resolve('/watch/[roomCode]', { roomCode })} target="_blank" rel="noopener">Open shared screen</a>
+        {/if}
       </section>
     {:else if ballot}
       {#if currentGame}
@@ -1274,6 +1277,10 @@
   .game-panel :focus-visible {
     outline-color: currentColor;
   }
+
+  .game-panel.has-shared-screen { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+
+  .shared-screen { grid-column: 1 / -1; justify-self: start; text-decoration: none; }
 
   .game-panel-actions {
     flex-shrink: 0;

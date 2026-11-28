@@ -12,6 +12,6 @@ export const ohHellMeta: GameMeta & { id: 'oh-hell' } = {
   weight: 'medium',
   format: 'individual',
   tags: ['trick-taking', 'bidding'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

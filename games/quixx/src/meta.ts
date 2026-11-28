@@ -11,6 +11,6 @@ export const quixxMeta: GameMeta & { id: 'quixx' } = {
   weight: 'light',
   format: 'individual',
   tags: ['roll and write'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

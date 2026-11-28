@@ -44,6 +44,9 @@ importers:
       '@parlor/euchre':
         specifier: workspace:*
         version: link:../../games/euchre
+      '@parlor/farkle':
+        specifier: workspace:*
+        version: link:../../games/farkle
       '@parlor/game-types':
         specifier: workspace:*
         version: link:../../packages/game-types
@@ -71,6 +74,9 @@ importers:
       '@parlor/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@parlor/word-split':
+        specifier: workspace:*
+        version: link:../../games/word-split
       express:
         specifier: ^4.21.0
         version: 4.22.1
@@ -248,6 +254,28 @@ importers:
       '@parlor/cards':
         specifier: workspace:*
         version: link:../../packages/cards
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/farkle:
+    dependencies:
       '@parlor/game-types':
         specifier: workspace:*
         version: link:../../packages/game-types
@@ -512,6 +540,31 @@ importers:
       svelte:
         specifier: ^5.0.0
         version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/word-split:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+      word-list:
+        specifier: ^4.1.0
+        version: 4.1.0
     devDependencies:
       svelte-check:
         specifier: ^4.1.4
@@ -2438,6 +2491,10 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
+  word-list@4.1.0:
+    resolution: {integrity: sha512-4vtKyH8lGfaY8DHLTKQDfDxPixdK6BC/2W38TsPE07Wc8uPrMIbEO3quxBFSa2BfsDyG6pW47UEN/9tfYxN6BA==}
+    engines: {node: '>=18'}
+
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
@@ -4225,6 +4282,8 @@ snapshots:
     dependencies:
       siginfo: 2.0.0
       stackback: 0.0.2
+
+  word-list@4.1.0: {}
 
   word-wrap@1.2.5: {}
 

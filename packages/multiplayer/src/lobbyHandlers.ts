@@ -268,6 +268,7 @@ export function setupLobbyHandlers(
       if (room) {
         ack(true, undefined, room.gameId, {
           hostName: room.players.get(room.hostId)?.name,
+          status: room.status,
           peopleCount: [...room.players.values()].filter(player => !player.isBot).length,
         });
       } else ack(false);

@@ -12,6 +12,6 @@ export const euchreMeta: GameMeta & { id: 'euchre' } = {
   weight: 'medium',
   format: 'teams',
   tags: ['trick-taking', 'trump', 'partners', 'classic'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

@@ -148,6 +148,34 @@
         <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
       </section>
 
+    {:else if gameId === 'farkle'}
+      <section>
+        <h3>Roll, keep, or bank</h3>
+        <p>Start with six dice. Keep at least one scoring combination, then bank your turn points or roll the remaining dice. If you keep all six, you can roll all six again. A roll with no scoring dice ends your turn and wipes out your unbanked points.</p>
+        <p>Your first bank must be at least 500 points. After that you can bank any scoring turn.</p>
+      </section>
+      <section>
+        <h3>Scoring dice</h3>
+        <ul>
+          <li>Single 1s score 100 each. Single 5s score 50 each.</li>
+          <li>Three 1s score 1,000. Other triples score 100 times the face value. Four, five, and six of a kind score 1,000, 2,000, and 3,000. If your dice can score in more than one way, you get the highest total.</li>
+          <li>A straight, three pairs, or four of a kind with a pair score 1,500. Two triplets score 2,500.</li>
+        </ul>
+      </section>
+      <section>
+        <h3>Final turns</h3>
+        <p>When someone banks 10,000 points or more, everyone else gets one last turn. The highest score wins, with ties shared.</p>
+      </section>
+    {:else if gameId === 'word-split'}
+      <section>
+        <h3>Build words</h3>
+        <p>Everyone gets the same eight letter tiles and 75 seconds to submit words. Use three or more letters and use each tile at most once per word. You can reuse the tiles for your next word.</p>
+      </section>
+      <section>
+        <h3>Score unique finds</h3>
+        <p>Words stay private until time runs out or everyone finishes. A word scores one point per letter if exactly one player submitted it. A word found by two or more players scores zero.</p>
+        <p>The highest total after three rounds wins. Tied players share the win.</p>
+      </section>
     {:else if gameId === 'oh-hell'}
       <section>
         <h3>Bidding</h3>

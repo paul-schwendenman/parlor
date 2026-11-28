@@ -21,6 +21,8 @@
   let roomPreview = $state<({ code: string } & NonNullable<Awaited<ReturnType<typeof lookupRoomAction>>>) | null>(null);
   let visiblePreview = $derived(roomPreview?.code === normalizedCode ? roomPreview : null);
   let previewGame = $derived(findGame(visiblePreview?.gameId));
+  let gameStatus = $derived(visiblePreview?.preview?.status);
+  let spectateOnly = $derived(gameStatus === 'playing' || gameStatus === 'finished');
   let error = $state('');
   let loading = $state(false);
   let interactive = $state(false);
@@ -66,7 +68,7 @@
   }
 
   async function handleJoin() {
-    if (loading) return;
+    if (loading || spectateOnly) return;
     if (!joinCode.trim()) { error = 'Enter the room code from your invite'; return; }
     if (!joinName.trim()) { error = 'Enter your name so the table knows who you are'; return; }
     loading = true;
@@ -152,7 +154,15 @@
   <!-- Join -->
   <section class="join" aria-labelledby="join-title">
     <div aria-live="polite">
-      <h2 id="join-title" class="join-title">{prefillCode && visiblePreview?.preview?.hostName ? `Join ${visiblePreview.preview.hostName}’s room` : 'Join a room'}</h2>
+      <h2 id="join-title" class="join-title">
+        {#if gameStatus === 'playing'}
+          {previewGame?.name ?? 'Game'} in progress
+        {:else if gameStatus === 'finished'}
+          {previewGame?.name ?? 'Game'} has finished
+        {:else}
+          {prefillCode && visiblePreview?.preview?.hostName ? `Join ${visiblePreview.preview.hostName}’s room` : 'Join a room'}
+        {/if}
+      </h2>
       {#if prefillCode && visiblePreview?.preview}
         {@const count = visiblePreview.preview.peopleCount}
         <p class="join-invite">{count} {count === 1 ? 'person' : 'people'} here</p>
@@ -183,44 +193,50 @@
           {/if}
         </div>
         <div role="status">
-          {#if previewGame}
+          {#if previewGame && !spectateOnly}
             <div class="room-preview spine-{previewGame.shelf}">
               <strong>{previewGame.name}</strong>
               <span>{previewGame.tagline}</span>
             </div>
-          {:else if visiblePreview}
+          {:else if visiblePreview && !spectateOnly}
             <p class="room-preview-message">
               {visiblePreview.exists ? 'Game selection happens in the lobby.' : 'Room not found. Check the code and try again.'}
             </p>
           {/if}
         </div>
       </div>
-      <label class="field">
-        <span class="field-label">Your name</span>
-        <input
-          type="text"
-          bind:value={joinName}
-          bind:this={nameInput}
-          placeholder="Your name"
-          maxlength={PLAYER_NAME_MAX_LENGTH}
-          autocomplete="nickname"
-          class="input"
-          aria-invalid={!!error && !creatingRoom && !!joinCode.trim() && !joinName.trim()}
-          aria-describedby={error && !creatingRoom ? 'join-error' : undefined}
-        />
-      </label>
+      {#if !spectateOnly}
+        <label class="field">
+          <span class="field-label">Your name</span>
+          <input
+            type="text"
+            bind:value={joinName}
+            bind:this={nameInput}
+            placeholder="Your name"
+            maxlength={PLAYER_NAME_MAX_LENGTH}
+            autocomplete="nickname"
+            class="input"
+            aria-invalid={!!error && !creatingRoom && !!joinCode.trim() && !joinName.trim()}
+            aria-describedby={error && !creatingRoom ? 'join-error' : undefined}
+          />
+        </label>
+      {/if}
       {#if error && !creatingRoom}
         <p id="join-error" class="error" role="alert">{error}</p>
       {/if}
-      <button type="submit" class="btn btn-primary" disabled={!interactive || loading}>Join</button>
+      {#if spectateOnly}
+        <button type="button" class="btn btn-primary" onclick={handleWatch} disabled={!interactive || loading}>Spectate</button>
+      {:else}
+        <button type="submit" class="btn btn-primary" disabled={!interactive || loading}>Join</button>
+      {/if}
     </form>
-    {#if prefillCode}
+    {#if prefillCode && !spectateOnly}
       <details class="invite-options">
         <summary>Not what you meant?</summary>
         {@render watchButton()}
         <a href={resolve('/')}>Start a new room</a>
       </details>
-    {:else}
+    {:else if !spectateOnly}
       {@render watchButton()}
     {/if}
   </section>

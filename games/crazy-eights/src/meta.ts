@@ -11,6 +11,6 @@ export const crazyEightsMeta: GameMeta & { id: 'crazy-eights' } = {
   weight: 'light',
   format: 'individual',
   tags: ['shedding', 'classic'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

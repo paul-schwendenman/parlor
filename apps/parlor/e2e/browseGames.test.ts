@@ -14,16 +14,17 @@ test('answering the questions narrows the shelf and lands in the URL', async ({ 
 	await page.goto('/games');
 
 	await page.getByRole('group', { name: 'How many of you?' }).getByRole('button', { name: '6', exact: true }).click();
-	await page.getByRole('button', { name: 'Dice', exact: true }).click();
-	await expect(results(page)).toHaveText('2 games fit');
+	const kind = page.getByRole('group', { name: 'What kind of game?' });
+	await kind.getByRole('button', { name: 'Dice', exact: true }).click();
+	await expect(results(page)).toHaveText('3 games fit');
 	await expect(page).toHaveURL(/players=6/);
 	await expect(page).toHaveURL(/type=dice/);
 	await expect(page.getByRole('heading', { name: "Liar's Dice" })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Quixx' })).toHaveCount(0);
 
 	// Tapping the current answer clears it.
-	await page.getByRole('button', { name: 'Dice', exact: true }).click();
-	await expect(page.getByRole('button', { name: 'Either', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await kind.getByRole('button', { name: 'Dice', exact: true }).click();
+	await expect(kind.getByRole('button', { name: 'Any', exact: true })).toHaveAttribute('aria-pressed', 'true');
 
 	await page.getByRole('searchbox', { name: 'Search games' }).fill('pirate');
 	await expect(results(page)).toHaveText('1 game fits');

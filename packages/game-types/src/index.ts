@@ -161,6 +161,7 @@ export type GameStateEnvelope<K extends GameId = GameId> = {
 export interface RoomInvitePreview {
   hostName?: string;
   peopleCount: number;
+  status: 'waiting' | 'playing' | 'finished';
 }
 
 export interface GameBallotSnapshot {

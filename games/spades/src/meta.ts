@@ -12,6 +12,6 @@ export const spadesMeta: GameMeta & { id: 'spades' } = {
   weight: 'medium',
   format: 'teams',
   tags: ['trick-taking', 'bidding', 'partners', 'classic'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

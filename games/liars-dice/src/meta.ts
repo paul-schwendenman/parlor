@@ -11,6 +11,6 @@ export const liarsDiceMeta: GameMeta & { id: 'liars-dice' } = {
   weight: 'light',
   format: 'individual',
   tags: ['bluffing', 'bidding', 'classic'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

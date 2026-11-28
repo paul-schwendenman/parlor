@@ -86,7 +86,9 @@ test('a spectator can watch before play starts, leave, and rejoin a live game', 
     await watcher.getByRole('button', { name: 'Leave room' }).click();
     await expect(watcher).toHaveURL('/');
 
-    await watchRoom(watcher, roomCode);
+    await watcher.goto(host.url());
+    await expect(watcher.getByRole('heading', { name: 'Crazy Eights in progress' })).toBeVisible();
+    await watcher.getByRole('button', { name: 'Spectate', exact: true }).click();
     await expect(watcher).toHaveURL(`/game/${roomCode}`);
     await expect(watcher.getByRole('region', { name: 'Table' })).toBeVisible();
     await expect(watcher.locator('.hand .hand-card')).toHaveCount(0);
@@ -139,7 +141,10 @@ test('a Quixx spectator sees the table without a player scoresheet', async ({ br
     await host.getByRole('button', { name: 'Start Game' }).click();
     await expect(host).toHaveURL(`/game/${roomCode}`);
 
-    await watchRoom(watcher, roomCode);
+    await watcher.goto('/');
+    await watcher.getByLabel('Room code').fill(roomCode);
+    await expect(watcher.getByRole('heading', { name: 'Quixx in progress' })).toBeVisible();
+    await watcher.getByRole('button', { name: 'Spectate', exact: true }).click();
     await expect(watcher).toHaveURL(`/game/${roomCode}`);
     await expect(watcher.getByText('Watching as spectator')).toBeVisible();
     await expect(watcher.getByRole('list', { name: 'Players' })).toBeVisible();

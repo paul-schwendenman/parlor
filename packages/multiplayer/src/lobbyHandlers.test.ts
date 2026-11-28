@@ -690,7 +690,7 @@ describe('lobby:roomExists', () => {
     const emittedBefore = io.emitted.length;
     const live = vi.fn();
     visitor.fire('lobby:roomExists', roomCode.toLowerCase(), live);
-    expect(live).toHaveBeenCalledExactlyOnceWith(true, undefined, gameRules.id, { hostName: 'Margaret', peopleCount: 1 });
+    expect(live).toHaveBeenCalledExactlyOnceWith(true, undefined, gameRules.id, { hostName: 'Margaret', peopleCount: 1, status: 'waiting' });
     const missing = vi.fn();
     visitor.fire('lobby:roomExists', 'NOPE99', missing);
     expect(missing).toHaveBeenCalledExactlyOnceWith(false);
@@ -728,7 +728,7 @@ describe('lobby:roomExists', () => {
       now = 500;
       const ack = vi.fn();
       visitor.fire('lobby:roomExists', host.data.roomCode, ack);
-      expect(ack).toHaveBeenCalledExactlyOnceWith(true, undefined, null, { hostName: 'Host', peopleCount: 1 });
+      expect(ack).toHaveBeenCalledExactlyOnceWith(true, undefined, null, { hostName: 'Host', peopleCount: 1, status: 'waiting' });
     } finally {
       clock.mockRestore();
     }

@@ -12,6 +12,6 @@ export const heartsMeta: GameMeta & { id: 'hearts' } = {
   weight: 'medium',
   format: 'individual',
   tags: ['trick-taking', 'passing', 'classic'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

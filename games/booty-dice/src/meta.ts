@@ -11,6 +11,6 @@ export const bootyDiceMeta: GameMeta & { id: 'booty-dice' } = {
   weight: 'light',
   format: 'individual',
   tags: ['pirates', 'take that'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

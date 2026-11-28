@@ -11,6 +11,6 @@ export const kingsCornerMeta: GameMeta & { id: 'kings-corner' } = {
   weight: 'light',
   format: 'individual',
   tags: ['shedding', 'classic'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

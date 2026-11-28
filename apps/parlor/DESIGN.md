@@ -167,7 +167,7 @@ Rules:
 - The Flat Box Rule. Nothing casts a shadow at rest unless it overlaps something.
 - The No Block Shadow Rule. Outlines are ink, shadows are soft.
 - The Ink Outline Rule. If it holds content, it has a full outline in espresso.
-- The Collection Rule. Shared board chrome (TurnBanner, SeatChip, GameOver, lid rules button, and TrickTable / TeamScore where a game has tricks or teams) is the same in every game; a game's identity lives in its pieces and playing surface (see Game boards). Each game has one fixed colour, shared by its shelf spine, lobby row and pieces: Quixx felt, Crazy Eights mustard, Booty Dice clay, Liar's Dice espresso, Kings Corner linen, Hearts clay, Spades espresso, Euchre felt, Oh Hell mustard (source: `src/lib/games/catalog.ts`).
+- The Collection Rule. Shared board chrome (TurnBanner, SeatChip, GameOver, lid rules button, and TrickTable / TeamScore where a game has tricks or teams) is the same in every game; a game's identity lives in its pieces and playing surface (see Game boards). Each game has one fixed colour, shared by its shelf spine, lobby row and pieces: Quixx felt, Crazy Eights mustard, Booty Dice clay, Liar's Dice espresso, Kings Corner linen, Hearts clay, Spades espresso, Euchre felt, Oh Hell mustard, Farkle linen, Word Split espresso (source: `src/lib/games/catalog.ts`).
 Elevation:
 - Raised sheet: 0 10px 24px rgba(59, 47, 47, 0.16)
 - Modal: 0 8px 32px rgba(59, 47, 47, 0.15)

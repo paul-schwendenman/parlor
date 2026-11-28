@@ -9,43 +9,45 @@
   import { playerState } from '$lib/stores/playerStore.svelte.js';
   import { lobbyState } from '$lib/stores/lobbyStore.svelte.js';
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
-  import { getSocket } from '$lib/stores/socketClient.js';
+  import { getSocket, roomExistsAction } from '$lib/stores/socketClient.js';
   import LeaveRoomButton from '$lib/components/LeaveRoomButton.svelte';
   import GameRenderer from '$lib/components/games/GameRenderer.svelte';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
-  const GAME_NAMES: Record<string, string> = {
-    quixx: 'Quixx',
-    'crazy-eights': 'Crazy Eights',
-    'kings-corner': 'Kings Corner',
-    'booty-dice': 'Booty Dice',
-    'liars-dice': "Liar's Dice",
-    hearts: 'Hearts',
-    spades: 'Spades',
-    euchre: 'Euchre',
-    'oh-hell': 'Oh Hell',
-  };
+  import { findGame } from '$lib/games/catalog.js';
 
-  let roomCode = $derived($page.params.roomCode ?? '');
-  let roomNotFound = $state(false);
+  let roomCode = $derived(($page.params.roomCode ?? '').toUpperCase());
+  let inRoom = $derived(playerState.roomCode === roomCode);
+  let roomMissing = $state<'gone' | 'unchecked' | null>(null);
+  let lookupAttempt = $state(0);
 
   onMount(() => {
     if (browser) getSocket();
   });
 
   $effect(() => {
-    if (playerState.roomCode === roomCode) {
-      roomNotFound = false;
-      return;
-    }
-    if (connectionState.status !== 'connected') return;
-    // Wait for the reconnect handshake before declaring the game gone.
-    if (connectionState.reconnectPending) return;
-    roomNotFound = true;
+    roomMissing = null;
+    if (inRoom || connectionState.status !== 'connected' || connectionState.reconnectPending) return;
+    const code = roomCode;
+    const attempt = lookupAttempt;
+    let cancelled = false;
+    void roomExistsAction(code).then((exists) => {
+      if (cancelled || playerState.roomCode === code || lookupAttempt !== attempt) return;
+      if (exists) {
+        // eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve('/') plus a query string
+        goto(`${resolve('/')}?join=${encodeURIComponent(code)}`, { replaceState: true }).catch(console.error);
+      } else {
+        roomMissing = exists === false ? 'gone' : 'unchecked';
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   });
 
-  let view = $derived(gameState.state);
-  let gameName = $derived(view ? (GAME_NAMES[view.gameId] ?? '') : '');
+  let view = $derived(inRoom ? gameState.state : null);
+  let game = $derived(findGame(view?.gameId));
+  let gameName = $derived(game?.name ?? '');
   let rulesOpen = $state(false);
   let hadView = false;
 
@@ -70,7 +72,7 @@
 <header class="lid">
   <div class="lid-inner">
     <span class="wordmark"><ParlorMark />PARLOR</span>
-    {#if playerState.roomCode === roomCode}
+    {#if inRoom}
       <span class="code">
         <span class="sr-only">Room code {roomCode}</span>
         {#each roomCode.split('') as char, i (i)}
@@ -84,6 +86,9 @@
             <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
           </button>
         {/if}
+        {#if game?.displayModes.includes('jackbox') && playerState.id}
+          <a class="shared-screen" href={resolve('/watch/[roomCode]', { roomCode })} target="_blank" rel="noopener">Shared screen</a>
+        {/if}
         <LeaveRoomButton />
       </div>
     {/if}
@@ -92,10 +97,13 @@
 
 {#if !view}
   <div class="loading">
-    {#if roomNotFound}
+    {#if roomMissing === 'gone'}
       <h1 class="state-title">This game doesn't exist or has ended.</h1>
       <p class="state-body">Check the code with whoever invited you, or start a new room.</p>
       <a href={resolve('/')} class="back-link">Back to home</a>
+    {:else if roomMissing === 'unchecked'}
+      <h1 class="state-title">Couldn’t check this room.</h1>
+      <button type="button" onclick={() => lookupAttempt++}>Try again</button>
     {:else}
       <p class="state-body" role="status">Loading game…</p>
     {/if}
@@ -203,6 +211,8 @@
     white-space: nowrap;
     border: 0;
   }
+
+  .shared-screen { color: var(--color-espresso); background: var(--color-cream); border: 2px solid currentColor; border-radius: 999px; padding: 0 12px; min-height: 44px; display: inline-flex; align-items: center; font-weight: 800; text-decoration: none; }
 
   .spectating {
     padding: 4px 10px;
