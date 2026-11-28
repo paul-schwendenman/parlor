@@ -623,3 +623,28 @@ it('Harbor Dice keeps selected dice and broadcasts the recorded category', async
 	for (const view of await views()) expect(view.lastScore).toEqual({ category: 'lighthouse', points: 20 });
 	game.reset();
 });
+
+it('Ridge Run keeps climbed steps temporary until camping and then passes the turn', async () => {
+	engineInt = () => 0;
+	const game = await table('ridge-run');
+	const [host, guest] = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'ridge-run') throw new Error('Expected a Ridge Run view');
+			return frame.view;
+		});
+	}
+	await views();
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'roll' })).toEqual({ ok: true });
+	for (const view of await views()) expect(view.moves).toEqual([{ route: 2, steps: 2 }]);
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'climb', route: 2 })).toEqual({ ok: true });
+	for (const view of await views()) expect(view).toMatchObject({ climb: { 2: 2 }, players: [{ progress: {} }, { progress: {} }, { progress: {} }] });
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'camp' })).toEqual({ ok: true });
+	for (const view of await views()) {
+		expect(view.climb).toEqual({});
+		expect(view.players[0].progress).toEqual({ 2: 2 });
+	}
+	await vi.waitFor(async () => expect((await views())[0].activePlayerId).toBe(guest.id), { timeout: 2500 });
+	game.reset();
+});

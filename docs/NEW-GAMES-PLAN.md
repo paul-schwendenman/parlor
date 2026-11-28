@@ -8,7 +8,7 @@ open questions, sources). Traditional games use their established names. Commerc
 |---|---|---|---|
 | FARKLE.md | Farkle (`farkle`) | 2–6 | Already implemented on the starting branch |
 | HARBOR_DICE.md | Harbor Dice (`harbor-dice`) | 2–6 | Five-dice scorecard with original categories |
-| CANT_STOP.md | Can't Stop (`cant-stop`) | 2–4 | Column board is a new visual |
+| RIDGE_RUN.md | Ridge Run (`ridge-run`) | 2–4 | Three dice, two routes per turn, and a summit race |
 | GOLF.md | Golf (`golf`) | 2–6 | 6-card Golf; two decks at 5–6p, address cards by slot |
 | PRESIDENT.md | President (`president`) | 4–7 | Fixed seats; "Peasant" not "Scum" |
 | GIN_RUMMY.md | Gin Rummy (`gin-rummy`) | 2 | Auto meld arrangement; meld logic reusable for Rummy 500 |
@@ -26,7 +26,7 @@ Pinochle, Old Maid, Blackjack.
 - [x] Farkle — playable on the starting branch. Added engine variants and a shared dice tray and roll/bank controls.
 - [x] Golf — nine-hole default, bots, shared card grid and discard pile. Verified engine, five-seat socket play, and phone browser flow.
 - [x] Harbor Dice — Parlor’s five-dice scorecard adaptation. Uses ten categories, including Twin docks and Lighthouse.
-- [ ] Can't Stop
+- [x] Ridge Run — Parlor's push-your-luck climbing adaptation. Pair three dice, bank steps, and race to seven summit points.
 - [ ] Love Letter
 - [ ] Sushi Go
 - [x] President — fixed seats, private card exchanges, and a shared bot and reveal scheduler. Verified engine, seven-seat socket play, and phone browser flow.
@@ -69,7 +69,7 @@ Easiest/highest-reuse first; each game introduces the kit pieces the later ones 
 1. **Farkle**: implemented. Uses the shared dice kit.
 2. **Harbor Dice**: implemented. Reuses the dice tray and automated turn scheduler.
 3. **Golf**: simple standard-deck game; extracts `DiscardPile`, adds `CardGrid`.
-4. **Can't Stop**: dice kit + new column board; needs bot seat colours (#3).
+4. **Ridge Run**: implemented. Reuses the dice kit and marks each player's route progress with their seat colour.
 5. **Love Letter**: builds `CardFrame` / `CardHand<T>` / `CharacterCard`.
 6. **Sushi Go**: generic hand; first simultaneous-pick game.
 7. **President**: reuses multi-select hand; 7-player layout.

@@ -148,6 +148,16 @@
         <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
       </section>
 
+    {:else if gameId === 'ridge-run'}
+      <section>
+        <h3>Climb a route</h3>
+        <p>Roll three dice. Choose one route that matches the sum of any two dice. Move one step, or two with a matching pair. You can climb at most two different routes each turn.</p>
+      </section>
+      <section>
+        <h3>Roll again or make camp</h3>
+        <p>Camp to bank every step you climbed. If you roll and have no available route, your turn ends and you lose your unbanked steps.</p>
+        <p>The first player to bank a summit earns three points. Anyone who summits that route later earns two. You can score each route once. First to seven points wins.</p>
+      </section>
     {:else if gameId === 'harbor-dice'}
       <section>
         <h3>Roll and hold</h3>
