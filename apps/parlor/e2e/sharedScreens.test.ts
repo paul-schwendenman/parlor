@@ -6,6 +6,7 @@ const games = [
   { name: "Booty Dice", bots: 1, sidebar: "Crews" },
   { name: "Kings Corner", bots: 1, sidebar: "Cards remaining" },
   { name: "Crazy Eights", bots: 1, sidebar: "Cards remaining" },
+  { name: "Hearts", bots: 3, sidebar: "Standings" },
 ];
 
 for (const { name, bots, sidebar } of games) {
