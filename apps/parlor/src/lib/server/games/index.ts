@@ -12,6 +12,9 @@ import { ohHellDefinition } from '@parlor/oh-hell/server-definition';
 import { heartsDefinition } from '@parlor/hearts/server-definition';
 import { kingsCornerDefinition } from '@parlor/kings-corner/server-definition';
 
+import { farkleDefinition } from '@parlor/farkle/server-definition';
+import { wordSplitDefinition } from '@parlor/word-split/server-definition';
+
 export function registerAllGames(): void {
 	registerGame(quixxDefinition);
 	registerGame(crazyEightsDefinition);
@@ -22,4 +25,6 @@ export function registerAllGames(): void {
 	registerGame(spadesDefinition);
 	registerGame(euchreDefinition);
 	registerGame(ohHellDefinition);
+	registerGame(farkleDefinition);
+	registerGame(wordSplitDefinition);
 }

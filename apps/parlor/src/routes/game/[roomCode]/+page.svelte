@@ -14,17 +14,7 @@
   import GameRenderer from '$lib/components/games/GameRenderer.svelte';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
-  const GAME_NAMES: Record<string, string> = {
-    quixx: 'Quixx',
-    'crazy-eights': 'Crazy Eights',
-    'kings-corner': 'Kings Corner',
-    'booty-dice': 'Booty Dice',
-    'liars-dice': "Liar's Dice",
-    hearts: 'Hearts',
-    spades: 'Spades',
-    euchre: 'Euchre',
-    'oh-hell': 'Oh Hell',
-  };
+  import { findGame } from '$lib/games/catalog.js';
 
   let roomCode = $derived($page.params.roomCode ?? '');
   let roomNotFound = $state(false);
@@ -45,7 +35,7 @@
   });
 
   let view = $derived(gameState.state);
-  let gameName = $derived(view ? (GAME_NAMES[view.gameId] ?? '') : '');
+  let gameName = $derived(view ? (findGame(view.gameId)?.name ?? '') : '');
   let rulesOpen = $state(false);
   let hadView = false;
 
@@ -83,6 +73,9 @@
           <button type="button" class="rules-btn" onclick={() => (rulesOpen = true)} aria-label="How to play {gameName}" title="How to play">
             <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
           </button>
+        {/if}
+        {#if findGame(view?.gameId)?.displayModes.includes('jackbox') && playerState.id}
+          <a class="shared-screen" href={resolve('/watch/[roomCode]', { roomCode })} target="_blank" rel="noopener">Shared screen</a>
         {/if}
         <LeaveRoomButton />
       </div>
@@ -203,6 +196,8 @@
     white-space: nowrap;
     border: 0;
   }
+
+  .shared-screen { color: var(--color-espresso); background: var(--color-cream); border: 2px solid currentColor; border-radius: 999px; padding: 0 12px; min-height: 44px; display: inline-flex; align-items: center; font-weight: 800; text-decoration: none; }
 
   .spectating {
     padding: 4px 10px;

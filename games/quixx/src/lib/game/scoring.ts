@@ -7,7 +7,7 @@ export function scoreRow(marks: boolean[], hasLock = false): number {
   return (count * (count + 1)) / 2;
 }
 
-export function totalScore(player: QuixxPlayer): number {
+export function totalScore(player: Pick<QuixxPlayer, 'sheet' | 'lockedRows' | 'penalties'>): number {
   let total = 0;
   for (const row of ROW_COLORS) {
     const hasLock = player.lockedRows.includes(row);

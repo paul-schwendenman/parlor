@@ -9,6 +9,6 @@ export const ohHellMeta: GameMeta & { id: 'oh-hell' } = {
   maxPlayers: 6,
   estimatedMinutes: '15-30',
   tags: ['cards', 'strategy'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

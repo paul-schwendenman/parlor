@@ -8,6 +8,6 @@ export const bootyDiceMeta: GameMeta & { id: 'booty-dice' } = {
   maxPlayers: 6,
   estimatedMinutes: '15-30',
   tags: ['dice', 'pirates', 'competitive'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

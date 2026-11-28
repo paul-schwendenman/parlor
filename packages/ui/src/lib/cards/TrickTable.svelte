@@ -56,7 +56,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 4px 16px;
-    font-size: 0.85rem;
+    font-size: var(--trick-label-size, 0.85rem);
   }
 
   .aside {
@@ -67,7 +67,7 @@
 
   ul {
     --gap: 8px;
-    --card-w: clamp(40px, calc((100cqi - (var(--seats) - 1) * var(--gap)) / var(--seats) - 6px), 80px);
+    --card-w: clamp(40px, calc((100cqi - (var(--seats) - 1) * var(--gap)) / var(--seats) - 6px), var(--trick-card-max, 80px));
     display: grid;
     grid-template-columns: repeat(var(--seats), minmax(0, 1fr));
     gap: var(--gap);
