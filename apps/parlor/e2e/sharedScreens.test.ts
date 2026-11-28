@@ -8,6 +8,7 @@ const games = [
   { name: "Crazy Eights", bots: 1, sidebar: "Cards remaining" },
   { name: "Hearts", bots: 3, sidebar: "Standings" },
   { name: "Spades", bots: 3, sidebar: "Team scores" },
+  { name: "Euchre", bots: 3, sidebar: "Team scores" },
 ];
 
 for (const { name, bots, sidebar } of games) {

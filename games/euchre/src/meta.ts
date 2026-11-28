@@ -9,6 +9,6 @@ export const euchreMeta: GameMeta & { id: 'euchre' } = {
   maxPlayers: 4,
   estimatedMinutes: '20-35',
   tags: ['cards', 'teams', 'strategy'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };
