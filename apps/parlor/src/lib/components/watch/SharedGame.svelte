@@ -19,6 +19,8 @@
 
   import EuchreScreen from './EuchreScreen.svelte';
 
+  import OhHellScreen from './OhHellScreen.svelte';
+
   let { state }: { state: GameStateEnvelope } = $props();
 </script>
 
@@ -42,4 +44,6 @@
   <SpadesScreen view={state.view} />
 {:else if state.gameId === 'euchre'}
   <EuchreScreen view={state.view} />
+{:else if state.gameId === 'oh-hell'}
+  <OhHellScreen view={state.view} />
 {/if}

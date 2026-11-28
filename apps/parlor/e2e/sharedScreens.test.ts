@@ -9,6 +9,7 @@ const games = [
   { name: "Hearts", bots: 3, sidebar: "Standings" },
   { name: "Spades", bots: 3, sidebar: "Team scores" },
   { name: "Euchre", bots: 3, sidebar: "Team scores" },
+  { name: "Oh Hell", bots: 2, sidebar: "Standings" },
 ];
 
 for (const { name, bots, sidebar } of games) {
