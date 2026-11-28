@@ -15,6 +15,8 @@
 
   import HeartsScreen from './HeartsScreen.svelte';
 
+  import SpadesScreen from './SpadesScreen.svelte';
+
   let { state }: { state: GameStateEnvelope } = $props();
 </script>
 
@@ -34,4 +36,6 @@
   <CrazyEightsScreen view={state.view} />
 {:else if state.gameId === 'hearts'}
   <HeartsScreen view={state.view} />
+{:else if state.gameId === 'spades'}
+  <SpadesScreen view={state.view} />
 {/if}
