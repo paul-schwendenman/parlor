@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@parlor/booty-dice": "workspace:*",
+    "@parlor/cipher-post": "workspace:*",
     "@parlor/crazy-eights": "workspace:*",
     "@parlor/euchre": "workspace:*",
     "@parlor/farkle": "workspace:*",

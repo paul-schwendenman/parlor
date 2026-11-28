@@ -735,3 +735,34 @@ it('Fault Line redacts planted caches and private opening choices before the rev
 	expect((await views()).at(-1)?.last[0]).toEqual({ id: host.id, cache: 0, target: null, points: 2 });
 	game.reset();
 });
+
+it('Cipher Post sends a private seal to its recipient and later publishes only exposed values', async () => {
+	engineInt = (max) => max - 1;
+	const game = await table('cipher-post');
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'cipher-post') throw new Error('Expected a Cipher Post view');
+			return frame.view;
+		});
+	}
+	const initial = await views();
+	for (const [index, { socket }] of game.players.entries()) {
+		expect(await socket.timeout(1000).emitWithAck('game:action', {
+			type: 'pass', round: 1, sealId: initial[index].hand[0].id,
+		})).toEqual({ ok: true });
+	}
+	const delivered = await views();
+	expect(delivered.at(-1)).toMatchObject({ hand: [], sent: null, choice: null, results: [] });
+	expect(delivered[1].hand).toContainEqual(initial[0].hand[0]);
+	expect(delivered[2].hand).not.toContainEqual(initial[0].hand[0]);
+	for (const [index, { socket }] of game.players.entries()) {
+		expect(await socket.timeout(1000).emitWithAck('game:action', {
+			type: 'expose', round: 1, sealId: delivered[index].hand[0].id,
+		})).toEqual({ ok: true });
+	}
+	const exposed = await views();
+	expect(exposed.at(-1)?.players.map(({ exposed }) => exposed)).toEqual(delivered.slice(0, 3).map(({ hand }) => hand[0].face));
+	expect(exposed.at(-1)).toMatchObject({ phase: 'guess', hand: [], sent: null, myGuess: null, results: [] });
+	game.reset();
+});

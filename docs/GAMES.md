@@ -13,6 +13,7 @@ Parlor aims to host a variety of multiplayer tabletop games. This document catal
 | **Quixx** | Roll-and-write dice | 2-5 | Peer or Jackbox | None | Consensus or Server | Rename | [QUIXX.md](games/QUIXX.md) |
 | **Can't Stop** | Push-your-luck dice | 2-4 | Jackbox (primary) | None | Consensus or Server | Rename | [CANT_STOP.md](games/CANT_STOP.md) |
 | **Yahtzee** | Dice categories | 1+ | Peer or Jackbox | None | Consensus or Server | Rename | [YAHTZEE.md](games/YAHTZEE.md) |
+| **Cipher Post** | Passing and deduction | 2–6 | Peer | Seals and guesses | Server | Original | [CIPHER_POST.md](games/CIPHER_POST.md) |
 | **Fault Line** | Hidden cache bluffing | 3–6 | Peer | Caches and opening choices | Server | Original | [FAULT_LINE.md](games/FAULT_LINE.md) |
 | **Signal Relay** | Timed cooperative routing | 2–4 | Peer | Private signals | Server | Original | [SIGNAL_RELAY.md](games/SIGNAL_RELAY.md) |
 | **Night Market** | Simultaneous drafting | 2–5 | Peer | Current hands and picks | Server | Original | [NIGHT_MARKET.md](games/NIGHT_MARKET.md) |

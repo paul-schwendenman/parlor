@@ -148,6 +148,16 @@
         <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
       </section>
 
+    {:else if gameId === 'cipher-post'}
+      <section>
+        <h3>Pass a seal and reveal a clue</h3>
+        <p>Everyone starts with two private seals numbered one through six. Pass one to your neighbour. After receiving a seal, expose one of your two seals and keep the other hidden.</p>
+      </section>
+      <section>
+        <h3>Guess what stayed sealed</h3>
+        <p>Secretly guess one rival's sealed value. A correct guess earns four points. Your own seal earns its value if nobody guesses it. Use the seal you sent as a clue.</p>
+        <p>Pass in the opposite direction each round. The highest total after four rounds wins. Ties share the win.</p>
+      </section>
     {:else if gameId === 'fault-line'}
       <section>
         <h3>Plant a hidden cache</h3>

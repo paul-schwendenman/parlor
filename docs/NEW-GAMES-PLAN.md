@@ -12,7 +12,7 @@ open questions, sources). Traditional games use their established names. Commerc
 | GOLF.md | Golf (`golf`) | 2–6 | 6-card Golf; two decks at 5–6p, address cards by slot |
 | PRESIDENT.md | President (`president`) | 4–7 | Fixed seats; "Peasant" not "Scum" |
 | GIN_RUMMY.md | Gin Rummy (`gin-rummy`) | 2 | Auto meld arrangement; meld logic reusable for Rummy 500 |
-| LOVE_LETTER.md | Love Letter (`love-letter`) | 2–6 | 2019 21-card deck default; classic 16-card option |
+| CIPHER_POST.md | Cipher Post (`cipher-post`) | 2–6 | Private passes and public clues |
 | NIGHT_MARKET.md | Night Market (`night-market`) | 2–5 | Simultaneous draft with sell-or-display picks |
 | FAULT_LINE.md | Fault Line (`fault-line`) | 3–6 | Hidden caches, public bounties, and secret openings |
 | COUP.md | Coup (`coup`) | 2–6 | Timed challenge/block windows; 3 FAQ rulings unverified |
@@ -27,7 +27,7 @@ Pinochle, Old Maid, Blackjack.
 - [x] Golf — nine-hole default, bots, shared card grid and discard pile. Verified engine, five-seat socket play, and phone browser flow.
 - [x] Harbor Dice — Parlor’s five-dice scorecard adaptation. Uses ten categories, including Twin docks and Lighthouse.
 - [x] Ridge Run — Parlor's push-your-luck climbing adaptation. Pair three dice, bank steps, and race to seven summit points.
-- [ ] Love Letter
+- [x] Cipher Post — Parlor's compact deduction adaptation. Pass a seal, expose one value, and guess what a rival kept.
 - [x] Night Market — Parlor's simultaneous drafting adaptation. Sell goods for coins or display them for stall points.
 - [x] President — fixed seats, private card exchanges, and a shared bot and reveal scheduler. Verified engine, seven-seat socket play, and phone browser flow.
 - [x] Fault Line — Parlor's hidden-cache bluffing adaptation. Bounties create a public signal before opening choices are locked.
@@ -70,7 +70,7 @@ Easiest/highest-reuse first; each game introduces the kit pieces the later ones 
 2. **Harbor Dice**: implemented. Reuses the dice tray and automated turn scheduler.
 3. **Golf**: simple standard-deck game; extracts `DiscardPile`, adds `CardGrid`.
 4. **Ridge Run**: implemented. Reuses the dice kit and marks each player's route progress with their seat colour.
-5. **Love Letter**: builds `CardFrame` / `CardHand<T>` / `CharacterCard`.
+5. **Cipher Post**: implemented. Private passes become evidence for simultaneous guesses.
 6. **Night Market**: implemented. Locks private simultaneous picks and reveals them together.
 7. **President**: reuses multi-select hand; 7-player layout.
 8. **Fault Line**: implemented. Keeps caches and opening choices private until the reveal.
