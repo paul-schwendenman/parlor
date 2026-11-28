@@ -1,6 +1,6 @@
-# Yacht (Yahtzee rules): implementation brief
+# Yahtzee: implementation brief
 
-Status: implementation-ready brief, 2026-11-27. Replaces the pre-platform draft. Package `@parlor/yacht`, id `yacht`.
+Status: implementation-ready brief, 2026-11-27. Replaces the pre-platform draft. Package `@parlor/yahtzee`, id `yahtzee`.
 
 ## 1. Overview
 
@@ -12,14 +12,11 @@ Why it fits Parlor: everyone already knows it (grandparents and 8-year-olds alik
 
 | | |
 |---|---|
-| Proposed name | **Yacht** (shelf name "Yacht", id `yacht`) |
-| Why | "Yahtzee" is a Hasbro trademark (docs/LEGAL.md: rename trademarked games). Yacht is the public-domain ancestor (in print by 1938) and the generic name already used for Yahtzee-rules dice games. The mechanics are not protectable. |
-| Category names | Ones … Sixes, 3 of a kind, 4 of a kind, Full house, Small straight, Large straight, **Yacht** (the five-alike box), Chance. All generic dice/poker terms. |
-| Bonus names | "Upper bonus" (+35), "Yacht bonus" (+100). |
-| Must not use | The word Yahtzee anywhere players see it (UI, meta, RulesModal, shelf, e2e titles); Hasbro's logo, scorecard layout or art, cup/box imagery, "Aces" wording copied as a set from the Hasbro sheet, and any rulebook prose. Rules text is our own words. Internal docs/code comments may say "Yahtzee rules" factually (LEGAL.md allows this). |
-| Fallback names | "Five Alike", "Full House". |
-
-Note: Parlor's meta uses the real names for Quixx today; Yacht should not follow that precedent, because Yahtzee is a strong, actively enforced US mark.
+| Name | **Yahtzee**, its real name (shelf name "Yahtzee", id `yahtzee`, package `@parlor/yahtzee`). Same policy as Quixx, which already ships under its real name. Renaming trademarked games (docs/LEGAL.md) is a pre-public-launch step, not current policy. |
+| Terms | Ones … Sixes, 3 of a kind, 4 of a kind, Full house, Small straight, Large straight, Yahtzee, Chance; "Upper bonus" (+35), "Yahtzee bonus" (+100), Joker. |
+| Must be original | All art (dice, icons, stamps), the scorecard layout and visual design (our two-column printed card, §8, not Hasbro's sheet), and all rules wording (RulesModal, banners, hints). |
+| Never | Copy rulebook text: paraphrase only. Never use Hasbro's logo, box or cup art, or scorecard graphics. All rules text in this doc is paraphrased. |
+| Pre-launch | If Parlor goes public, revisit the name (Yacht, the public-domain ancestor, is the obvious fallback). |
 
 ## 3. Rules (verified)
 
@@ -46,26 +43,26 @@ Default ruleset = current Hasbro rules (forced Joker). Sources in §12; the Hasb
 | Full house | exactly 3 of one face + 2 of another | 25 |
 | Small straight | 4 consecutive faces among the dice (1234, 2345, 3456; a duplicate fifth die is fine, e.g. 1-2-3-4-4) | 30 |
 | Large straight | 12345 or 23456 | 40 |
-| Yacht | all 5 the same | 50 |
+| Yahtzee | all 5 the same | 50 |
 | Chance | anything | sum of all 5 dice |
-| **Yacht bonus** | see below | +100 each |
+| **Yahtzee bonus** | see below | +100 each |
 
-Total = upper subtotal + upper bonus + lower subtotal + 100 × Yacht bonuses. Yacht bonuses never count toward the 63.
+Total = upper subtotal + upper bonus + lower subtotal + 100 × Yahtzee bonuses. Yahtzee bonuses never count toward the 63.
 
 Clarifications (chosen defaults):
 - Five alike satisfies 3 of a kind and 4 of a kind (≥3, ≥4) and scores the full sum there.
 - Five alike is **not** a Full house (needs two different faces), **except** as a Joker (below). A large straight also satisfies Small straight.
-- A five-alike roll while the Yacht box is **empty** is ordinary: score it anywhere legal at its normal value (e.g. Fours = 20, Full house = 0). No Joker, no bonus.
+- A five-alike roll while the Yahtzee box is **empty** is ordinary: score it anywhere legal at its normal value (e.g. Fours = 20, Full house = 0). No Joker, no bonus.
 
-### Yacht bonus and Joker rule (exact)
-Applies when the final dice are five alike (face *f*) **and the Yacht box is already filled (with 50 or 0)**.
+### Yahtzee bonus and Joker rule (exact)
+Applies when the final dice are five alike (face *f*) **and the Yahtzee box is already filled (with 50 or 0)**.
 
-1. **Bonus:** if the Yacht box holds **50**, add **+100** (one per such turn). If it holds **0**, no bonus, but the Joker rule (2–3) still applies. With "Yacht bonus" off, never award it.
+1. **Bonus:** if the Yahtzee box holds **50**, add **+100** (one per such turn). If it holds **0**, no bonus, but the Joker rule (2–3) still applies. With "Yahtzee bonus" off, never award it.
 2. **Forced placement** (default "forced Joker"):
    - a. If the upper box for *f* is empty, it is the **only** legal box; score 5×*f* there.
    - b. Else, any **empty lower** box is legal, scored as a Joker: Full house 25, Small straight 30, Large straight 40, 3 of a kind / 4 of a kind / Chance = 5×*f*.
    - c. Else (upper *f* filled and all lower boxes filled), any **empty upper** box is legal and scores **0**. The +100 bonus is still awarded.
-3. The bonus is decided by the dice actually scored at the end of the turn: a Yacht rolled on roll 1 and then broken up by re-rolling earns nothing.
+3. The bonus is decided by the dice actually scored at the end of the turn: a Yahtzee rolled on roll 1 and then broken up by re-rolling earns nothing.
 
 "Free-choice Joker" variant (host toggle): any empty box is legal; the Joker values for Full house/straights apply only if the upper box for *f* is filled; otherwise they score as normal (0). Bonus unchanged.
 
@@ -77,13 +74,13 @@ Applies when the final dice are five alike (face *f*) **and the Yacht box is alr
 | Situation | Ruling |
 |---|---|
 | Score without rolling | Not allowed. |
-| "My Yacht is a full house" | Only as a Joker (Yacht box filled). House-rule toggle exists. |
-| Zero in Yacht box, roll another five alike | No +100, but forced Joker still applies (Verhoeff: "zeroes are OK"). |
+| "My Yahtzee is a full house" | Only as a Joker (Yahtzee box filled). House-rule toggle exists. |
+| Zero in Yahtzee box, roll another five alike | No +100, but forced Joker still applies (Verhoeff: a zero still counts as filled). |
 | Joker but matching upper box empty | Must take the upper box (forced). |
 | Joker with everything but an upper box full | Score 0 in an upper box, keep the +100. |
 | Upper bonus with a 0 in Ones | Still possible; only the subtotal matters. |
 | Re-hold a die you released | Yes, holds are freely toggled before each roll. |
-| Yacht bonus toward 63 | No. |
+| Yahtzee bonus toward 63 | No. |
 | Small straight 1-2-3-4-6 / 2-3-4-5-5 | Both qualify. 1-2-3-5-6 does not. |
 
 Reference: optimal solitaire play averages ≈254.6 under these rules (Verhoeff/Glenn); a casual human scores ~200–230.
@@ -95,7 +92,7 @@ Parlor has **no per-game host-options plumbing yet** (no options in `GameMeta`, 
 | Option | Values | Default | Effect |
 |---|---|---|---|
 | `joker` | `'forced'` / `'free'` / `'off'` | `'forced'` | §3 Joker rule; `'off'` = five alike only scores normally (Yatzy/Yacht style). |
-| `yachtBonus` | on / off | on | +100 for extra Yachts. |
+| `yahtzeeBonus` | on / off | on | +100 for extra Yahtzees. |
 | `fiveAlikeFullHouse` | on / off | off | House rule: five alike always counts as Full house (25). |
 | `scorePreview` | on / off | on | Show pencilled potential scores in empty boxes. Off is a "purist" mode; kids want it on. |
 | Turn timer | (platform-wide, future) | off | Not built in core; stand-ins already cover disconnects. |
@@ -109,7 +106,7 @@ Later variants (do not build now): Triple scoring (three columns ×1/×2/×3), c
 ```ts
 export type Face = 1 | 2 | 3 | 4 | 5 | 6;
 export const UPPER = ['ones', 'twos', 'threes', 'fours', 'fives', 'sixes'] as const;
-export const LOWER = ['threeKind', 'fourKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yacht', 'chance'] as const;
+export const LOWER = ['threeKind', 'fourKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yahtzee', 'chance'] as const;
 export type UpperCategory = (typeof UPPER)[number];
 export type LowerCategory = (typeof LOWER)[number];
 export type Category = UpperCategory | LowerCategory;
@@ -117,13 +114,13 @@ export const CATEGORIES: readonly Category[] = [...UPPER, ...LOWER];
 
 export type Scorecard = Record<Category, number | null>; // null = empty box
 
-export interface YachtOptions {
+export interface YahtzeeOptions {
   joker: 'forced' | 'free' | 'off';
-  yachtBonus: boolean;
+  yahtzeeBonus: boolean;
   fiveAlikeFullHouse: boolean;
   scorePreview: boolean;
 }
-export const DEFAULT_OPTIONS: YachtOptions = { joker: 'forced', yachtBonus: true, fiveAlikeFullHouse: false, scorePreview: true };
+export const DEFAULT_OPTIONS: YahtzeeOptions = { joker: 'forced', yahtzeeBonus: true, fiveAlikeFullHouse: false, scorePreview: true };
 
 /** One empty box's outcome for the current dice. Filled boxes are omitted. */
 export interface ScoreOption {
@@ -133,11 +130,11 @@ export interface ScoreOption {
   joker: boolean;   // scored through the Joker rule
 }
 
-export function baseScore(dice: readonly Face[], c: Category, o: YachtOptions): number;
-export function scoreOptions(card: Scorecard, dice: readonly Face[], o: YachtOptions): {
+export function baseScore(dice: readonly Face[], c: Category, o: YahtzeeOptions): number;
+export function scoreOptions(card: Scorecard, dice: readonly Face[], o: YahtzeeOptions): {
   options: ScoreOption[]; bonus: boolean; jokerActive: boolean; forced: Category | null;
 };
-export function totals(card: Scorecard, yachtBonuses: number): {
+export function totals(card: Scorecard, yahtzeeBonuses: number): {
   upper: number; upperBonus: 0 | 35; lower: number; total: number; upperNeeded: number; // 63 - upper, floored at 0
 };
 ```
@@ -150,7 +147,7 @@ type Phase = 'turn' | 'scored' | 'game-over';
 interface Seat {
   id: string; name: string; bot: boolean; connected: boolean;
   card: Scorecard;
-  yachtBonuses: number;
+  yahtzeeBonuses: number;
 }
 
 interface LastScore {
@@ -160,7 +157,7 @@ interface LastScore {
   upperBonusEarned: boolean; // this score crossed 63
 }
 
-class YachtEngine {
+class YahtzeeEngine {
   private phase: Phase = 'turn';
   private seats: Seat[];
   private active: number;           // random start
@@ -170,7 +167,7 @@ class YachtEngine {
   private rollsUsed: 0 | 1 | 2 | 3 = 0;
   private lastScore: LastScore | null = null;
   private winnerIds: string[] = [];
-  constructor(players: { id: string; name: string; bot: boolean }[], options?: Partial<YachtOptions>, randomInt?: RandomInt);
+  constructor(players: { id: string; name: string; bot: boolean }[], options?: Partial<YahtzeeOptions>, randomInt?: RandomInt);
 }
 ```
 
@@ -187,17 +184,17 @@ scored --advanceReveal--> turn(next seat, rollsUsed 0, dice null, held all false
 View (`types.ts`). Nothing is secret, so every seat and spectators get the same data; only `myId` differs.
 
 ```ts
-export interface YachtPlayerView {
+export interface YahtzeePlayerView {
   id: string; name: string; bot: boolean; connected: boolean;
   card: Scorecard;
-  yachtBonuses: number;
+  yahtzeeBonuses: number;
   upper: number; upperBonus: 0 | 35; upperNeeded: number; lower: number; total: number;
 }
 
-export interface YachtView {
+export interface YahtzeeView {
   phase: 'turn' | 'scored' | 'game-over';
   round: number; totalRounds: 13;
-  players: YachtPlayerView[];        // seat order; seat index = array index
+  players: YahtzeePlayerView[];        // seat order; seat index = array index
   activePlayerId: string | null;     // null at game-over
   myId: string | null;               // null for spectators
   dice: Face[] | null;
@@ -205,22 +202,22 @@ export interface YachtView {
   rollsUsed: number; rollsLeft: number;
   /** For the active player's current dice; [] before the first roll. Public. */
   scoreOptions: ScoreOption[];
-  yachtRoll: { bonus: boolean; joker: boolean; forced: Category | null } | null;
+  yahtzeeRoll: { bonus: boolean; joker: boolean; forced: Category | null } | null;
   canRoll: boolean;   // viewer is active, rollsLeft > 0, phase turn, not all held
   canScore: boolean;  // viewer is active, rollsUsed >= 1, phase turn
   lastScore: LastScore | null;       // drives the reveal animation
-  options: YachtOptions;
+  options: YahtzeeOptions;
   winnerIds: string[];
 }
 
-export type YachtAction =
+export type YahtzeeAction =
   | { type: 'hold'; held: boolean[] }
   | { type: 'roll' }
   | { type: 'score'; category: Category };
 
 declare module '@parlor/game-types' {
-  interface GameViewMap { yacht: YachtView }
-  interface GameActionMap { yacht: YachtAction }
+  interface GameViewMap { yahtzee: YahtzeeView }
+  interface GameActionMap { yahtzee: YahtzeeAction }
 }
 ```
 
@@ -234,7 +231,7 @@ All turn-based; only the active seat acts. Every rejection is a `GameRuleError` 
 | `roll` | `hasExactKeys(['type'])` | phase `turn`, your turn, `rollsUsed < 3`, not all five held after roll 1 ("Release at least one die.") | Roll 0: all five rolled, holds cleared. Later: un-held dice re-rolled with `randomInt(6)+1`. `rollsUsed++`. |
 | `score` | `hasExactKeys(['type','category'])`, category in `CATEGORIES` | phase `turn`, your turn, `rollsUsed >= 1`, box empty ("That box is already filled."), legal under Joker ("Five alike must go in Fives.") | Write points, add bonus, set `lastScore`, phase `scored`. |
 
-Timing (`definition.ts` `drive`, copy Hearts): in `scored`, schedule `advanceReveal` after **1400 ms** (2400 ms when `lastScore.bonus`, a Yacht, or the upper bonus was just earned). Automatic moves every **700 ms** (slower than Hearts' 400 ms so watchers can follow holds then rolls). Each automatic step is one action: a bot's hold+roll is one step (engine sets holds then rolls; broadcast shows the result), score is another.
+Timing (`definition.ts` `drive`, copy Hearts): in `scored`, schedule `advanceReveal` after **1400 ms** (2400 ms when `lastScore.bonus`, a Yahtzee, or the upper bonus was just earned). Automatic moves every **700 ms** (slower than Hearts' 400 ms so watchers can follow holds then rolls). Each automatic step is one action: a bot's hold+roll is one step (engine sets holds then rolls; broadcast shows the result), score is another.
 
 Connections: `setConnected`. Disconnected or removed humans get a stand-in using the bot strategy (Hearts pattern: the seat stays, its card keeps filling). `automaticMove()` returns `undefined` when no connected human remains (pauses the table).
 
@@ -244,10 +241,10 @@ Copy `games/hearts` (new-style package) per docs/ADDING_GAMES.md.
 
 | File | Notes |
 |---|---|
-| `games/yacht/package.json` | `@parlor/yacht`; exports `./meta`, `./server-definition`, `./game-view`. No `@parlor/cards`. |
+| `games/yahtzee/package.json` | `@parlor/yahtzee`; exports `./meta`, `./server-definition`, `./game-view`. No `@parlor/cards`. |
 | `tsconfig.json`, `turbo.json` | copy from `games/hearts` unchanged |
 | `src/types.ts` | §5 view/actions + module registration |
-| `src/meta.ts` | `{ id:'yacht', name:'Yacht', description:'Roll five dice up to three times and fill a 13-box scorecard. Most points wins.', minPlayers:2, maxPlayers:6, estimatedMinutes:'15-35', tags:['dice','classic','family'], displayModes:['peer'], supportsBots:true }` |
+| `src/meta.ts` | `{ id:'yahtzee', name:'Yahtzee', description:'Roll five dice up to three times and fill a 13-box scorecard. Most points wins.', minPlayers:2, maxPlayers:6, estimatedMinutes:'15-35', tags:['dice','classic','family'], displayModes:['peer'], supportsBots:true }` |
 | `src/rules.ts` | `baseScore`, `scoreOptions`, `totals` (pure; GameView imports `totals`, labels) |
 | `src/bot.ts` | §9 strategy, pure function `(card, dice, held, rollsUsed, options) => BotStep` |
 | `src/engine.ts` | class per §5, `secureRandomInt` default, `GameRuleError` |
@@ -267,7 +264,7 @@ App wiring: the six places in ADDING_GAMES.md §7, plus `apps/parlor/src/lib/gam
 
 ## 8. Board UI
 
-Shelf colour: **linen**. Every palette colour is already used (felt ×2, mustard ×2, clay ×2, ink ×2, linen ×1); linen has one user (Kings Corner, a card game), so no other dice game shares it. Place Yacht in the catalog next to a non-linen spine. Linen shows on the spine and on the scorecard's section bands; dice are paper with espresso pips (PipDie default) on the standard `Felt` tray. Held dice are butter (`picked`), never linen.
+Shelf colour: **linen**. Every palette colour is already used (felt ×2, mustard ×2, clay ×2, ink ×2, linen ×1); linen has one user (Kings Corner, a card game), so no other dice game shares it. Place Yahtzee in the catalog next to a non-linen spine. Linen shows on the spine and on the scorecard's section bands; dice are paper with espresso pips (PipDie default) on the standard `Felt` tray. Held dice are butter (`picked`), never linen.
 
 ### Phone (390 px; content 358 px)
 
@@ -284,10 +281,10 @@ Shelf colour: **linen**. Every palette colour is already used (felt ×2, mustard
 │ ⚂ Threes    ·9     │ Full house    25 │
 │ ⚃ Fours      –     │ Small str.    ·0 │
 │ ⚄ Fives     15     │ Large str.     – │
-│ ⚅ Sixes     ·0     │ Yacht         50 │
+│ ⚅ Sixes     ·0     │ Yahtzee         50 │
 │ Bonus  needs 39    │ Chance        ·16│
 ├────────────────────┴──────────────────┤
-│ Upper 18 · Lower 75 · Yacht +100 · 193 │ ← totals strip, total in Nunito 900
+│ Upper 18 · Lower 75 · Yahtzee +100 · 193 │ ← totals strip, total in Nunito 900
 └───────────────────────────────────────┘
 ╞ sticky bar: [Roll again (1 left)]  [SCORE 9]  ╡
 ```
@@ -310,18 +307,18 @@ Two columns, max 960 px: left = banner, tray, actions, seats; right = the full c
 ### Animation (moderate; all off under `prefers-reduced-motion`, crossfade only)
 - Roll: un-held dice tumble (±25° rotate, 3 face swaps, 350 ms, 40 ms stagger); held dice stay still. Same for watchers.
 - Score: number inks into the box (scale 1.15→1, 200 ms); preview pencils fade out.
-- Upper bonus earned: a mustard "+35" stamp on the bonus row. Yacht (50) or Yacht bonus: "Yacht!" stamp on the tray + "+100" chip popping onto the totals strip (that's why the reveal is 2.4 s).
+- Upper bonus earned: a mustard "+35" stamp on the bonus row. Yahtzee (50) or Yahtzee bonus: "Yahtzee!" stamp on the tray + "+100" chip popping onto the totals strip (that's why the reveal is 2.4 s).
 
 ## 9. Bot AI
 
 Pure `bot.ts`, deterministic for a given state (tests are seedable through the engine's `randomInt`). Matches Hearts: `automaticMove()` returns one step for the active seat when it is a bot or a disconnected human.
 
 Value of scoring box *c* with dice *d*: `v(c,d) = points(c,d) − par(c) + upperAdj(c)`.
-- `par` (≈ expected box value under good play): ones 2, twos 5, threes 8.5, fours 12, fives 15.5, sixes 19, 3-kind 21.5, 4-kind 13, full house 22.5, small 29.5, large 32.5, yacht 17, chance 22. Tune in tests.
+- `par` (≈ expected box value under good play): ones 2, twos 5, threes 8.5, fours 12, fives 15.5, sixes 19, 3-kind 21.5, 4-kind 13, full house 22.5, small 29.5, large 32.5, yahtzee 17, chance 22. Tune in tests.
 - `upperAdj`: while the upper bonus is still reachable, `+0.6 × (points − 3×face)` (rewards being at/above the 63 pace, punishes below).
-- Five alike with the Yacht box empty: always score Yacht (50).
+- Five alike with the Yahtzee box empty: always score Yahtzee (50).
 - Chance: extra −4 while ≥ 5 rounds remain (save it).
-- Scratch preference when every option is ≤ 0: lowest `par` box first (Ones, then Yacht late (round ≥ 10), then 4 of a kind).
+- Scratch preference when every option is ≤ 0: lowest `par` box first (Ones, then Yahtzee late (round ≥ 10), then 4 of a kind).
 - Respect `legal` from `scoreOptions` (Joker).
 
 Turn:
@@ -333,21 +330,21 @@ Cost: 32 × 252 × 13 ≈ 105k evaluations per decision, well under a millisecon
 
 ## 10. Test plan
 
-Engine/rules unit tests: `apps/parlor/src/lib/server/yacht.test.ts` (pattern: `hearts.test.ts`), with a scripted `randomInt` queue to force dice.
+Engine/rules unit tests: `apps/parlor/src/lib/server/yahtzee.test.ts` (pattern: `hearts.test.ts`), with a scripted `randomInt` queue to force dice.
 
 `rules.ts`:
 1. Every category on representative dice; upper boxes with zero matches = 0.
 2. Full house: 3+2 = 25; five alike = 0 (default), 25 with `fiveAlikeFullHouse`; 4+1 = 0.
 3. Small straight: 1-2-3-4-6 = 30, 2-3-4-5-5 = 30, 1-2-3-5-6 = 0, 12345 = 30. Large: 23456 = 40, 1-2-3-4-6 = 0.
 4. 3/4 of a kind with five alike = sum.
-5. Upper bonus at exactly 63 (35) and 62 (0); zeros in upper boxes; Yacht bonus not counted toward 63.
-6. Joker forced: Yacht box 50, Fours empty, dice 4×5 → only Fours legal, 20 pts, bonus true.
+5. Upper bonus at exactly 63 (35) and 62 (0); zeros in upper boxes; Yahtzee bonus not counted toward 63.
+6. Joker forced: Yahtzee box 50, Fours empty, dice 4×5 → only Fours legal, 20 pts, bonus true.
 7. Joker forced: Fours filled → all empty lower boxes legal, FH 25, SS 30, LS 40, Chance 20, 3K 20; upper boxes illegal.
 8. Joker forced: Fours + all lower filled → empty upper boxes legal at 0, bonus still true.
-9. Yacht box 0 + five alike: bonus false, Joker still forced (cases 6–8 with no bonus).
-10. Yacht box empty + five alike: no Joker, all empty boxes legal at normal values (FH 0), bonus false.
+9. Yahtzee box 0 + five alike: bonus false, Joker still forced (cases 6–8 with no bonus).
+10. Yahtzee box empty + five alike: no Joker, all empty boxes legal at normal values (FH 0), bonus false.
 11. Free-choice Joker: all empty legal; FH 25 only if matching upper filled; `joker:'off'` → FH 0, no bonus.
-12. `yachtBonus:false` → never +100.
+12. `yahtzeeBonus:false` → never +100.
 
 Engine:
 13. Score before rolling, roll a 4th time, hold before roll 1, roll with all held, act out of turn, score a filled box, illegal Joker box: each throws `GameRuleError` and `view()` is unchanged (deep-equal before/after).
@@ -355,28 +352,27 @@ Engine:
 15. New turn resets dice to null, holds to false, rollsUsed 0; reveal advances to the next seat; round increments on wrap; random first seat honoured.
 16. Full game: 2 and 6 players play 13 × n turns to `game-over`; every card has 13 filled boxes; totals match `totals()`.
 17. Tie: two players with equal totals → both in `winnerIds`, shared place.
-18. Bot: always takes 50 for an open Yacht; never picks an illegal box; solo-sim average ≥ 180 over 500 seeded games; a bot turn ends in ≤ 3 rolls.
+18. Bot: always takes 50 for an open Yahtzee; never picks an illegal box; solo-sim average ≥ 180 over 500 seeded games; a bot turn ends in ≤ 3 rolls.
 19. Stand-ins: disconnected human's turn is played automatically; no automatic move when all humans are disconnected; reconnect returns control mid-turn (holds kept).
 20. View: spectator `myId` null, `canRoll`/`canScore` false for non-active and spectators; `scoreOptions` empty before roll 1.
 
-Socket: add Yacht to `seededPlaythroughs.test.ts`; add malformed `hold` (4 items, non-booleans, extra keys) and `score` (unknown category, number) to `actionBoundary.test.ts`.
+Socket: add Yahtzee to `seededPlaythroughs.test.ts`; add malformed `hold` (4 items, non-booleans, extra keys) and `score` (unknown category, number) to `actionBoundary.test.ts`.
 
-Playwright smoke `apps/parlor/e2e/yacht.test.ts` (390×844, pattern `e2e/spades.test.ts`): open "How to play" for Yacht on the shelf; create room; vote Yacht; add a bot; start; ROLL; tap die 1 (assert `aria-pressed=true`); ROLL AGAIN; tap Chance; SCORE; assert Chance box shows the dice sum and the banner names the bot's turn; wait for the bot's score to land and the banner to return "Your turn". Assert no horizontal scroll (`scrollWidth <= clientWidth`).
+Playwright smoke `apps/parlor/e2e/yahtzee.test.ts` (390×844, pattern `e2e/spades.test.ts`): open "How to play" for Yahtzee on the shelf; create room; vote Yahtzee; add a bot; start; ROLL; tap die 1 (assert `aria-pressed=true`); ROLL AGAIN; tap Chance; SCORE; assert Chance box shows the dice sum and the banner names the bot's turn; wait for the bot's score to land and the banner to return "Your turn". Assert no horizontal scroll (`scrollWidth <= clientWidth`).
 
 ## 11. Open questions
 
-1. Host options: build lobby per-game options now (Yacht would be the first user), or ship defaults only and add toggles later? Recommendation: defaults only.
+1. Host options: build lobby per-game options now (Yahtzee would be the first user), or ship defaults only and add toggles later? Recommendation: defaults only.
 2. Solo play (1 player, high-score chase): the lobby replaces START with the invite while the host is alone. Allow `minPlayers: 1` and a solo START, or keep 2–6 with a bot? Recommendation: 2–6 now.
-3. Name: "Yacht" ok, or prefer "Five Alike"?
-4. Shelf colour linen (shared with Kings Corner) ok? Coordinate with Farkle's choice.
-5. Shared `DiceTray` in `@parlor/ui`: build here or in Farkle first?
+3. Shelf colour linen (shared with Kings Corner) ok? Coordinate with Farkle's choice.
+4. Shared `DiceTray` in `@parlor/ui`: build here or in Farkle first?
 
 ## 12. Sources
 
 - Hasbro, Yahtzee instructions (PDF, image-only, could not text-extract): https://www.hasbro.com/common/instruct/Yahtzee.pdf
 - Wikipedia, Yahtzee (categories, forced vs free-choice Joker, 1956→1961 Joker correction, Yatzy): https://en.wikipedia.org/wiki/Yahtzee
 - Wikipedia, Yacht (dice game) (1938 public-domain ancestor, differences): https://en.wikipedia.org/wiki/Yacht_(dice_game)
-- T. Verhoeff, Yahtzee rules as used for optimal-solitaire analysis (Joker applies when Yahtzee box is 0; bonus needs 50): https://www-set.win.tue.nl/~wstomv/misc/yahtzee/rules.html and https://www-set.win.tue.nl/~wstomv/misc/yahtzee/
+- T. Verhoeff, Yahtzee rules as used for optimal-solitaire analysis (Joker applies when the Yahtzee box holds 0; bonus needs 50): https://www-set.win.tue.nl/~wstomv/misc/yahtzee/rules.html and https://www-set.win.tue.nl/~wstomv/misc/yahtzee/
 - The Yahtzee Manifesto, rules + archive of official rulebooks 1956–2023 (bonus needs 50; Joker order; re-rolling held dice): https://www.yahtzeemanifesto.com/yahtzee-rules.php
 - Free The Dice rules PDF (zero in Yahtzee box still counts as filled for the Joker): https://www.freethedice.com/yahtzee/printables/yahtzee-rules.pdf
 - gamerules.com Yahtzee rules (Joker example with a zeroed Yahtzee box): https://gamerules.com/rules/yahtzee-rules/
