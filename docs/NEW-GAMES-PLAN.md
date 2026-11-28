@@ -2,13 +2,12 @@
 
 Handoff for the implementation session. Each game has an implementation-ready brief in `docs/games/`
 (verified rules, naming/IP, state + redacted views, actions, codebase mapping, board UI, bot, test plan,
-open questions, sources). Games use their real names and card names (as Quixx does);
-rules text, art and layout must be our own, never copied from a rulebook. Read the brief's **Open questions** before starting a game.
+open questions, sources). Traditional games use their established names. Commercial references guide Parlor adaptations with their own names, scoring, and presentation. Read the brief's **Open questions** before starting a game.
 
 | Brief | Parlor name (id) | Players | Notes |
 |---|---|---|---|
 | FARKLE.md | Farkle (`farkle`) | 2–6 | Already implemented on the starting branch |
-| YAHTZEE.md | Yahtzee (`yahtzee`) | 2–6 | Forced-Joker default |
+| HARBOR_DICE.md | Harbor Dice (`harbor-dice`) | 2–6 | Five-dice scorecard with original categories |
 | CANT_STOP.md | Can't Stop (`cant-stop`) | 2–4 | Column board is a new visual |
 | GOLF.md | Golf (`golf`) | 2–6 | 6-card Golf; two decks at 5–6p, address cards by slot |
 | PRESIDENT.md | President (`president`) | 4–7 | Fixed seats; "Peasant" not "Scum" |
@@ -26,7 +25,7 @@ Pinochle, Old Maid, Blackjack.
 
 - [x] Farkle — playable on the starting branch. Added engine variants and a shared dice tray and roll/bank controls.
 - [x] Golf — nine-hole default, bots, shared card grid and discard pile. Verified engine, five-seat socket play, and phone browser flow.
-- [ ] Yahtzee
+- [x] Harbor Dice — Parlor’s five-dice scorecard adaptation. Uses ten categories, including Twin docks and Lighthouse.
 - [ ] Can't Stop
 - [ ] Love Letter
 - [ ] Sushi Go
@@ -36,7 +35,7 @@ Pinochle, Old Maid, Blackjack.
 - [ ] Coup
 - [ ] The Mind
 
-The seven open briefs specify existing commercial games. Original designs with distinct rules and identities are needed before these entries can move into implementation.
+The commercial briefs guide mechanics for distinct Parlor adaptations. Harbor Dice is the adaptation for the five-dice scorecard slot.
 
 ## Cross-cutting issues (decide/build before or alongside the games)
 
@@ -68,7 +67,7 @@ The seven open briefs specify existing commercial games. Original designs with d
 Easiest/highest-reuse first; each game introduces the kit pieces the later ones lean on.
 
 1. **Farkle**: implemented. Uses the shared dice kit.
-2. **Yahtzee**: reuses the dice kit; scorecard pattern from Quixx.
+2. **Harbor Dice**: implemented. Reuses the dice tray and automated turn scheduler.
 3. **Golf**: simple standard-deck game; extracts `DiscardPile`, adds `CardGrid`.
 4. **Can't Stop**: dice kit + new column board; needs bot seat colours (#3).
 5. **Love Letter**: builds `CardFrame` / `CardHand<T>` / `CharacterCard`.

@@ -21,6 +21,7 @@
     "@parlor/game-types": "workspace:*",
     "@parlor/gin-rummy": "workspace:*",
     "@parlor/golf": "workspace:*",
+    "@parlor/harbor-dice": "workspace:*",
     "@parlor/hearts": "workspace:*",
     "@parlor/kings-corner": "workspace:*",
     "@parlor/liars-dice": "workspace:*",

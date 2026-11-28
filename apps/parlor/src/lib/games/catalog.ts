@@ -10,6 +10,7 @@ import { golfMeta } from '@parlor/golf/meta';
 import { heartsMeta } from '@parlor/hearts/meta';
 import { spadesMeta } from '@parlor/spades/meta';
 import { euchreMeta } from '@parlor/euchre/meta';
+import { harborDiceMeta } from '@parlor/harbor-dice/meta';
 import { farkleMeta } from '@parlor/farkle/meta';
 import { wordSplitMeta } from '@parlor/word-split/meta';
 import { ohHellMeta } from '@parlor/oh-hell/meta';
@@ -50,6 +51,7 @@ export const catalog: readonly CatalogGame[] = [
   { ...ginRummyMeta, shelf: 'clay', tagline: 'Meld sets and runs, then knock' },
   { ...presidentMeta, shelf: 'ink', tagline: 'Beat the last play, finish first' },
   { ...golfMeta, shelf: 'felt', tagline: 'Swap cards to lower your score' },
+  { ...harborDiceMeta, shelf: 'mustard', tagline: 'Hold, reroll, and fill your scorecard' },
   { ...wordSplitMeta, shelf: 'ink', tagline: 'Find words only you thought of' },
 ];
 

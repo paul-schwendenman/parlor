@@ -148,6 +148,16 @@
         <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
       </section>
 
+    {:else if gameId === 'harbor-dice'}
+      <section>
+        <h3>Roll and hold</h3>
+        <p>Roll five dice. You can hold any dice and reroll the rest up to twice. Change your holds between rolls.</p>
+      </section>
+      <section>
+        <h3>Fill your scorecard</h3>
+        <p>After any roll, choose one open category. A category can score zero and you can only fill it once. Face categories add up dice of that face. Twin docks uses two different pairs, Lighthouse needs a one and a six, Channel rewards consecutive faces, and Fleet rewards matching dice.</p>
+        <p>Play ten rounds. The highest total wins, and ties share the win.</p>
+      </section>
     {:else if gameId === 'farkle'}
       <section>
         <h3>Roll, keep, or bank</h3>

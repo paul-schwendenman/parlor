@@ -601,3 +601,25 @@ it('Gin Rummy redacts the stock draw until a player knocks and reveals both spre
 	}
 	game.reset();
 });
+
+it('Harbor Dice keeps selected dice and broadcasts the recorded category', async () => {
+	engineInt = (max) => max === 6 ? 5 : 0;
+	const game = await table('harbor-dice');
+	const [host] = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'harbor-dice') throw new Error('Expected a Harbor Dice view');
+			return frame.view;
+		});
+	}
+	await views();
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'roll', held: [] })).toEqual({ ok: true });
+	await views();
+	engineInt = () => 0;
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'roll', held: [0] })).toEqual({ ok: true });
+	for (const view of await views()) expect(view.dice).toEqual([6, 1, 1, 1, 1]);
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'score', category: 'lighthouse' })).toEqual({ ok: true });
+	for (const view of await views()) expect(view.lastScore).toEqual({ category: 'lighthouse', points: 20 });
+	game.reset();
+});

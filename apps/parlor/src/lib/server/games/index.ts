@@ -15,6 +15,7 @@ import { golfDefinition } from '@parlor/golf/server-definition';
 import { heartsDefinition } from '@parlor/hearts/server-definition';
 import { kingsCornerDefinition } from '@parlor/kings-corner/server-definition';
 
+import { harborDiceDefinition } from '@parlor/harbor-dice/server-definition';
 import { farkleDefinition } from '@parlor/farkle/server-definition';
 import { wordSplitDefinition } from '@parlor/word-split/server-definition';
 
@@ -29,6 +30,7 @@ export function registerAllGames(): void {
 	registerGame(euchreDefinition);
 	registerGame(ohHellDefinition);
 	registerGame(farkleDefinition);
+	registerGame(harborDiceDefinition);
 	registerGame(golfDefinition);
 	registerGame(ginRummyDefinition);
 	registerGame(presidentDefinition);

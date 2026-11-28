@@ -13,6 +13,7 @@ Parlor aims to host a variety of multiplayer tabletop games. This document catal
 | **Quixx** | Roll-and-write dice | 2-5 | Peer or Jackbox | None | Consensus or Server | Rename | [QUIXX.md](games/QUIXX.md) |
 | **Can't Stop** | Push-your-luck dice | 2-4 | Jackbox (primary) | None | Consensus or Server | Rename | [CANT_STOP.md](games/CANT_STOP.md) |
 | **Yahtzee** | Dice categories | 1+ | Peer or Jackbox | None | Consensus or Server | Rename | [YAHTZEE.md](games/YAHTZEE.md) |
+| **Harbor Dice** | Roll-and-hold scorecard | 2–6 | Peer | None | Server | Original | [HARBOR_DICE.md](games/HARBOR_DICE.md) |
 | **Farkle** | Push-your-luck dice | 2–6 | Peer or Jackbox | None | Server | None | [FARKLE.md](games/FARKLE.md) |
 | **President** | Climbing and shedding | 4–7 | Peer | Hands and exchanges | Server | None | [PRESIDENT.md](games/PRESIDENT.md) |
 | **Gin Rummy** | Meld building | 2 | Peer | Hands | Server | None | [GIN_RUMMY.md](games/GIN_RUMMY.md) |
