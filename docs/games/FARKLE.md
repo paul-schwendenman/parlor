@@ -1,12 +1,12 @@
 # Farkle: implementation brief
 
-Parlor ships the standard scoring table below in peer mode for 2–6 players, with bot seats and stand-ins. The board confirms the kept dice before the player banks or rolls again. The host options and shared dice animation described below are future work.
+Parlor ships the standard scoring table below for 2–6 players with an optional shared screen, with bot seats and stand-ins. The board confirms the kept dice before the player banks or rolls again. The host options and shared dice animation described below are future work.
 
 ---
 
 ## 1. Overview
 
-Farkle is a folk push-your-luck game for six ordinary dice. On your turn you keep rolling. After each roll you set aside at least one scoring die and choose whether to roll the rest or bank the points from this turn. A roll that scores nothing is a **farkle**: it loses everything from the turn. Hot dice (scoring all six) lets you pick up all six and keep going. The first player to reach 10,000 triggers a final round. The game takes **2–6 players** (the folk game has no upper limit, but 6 matches the lobby's largest table) and about **15–30 minutes** to 10,000 with 3–4 players. **Display mode: peer** (Jackbox later: all information is public, so a shared screen works with no redaction).
+Farkle is a folk push-your-luck game for six ordinary dice. On your turn you keep rolling. After each roll you set aside at least one scoring die and choose whether to roll the rest or bank the points from this turn. A roll that scores nothing is a **farkle**: it loses everything from the turn. Hot dice (scoring all six) lets you pick up all six and keep going. The first player to reach 10,000 triggers a final round. The game takes **2–6 players** (the folk game has no upper limit, but 6 matches the lobby's largest table) and about **15–30 minutes** to 10,000 with 3–4 players. **Display modes: peer or shared screen.** Open the shared screen from the lobby or table on a TV browser. Players join from their phones; the TV shows the dice, turn score and standings.
 
 Why it fits Parlor: everyone already half-knows it, it has a single decision you can teach in a minute ("roll again or bank?"), it plays well across ages, and every player can enjoy watching the other turns. It's the push-your-luck slot on the dice shelf, next to Quixx (roll-and-write), Booty Dice (combat) and Liar's Dice (bluffing).
 

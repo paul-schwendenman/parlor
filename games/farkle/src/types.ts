@@ -7,6 +7,7 @@ export interface FarkleView {
   phase: 'ready' | 'selecting' | 'bust' | 'banked' | 'game-over';
   players: { id: string; name: string; bot: boolean; connected: boolean; out: boolean; score: number }[];
   activePlayerId: string;
+  nextPlayerId: string | null;
   dice: number[];
   rollNumber: number;
   diceToRoll: number;

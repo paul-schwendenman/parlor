@@ -9,6 +9,6 @@ export const farkleMeta: GameMeta & { id: 'farkle' } = {
   maxPlayers: 6,
   estimatedMinutes: '15-30',
   tags: ['dice', 'classic'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

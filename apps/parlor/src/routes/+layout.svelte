@@ -1,13 +1,16 @@
 <script lang="ts">
   import '../app.css';
+  import { page } from '$app/state';
   import ConnectionStatus from '$lib/components/ui/ConnectionStatus.svelte';
   import RoomToast from '$lib/components/ui/RoomToast.svelte';
 
   let { children } = $props();
 </script>
 
-<ConnectionStatus />
-<RoomToast />
+{#if page.route.id !== '/watch/[roomCode]'}
+  <ConnectionStatus />
+  <RoomToast />
+{/if}
 
 <main>
   {@render children()}

@@ -85,16 +85,21 @@ export class FarkleEngine {
     if (this.revealing) this.nextTurn();
   }
 
-  private nextTurn() {
-    let next = this.active;
-    do {
-      next = (next + 1) % this.players.length;
-      if (next === this.finalTrigger) {
-        this.phase = 'game-over';
-        return;
-      }
-    } while (this.players[next].out);
+  private nextSeat(): number | null {
+    for (let offset = 1; offset <= this.players.length; offset++) {
+      const index = (this.active + offset) % this.players.length;
+      if (index === this.finalTrigger) return null;
+      if (!this.players[index].out) return index;
+    }
+    return null;
+  }
 
+  private nextTurn() {
+    const next = this.nextSeat();
+    if (next === null) {
+      this.phase = 'game-over';
+      return;
+    }
     this.active = next;
     this.dice = [];
     this.diceToRoll = DICE_PER_ROLL;
@@ -115,10 +120,12 @@ export class FarkleEngine {
   }
 
   view(): FarkleView {
+    const next = this.gameOver ? null : this.nextSeat();
     return {
       phase: this.phase,
       players: this.players.map((player) => ({ ...player })),
       activePlayerId: this.activePlayerId,
+      nextPlayerId: next === null ? null : this.players[next].id,
       dice: [...this.dice],
       rollNumber: this.rollNumber,
       kept: this.kept.map((group) => ({ ...group, dice: [...group.dice] })),

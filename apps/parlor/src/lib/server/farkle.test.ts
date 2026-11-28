@@ -51,14 +51,21 @@ describe('Farkle', () => {
     };
     for (let roll = 0; roll < 4; roll++) keepSix('a');
     engine.act('a', { type: 'bank' });
-    expect(engine.view().finalRound).toBe(true);
+    expect(engine.view()).toMatchObject({ finalRound: true, nextPlayerId: 'b' });
     engine.advanceTurn();
-    expect(engine.activePlayerId).toBe('b');
+    expect(engine.view()).toMatchObject({ activePlayerId: 'b', nextPlayerId: null });
     for (let roll = 0; roll < 5; roll++) keepSix('b');
     engine.act('b', { type: 'bank' });
     engine.advanceTurn();
     expect(engine.gameOver).toBe(true);
     expect(engine.view().players.map(({ score }) => score)).toEqual([12000, 15000]);
+  });
+
+  it('shows the next seat still in the game', () => {
+    const engine = new FarkleEngine([...seats, { id: 'c', name: 'Casey', bot: false }], () => 0);
+    expect(engine.view().nextPlayerId).toBe('b');
+    engine.remove('b');
+    expect(engine.view().nextPlayerId).toBe('c');
   });
 
   it('hands a disconnected player to a stand-in while another human is connected', () => {

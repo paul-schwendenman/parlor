@@ -6,7 +6,8 @@
   "exports": {
     "./meta": "./src/meta.ts",
     "./server-definition": "./src/definition.ts",
-    "./game-view": "./src/GameView.svelte"
+    "./game-view": "./src/GameView.svelte",
+    "./shared-screen": "./src/SharedScreen.svelte"
   },
   "dependencies": {
     "@parlor/game-types": "workspace:*",
