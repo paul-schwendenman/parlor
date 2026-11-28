@@ -148,6 +148,16 @@
         <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
       </section>
 
+    {:else if gameId === 'night-market'}
+      <section>
+        <h3>Draft, then pass</h3>
+        <p>Everyone chooses a good in secret and decides whether to sell it or display it. Once all picks are locked, reveal them and pass the remaining goods. Each season has four picks. The last good is discarded.</p>
+      </section>
+      <section>
+        <h3>Collect coins and build your stall</h3>
+        <p>Sell a good for its coin value, or display it for one point. Each lantern and silk pair and each tea and pottery pair earns five extra points. A spice earns one extra point for each distinct other kind you display.</p>
+        <p>Score and reset the stalls after each season. The highest total after three seasons wins.</p>
+      </section>
     {:else if gameId === 'ridge-run'}
       <section>
         <h3>Climb a route</h3>

@@ -15,6 +15,7 @@ import { golfDefinition } from '@parlor/golf/server-definition';
 import { heartsDefinition } from '@parlor/hearts/server-definition';
 import { kingsCornerDefinition } from '@parlor/kings-corner/server-definition';
 
+import { nightMarketDefinition } from '@parlor/night-market/server-definition';
 import { ridgeRunDefinition } from '@parlor/ridge-run/server-definition';
 import { harborDiceDefinition } from '@parlor/harbor-dice/server-definition';
 import { farkleDefinition } from '@parlor/farkle/server-definition';
@@ -33,6 +34,7 @@ export function registerAllGames(): void {
 	registerGame(farkleDefinition);
 	registerGame(harborDiceDefinition);
 	registerGame(ridgeRunDefinition);
+	registerGame(nightMarketDefinition);
 	registerGame(golfDefinition);
 	registerGame(ginRummyDefinition);
 	registerGame(presidentDefinition);

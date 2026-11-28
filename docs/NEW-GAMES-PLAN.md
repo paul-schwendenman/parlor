@@ -13,7 +13,7 @@ open questions, sources). Traditional games use their established names. Commerc
 | PRESIDENT.md | President (`president`) | 4–7 | Fixed seats; "Peasant" not "Scum" |
 | GIN_RUMMY.md | Gin Rummy (`gin-rummy`) | 2 | Auto meld arrangement; meld logic reusable for Rummy 500 |
 | LOVE_LETTER.md | Love Letter (`love-letter`) | 2–6 | 2019 21-card deck default; classic 16-card option |
-| SUSHI_GO.md | Sushi Go (`sushi-go`) | 2–5 | Simultaneous draft |
+| NIGHT_MARKET.md | Night Market (`night-market`) | 2–5 | Simultaneous draft with sell-or-display picks |
 | SKULL.md | Skull (`skull`) | 3–6 | Lost-disc identity must never leak |
 | COUP.md | Coup (`coup`) | 2–6 | Timed challenge/block windows; 3 FAQ rulings unverified |
 | THE_MIND.md | The Mind (`the-mind`) | 2–4 | Real-time; settle window for near-simultaneous plays |
@@ -28,14 +28,14 @@ Pinochle, Old Maid, Blackjack.
 - [x] Harbor Dice — Parlor’s five-dice scorecard adaptation. Uses ten categories, including Twin docks and Lighthouse.
 - [x] Ridge Run — Parlor's push-your-luck climbing adaptation. Pair three dice, bank steps, and race to seven summit points.
 - [ ] Love Letter
-- [ ] Sushi Go
+- [x] Night Market — Parlor's simultaneous drafting adaptation. Sell goods for coins or display them for stall points.
 - [x] President — fixed seats, private card exchanges, and a shared bot and reveal scheduler. Verified engine, seven-seat socket play, and phone browser flow.
 - [ ] Skull
 - [x] Gin Rummy — standard rules, bot play, automatic melds and layoffs, and final bonuses. Verified engine, socket redaction, and phone browser flow.
 - [ ] Coup
 - [ ] The Mind
 
-The commercial briefs guide mechanics for distinct Parlor adaptations. Harbor Dice is the adaptation for the five-dice scorecard slot.
+The commercial briefs guide mechanics for distinct Parlor adaptations. Harbor Dice, Ridge Run, and Night Market fill the five-dice scorecard, push-your-luck climbing, and simultaneous drafting slots.
 
 ## Cross-cutting issues (decide/build before or alongside the games)
 
@@ -71,7 +71,7 @@ Easiest/highest-reuse first; each game introduces the kit pieces the later ones 
 3. **Golf**: simple standard-deck game; extracts `DiscardPile`, adds `CardGrid`.
 4. **Ridge Run**: implemented. Reuses the dice kit and marks each player's route progress with their seat colour.
 5. **Love Letter**: builds `CardFrame` / `CardHand<T>` / `CharacterCard`.
-6. **Sushi Go**: generic hand; first simultaneous-pick game.
+6. **Night Market**: implemented. Locks private simultaneous picks and reveals them together.
 7. **President**: reuses multi-select hand; 7-player layout.
 8. **Skull**: hidden penalty choice; token stack.
 9. **Gin Rummy**: meld/layoff solver is the main work.

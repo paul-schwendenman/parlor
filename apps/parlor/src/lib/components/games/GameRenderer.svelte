@@ -13,6 +13,7 @@
   import GinRummyGame from '@parlor/gin-rummy/game-view';
   import GolfGame from '@parlor/golf/game-view';
   import HeartsGame from '@parlor/hearts/game-view';
+  import NightMarketGame from '@parlor/night-market/game-view';
   import RidgeRunGame from '@parlor/ridge-run/game-view';
   import HarborDiceGame from '@parlor/harbor-dice/game-view';
   import FarkleGame from '@parlor/farkle/game-view';
@@ -49,6 +50,8 @@
   <HeartsGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'kings-corner'}
   <KingsCornerGame view={state.view} {socket} {playerId} />
+{:else if state.gameId === 'night-market'}
+  <NightMarketGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'ridge-run'}
   <RidgeRunGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'harbor-dice'}

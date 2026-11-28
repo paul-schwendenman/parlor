@@ -648,3 +648,32 @@ it('Ridge Run keeps climbed steps temporary until camping and then passes the tu
 	await vi.waitFor(async () => expect((await views())[0].activePlayerId).toBe(guest.id), { timeout: 2500 });
 	game.reset();
 });
+
+it('Night Market sends private picks until everyone locks, then reveals all uses together', async () => {
+	engineInt = (max) => max - 1;
+	const game = await table('night-market');
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'night-market') throw new Error('Expected a Night Market view');
+			return frame.view;
+		});
+	}
+	const dealt = await views();
+	expect(dealt.map(({ hand }) => hand.length)).toEqual([5, 5, 5, 0]);
+	const tiles = dealt.slice(0, 3).map(({ hand }) => hand[0]);
+	for (const [index, { socket }] of game.players.entries()) {
+		expect(await socket.timeout(1000).emitWithAck('game:action', {
+			type: 'pick', tileId: tiles[index].id, use: index === 0 ? 'sell' : 'display', season: 1, pickNumber: 1,
+		})).toEqual({ ok: true });
+		const next = await views();
+		if (index < 2) {
+			expect(next.at(-1)).toMatchObject({ hand: [], selection: null, revealed: [] });
+			for (const [viewer, view] of next.entries()) expect(view.selection?.tileId).toBe(viewer <= index ? tiles[viewer].id : undefined);
+		} else {
+			expect(next.every(({ hand, revealed }) => hand.length === 0 && revealed.length === 3)).toBe(true);
+			expect(next.at(-1)?.revealed.map(({ tile }) => tile)).toEqual(tiles);
+		}
+	}
+	game.reset();
+});

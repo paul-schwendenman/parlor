@@ -26,6 +26,7 @@
     "@parlor/kings-corner": "workspace:*",
     "@parlor/liars-dice": "workspace:*",
     "@parlor/multiplayer": "workspace:*",
+    "@parlor/night-market": "workspace:*",
     "@parlor/oh-hell": "workspace:*",
     "@parlor/president": "workspace:*",
     "@parlor/quixx": "workspace:*",
