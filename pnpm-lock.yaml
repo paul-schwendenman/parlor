@@ -86,6 +86,9 @@ importers:
       '@parlor/ridge-run':
         specifier: workspace:*
         version: link:../../games/ridge-run
+      '@parlor/signal-relay':
+        specifier: workspace:*
+        version: link:../../games/signal-relay
       '@parlor/spades':
         specifier: workspace:*
         version: link:../../games/spades
@@ -661,6 +664,28 @@ importers:
         version: 4.0.18(@types/node@22.19.15)(tsx@4.21.0)
 
   games/ridge-run:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/signal-relay:
     dependencies:
       '@parlor/game-types':
         specifier: workspace:*

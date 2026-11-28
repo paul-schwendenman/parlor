@@ -31,6 +31,7 @@
     "@parlor/president": "workspace:*",
     "@parlor/quixx": "workspace:*",
     "@parlor/ridge-run": "workspace:*",
+    "@parlor/signal-relay": "workspace:*",
     "@parlor/spades": "workspace:*",
     "@parlor/ui": "workspace:*",
     "@parlor/word-split": "workspace:*",

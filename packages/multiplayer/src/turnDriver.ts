@@ -10,6 +10,7 @@ export function createTurnDriver<State extends AutomatedTurns>(
   key: string,
   botDelay: number,
   revealDelay: (state: State) => number | undefined,
+  afterStep?: (game: GameContext<State>) => void,
 ) {
   function drive(game: GameContext<State>) {
     const { state, instance } = game;
@@ -19,6 +20,7 @@ export function createTurnDriver<State extends AutomatedTurns>(
     instance.schedule(() => {
       if (reveal === undefined) state.automaticMove()?.();
       else state.advanceReveal();
+      afterStep?.(game);
       game.broadcast();
       drive(game);
     }, reveal ?? botDelay, key);

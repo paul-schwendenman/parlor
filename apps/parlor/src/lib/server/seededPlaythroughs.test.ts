@@ -677,3 +677,31 @@ it('Night Market sends private picks until everyone locks, then reveals all uses
 	}
 	game.reset();
 });
+
+it('Signal Relay keeps signals private and rejects a transmission to a stale antenna', async () => {
+	engineInt = (max) => max - 1;
+	const game = await table('signal-relay');
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'signal-relay') throw new Error('Expected a Signal Relay view');
+			return frame.view;
+		});
+	}
+	const dealt = await views();
+	expect(dealt.map(({ hand }) => hand.length)).toEqual([2, 2, 2, 0]);
+	const [host, guest] = game.players;
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', {
+		type: 'send', level: 1, signal: dealt[0].hand[0].id, antenna: 0, version: 0,
+	})).toEqual({ ok: true });
+	const after = await views();
+	expect(after.at(-1)?.antennas[0]).toEqual({ signal: dealt[0].hand[0], version: 1 });
+	expect(await guest.socket.timeout(1000).emitWithAck('game:action', {
+		type: 'send', level: 1, signal: dealt[1].hand[0].id, antenna: 0, version: 0,
+	})).toMatchObject({ ok: false });
+	expect(await guest.socket.timeout(1000).emitWithAck('game:action', {
+		type: 'send', level: 1, signal: dealt[1].hand[0].id, antenna: 0, version: 1,
+	})).toEqual({ ok: true });
+	expect((await views()).at(-1)?.players.map(({ remaining }) => remaining)).toEqual([1, 1, 2]);
+	game.reset();
+});

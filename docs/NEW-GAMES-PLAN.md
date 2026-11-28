@@ -16,7 +16,7 @@ open questions, sources). Traditional games use their established names. Commerc
 | NIGHT_MARKET.md | Night Market (`night-market`) | 2–5 | Simultaneous draft with sell-or-display picks |
 | SKULL.md | Skull (`skull`) | 3–6 | Lost-disc identity must never leak |
 | COUP.md | Coup (`coup`) | 2–6 | Timed challenge/block windows; 3 FAQ rulings unverified |
-| THE_MIND.md | The Mind (`the-mind`) | 2–4 | Real-time; settle window for near-simultaneous plays |
+| SIGNAL_RELAY.md | Signal Relay (`signal-relay`) | 2–4 | Cooperative timed antenna routing |
 
 Runners-up not specced: Cribbage (best next pick), Rummy 500 (build on Gin meld logic), Go Fish, Spit, Durak,
 Pinochle, Old Maid, Blackjack.
@@ -33,9 +33,9 @@ Pinochle, Old Maid, Blackjack.
 - [ ] Skull
 - [x] Gin Rummy — standard rules, bot play, automatic melds and layoffs, and final bonuses. Verified engine, socket redaction, and phone browser flow.
 - [ ] Coup
-- [ ] The Mind
+- [x] Signal Relay — Parlor's real-time cooperative adaptation. Clear four relays using two antennas and a shared reroute.
 
-The commercial briefs guide mechanics for distinct Parlor adaptations. Harbor Dice, Ridge Run, and Night Market fill the five-dice scorecard, push-your-luck climbing, and simultaneous drafting slots.
+The commercial briefs guide mechanics for distinct Parlor adaptations. Harbor Dice, Ridge Run, Night Market, and Signal Relay fill the five-dice scorecard, push-your-luck climbing, simultaneous drafting, and real-time cooperative slots.
 
 ## Cross-cutting issues (decide/build before or alongside the games)
 
@@ -76,6 +76,6 @@ Easiest/highest-reuse first; each game introduces the kit pieces the later ones 
 8. **Skull**: hidden penalty choice; token stack.
 9. **Gin Rummy**: meld/layoff solver is the main work.
 10. **Coup**: hardest turn flow (response windows, timers); after #5 for `CharacterCard`.
-11. **The Mind**: real-time; after heartbeat fix (#5 above).
+11. **Signal Relay**: implemented. Uses server deadlines and rejects stale antenna plays.
 
 Host options (#1) can land any time; the earlier it lands, the fewer games ship defaults-only.

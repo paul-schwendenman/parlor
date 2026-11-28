@@ -148,6 +148,16 @@
         <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
       </section>
 
+    {:else if gameId === 'signal-relay'}
+      <section>
+        <h3>Send signals together</h3>
+        <p>Send a signal to either antenna if the channel matches or the strength differs by exactly one. The new signal becomes the antenna's signal. Everyone can act at once.</p>
+      </section>
+      <section>
+        <h3>Beat the clock</h3>
+        <p>Each relay lasts 55 seconds. Once per relay, your team can reroute a signal to either antenna regardless of its channel or strength.</p>
+        <p>Clear every player's signals in four relays to win together. If time runs out, the team loses.</p>
+      </section>
     {:else if gameId === 'night-market'}
       <section>
         <h3>Draft, then pass</h3>
