@@ -76,7 +76,7 @@ Same as LOBBY-PLAN: one PR-sized phase at a time, agents never commit, UI phases
 
 | Date | Phase | Summary | Commit |
 |------|-------|---------|--------|
-| 2026-11-27 | 1 | Structured meta (`kind`, `weight`, `format`, `minutes`), nine games migrated, `discovery.ts` + 23 tests, home tag line, ADDING_GAMES | uncommitted |
+| 2026-11-27 | 1 | Structured meta (`kind`, `weight`, `format`, `minutes`), nine games migrated, `discovery.ts` + 23 tests, home tag line, ADDING_GAMES | phase 1 commit |
 
 ## Notes
 
