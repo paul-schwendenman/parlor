@@ -1,0 +1,27 @@
+{
+  "name": "@parlor/boggle",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./meta": "./src/meta.ts",
+    "./server-definition": "./src/definition.ts",
+    "./game-view": "./src/GameView.svelte"
+  },
+  "dependencies": {
+    "@parlor/game-types": "workspace:*",
+    "@parlor/multiplayer": "workspace:*",
+    "@parlor/ui": "workspace:*",
+    "word-list": "^4.1.0"
+  },
+  "peerDependencies": {
+    "svelte": "^5.0.0"
+  },
+  "scripts": {
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "devDependencies": {
+    "svelte-check": "^4.1.4",
+    "typescript": "^5.7.3"
+  }
+}

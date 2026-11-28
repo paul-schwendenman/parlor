@@ -23,7 +23,6 @@
     filters: GameFilters;
     games: readonly DiscoverableGame[];
     onchange: (filters: GameFilters) => void;
-    disabled?: boolean;
     /** Id for the sheet, so a "Change" button elsewhere can bring it back. */
     id?: string;
     /** "5 games fit": shown at the sheet's foot on phones, where the results sit below the fold. */
@@ -32,7 +31,7 @@
     resultsId?: string;
   }
 
-  let { filters, games, onchange, disabled = false, id = 'table-questions', countLine, resultsId }: Props = $props();
+  let { filters, games, onchange, id = 'table-questions', countLine, resultsId }: Props = $props();
 
   // Offer only what some game has: no "Trivia" chip on a shelf of cards and dice.
   let players = $derived(playerOptions(games));
@@ -109,8 +108,14 @@
   }
 </script>
 
+<!-- "Any" is the unanswered state, so it never outweighs a real answer;
+     its name says which question it belongs to. -->
+{#snippet any(label: string, name: string, pressed: boolean, onclick: () => void)}
+  <button type="button" class="chip chip-any" aria-label={name} aria-pressed={pressed} tabindex={pressed ? 0 : -1} {onclick}>{label}</button>
+{/snippet}
+
 {#snippet chip(label: string, pressed: boolean, empty: boolean, onclick: () => void, stop = pressed, check = false)}
-  <button type="button" class="chip" class:empty={empty && !pressed} class:check aria-pressed={pressed} tabindex={stop ? 0 : -1} {disabled} {onclick}>
+  <button type="button" class="chip" class:empty={empty && !pressed} class:check aria-pressed={pressed} tabindex={stop ? 0 : -1} {onclick}>
     {#if check && pressed}<svg class="tick" aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>{/if}{label}{#if empty && !pressed}<span class="sr-only"> (none fit)</span>{/if}
   </button>
 {/snippet}
@@ -122,11 +127,11 @@
       <div class="answers tiles" use:roving>
         {#each players as n (n)}
           {@const empty = counts.players[n] === 0 && filters.players !== n}
-          <button type="button" class="tile" class:empty aria-pressed={filters.players === n} tabindex={filters.players === n ? 0 : -1} {disabled} onclick={() => pick('players', n)}>
+          <button type="button" class="tile" class:empty aria-pressed={filters.players === n} tabindex={filters.players === n ? 0 : -1} onclick={() => pick('players', n)}>
             {#if n >= PLAYERS_OR_MORE}<span aria-hidden="true">{playersLabel(n)}</span><span class="sr-only">{n} or more</span>{:else}{n}{/if}{#if empty}<span class="sr-only"> (none fit)</span>{/if}
           </button>
         {/each}
-        <button type="button" class="tile tile-any" aria-pressed={filters.players === null} tabindex={filters.players === null ? 0 : -1} {disabled} onclick={() => set({ players: null })}>Any</button>
+        <button type="button" class="tile tile-any" aria-label="Any number of players" aria-pressed={filters.players === null} tabindex={filters.players === null ? 0 : -1} onclick={() => set({ players: null })}>Any</button>
       </div>
     </div>
   {/if}
@@ -138,7 +143,7 @@
         {#each lengths as l (l)}
           {@render chip(lengthLabels[l], filters.length === l, counts.length[l] === 0, () => pick('length', l))}
         {/each}
-        {@render chip('Any', filters.length === null, false, () => set({ length: null }))}
+        {@render any('Any', 'Any length', filters.length === null, () => set({ length: null }))}
       </div>
     </div>
   {/if}
@@ -151,25 +156,25 @@
         {#each kinds as k (k)}
           {@render chip(kindLabels[k], filters.kinds.includes(k), counts.kinds[k] === 0, () => toggleKind(k), kindStop === k, true)}
         {/each}
-        {@render chip(kinds.length === 2 ? 'Either' : 'Any', filters.kinds.length === 0, false, () => set({ kinds: [] }))}
+        {@render any(kinds.length === 2 ? 'Either' : 'Any', kinds.length === 2 ? 'Either kind' : 'Any kind', filters.kinds.length === 0, () => set({ kinds: [] }))}
       </div>
     </div>
   {/if}
 
   {#if anyDashed}
-    <p class="hint"><span class="dash" aria-hidden="true"></span>Dashed answers would leave no games, with what you’ve picked so far.</p>
+    <p class="hint"><span class="dash" aria-hidden="true"></span>Dashed answers would leave no games.</p>
   {/if}
 
   {#if moreQuestions.length || anything}
     <div class="foot">
       {#if moreQuestions.length}
-        <button type="button" class="more-toggle" aria-expanded={moreOpen} aria-controls="{id}-more" {disabled} onclick={() => (moreOpen = !moreOpen)}>
+        <button type="button" class="more-toggle" aria-expanded={moreOpen} aria-controls="{id}-more" onclick={() => (moreOpen = !moreOpen)}>
           <svg class="chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
           More questions{#if moreAnswered && !moreOpen}&nbsp;({moreAnswered} answered){/if}
         </button>
       {/if}
       {#if anything}
-        <button type="button" class="start-over" {disabled} onclick={startOver}>Start over</button>
+        <button type="button" class="start-over" onclick={startOver}>Start over</button>
       {/if}
     </div>
   {/if}
@@ -183,7 +188,7 @@
             {#each weights as w (w)}
               {@render chip(weightLabels[w], filters.weight === w, counts.weight[w] === 0, () => pick('weight', w))}
             {/each}
-            {@render chip('Any', filters.weight === null, false, () => set({ weight: null }))}
+            {@render any('Any', 'Any amount to learn', filters.weight === null, () => set({ weight: null }))}
           </div>
         </div>
       {/if}
@@ -194,7 +199,7 @@
             {#each formats as fm (fm)}
               {@render chip(formatChipLabels[fm], filters.format === fm, counts.format[fm] === 0, () => pick('format', fm))}
             {/each}
-            {@render chip('Any', filters.format === null, false, () => set({ format: null }))}
+            {@render any('Any', 'Any way to play', filters.format === null, () => set({ format: null }))}
           </div>
         </div>
       {/if}
@@ -284,9 +289,11 @@
     font-size: 1rem;
   }
 
-  .tile-any[aria-pressed='true'] {
-    background: var(--color-espresso);
-    color: var(--color-cream);
+  /* Unanswered: a linen fill, never the espresso of a real choice. */
+  .tile-any[aria-pressed='true'],
+  .chip.chip-any[aria-pressed='true'] {
+    background: var(--color-linen);
+    color: var(--color-espresso);
     box-shadow: none;
   }
 
@@ -322,7 +329,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 0.875rem;
+    font-size: 1rem;
     font-weight: 600;
     color: var(--color-ink-muted);
   }
@@ -356,6 +363,7 @@
 
   @media (hover: hover) {
     .chip:where(:not([aria-pressed='true'])):hover,
+    .chip-any[aria-pressed='true']:hover,
     .tile-any:where(:not([aria-pressed='true'])):hover {
       background: rgba(59, 47, 47, 0.06);
     }
@@ -515,12 +523,28 @@
     .tile-any {
       width: auto;
       padding: 0 4px;
-      font-size: 0.875rem;
+      font-size: 1rem;
     }
 
     .chip {
       padding: 0 14px;
-      font-size: 0.875rem;
+      font-size: 1rem;
+    }
+  }
+
+  /* Smallest phones: six tiles won't fit at 44px, so Any takes the second row. */
+  @media (max-width: 380px) {
+    .tiles {
+      grid-auto-flow: row;
+      grid-template-columns: repeat(5, minmax(44px, 1fr));
+    }
+
+    .tile-any {
+      grid-column: span 2;
+    }
+
+    .chip {
+      padding: 0 12px;
     }
   }
 </style>

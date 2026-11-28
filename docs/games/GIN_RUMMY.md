@@ -1,6 +1,6 @@
 # Gin Rummy
 
-> Implementation brief, 2026-11-27. Rules verified against Pagat (primary). Nothing here is shipped yet.
+> Implementation brief, 2026-11-27. Rules verified against Pagat (primary). Parlor ships the standard 100-point game. The engine supports variants, and the lobby currently uses the defaults.
 
 ## 1. Overview
 

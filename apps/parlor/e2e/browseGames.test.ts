@@ -9,14 +9,15 @@ test('the home shelf shows every game, or 8 and a link to the full list', async 
 
 	await page.goto('/');
 	const shelf = page.getByRole('region', { name: 'Or start a new room' });
+	const playButtons = shelf.getByRole('button', { name: /^Play / });
 	const link = shelf.getByRole('link', { name: `See all ${total} games and find one that fits your group` });
 	if (total <= 12) {
-		await expect(shelf.getByRole('button', { name: 'Start a room' })).toHaveCount(total);
+		await expect(playButtons).toHaveCount(total);
 		await expect(link).toHaveCount(0);
 		return;
 	}
 
-	await expect(shelf.getByRole('button', { name: 'Start a room' })).toHaveCount(8);
+	await expect(playButtons).toHaveCount(8);
 	await link.click();
 	await expect(page).toHaveURL(/\/games$/);
 	await expect(page.getByRole('heading', { name: 'Find a game' })).toBeVisible();
@@ -29,7 +30,7 @@ test('answering the questions narrows the shelf and lands in the URL', async ({ 
 	await page.getByRole('group', { name: 'How many of you?' }).getByRole('button', { name: '6 or more', exact: true }).click();
 	const kind = page.getByRole('group', { name: 'What kind of game?' });
 	await kind.getByRole('button', { name: 'Dice', exact: true }).click();
-	await expect(results(page)).toHaveText('3 games fit');
+	await expect(results(page)).toHaveText('5 games fit');
 	await expect(page).toHaveURL(/players=6/);
 	await expect(page).toHaveURL(/type=dice/);
 	await expect(page.getByRole('heading', { name: "Liar's Dice" })).toBeVisible();
@@ -37,7 +38,7 @@ test('answering the questions narrows the shelf and lands in the URL', async ({ 
 
 	// Tapping the current answer clears it.
 	await kind.getByRole('button', { name: 'Dice', exact: true }).click();
-	await expect(kind.getByRole('button', { name: 'Any', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await expect(kind.getByRole('button', { name: 'Any kind', exact: true })).toHaveAttribute('aria-pressed', 'true');
 
 	await page.getByRole('searchbox', { name: 'Search games' }).fill('pirate');
 	await expect(results(page)).toHaveText('1 game fits');
@@ -48,17 +49,25 @@ test('answering the questions narrows the shelf and lands in the URL', async ({ 
 });
 
 test('a shared link restores the answers, and an empty result offers a way out', async ({ page }) => {
-	await page.goto('/games?players=6&type=cards&length=long');
+	await page.goto('/games?players=6&type=cards&length=long&play=teams');
 	await expect(page.getByRole('group', { name: 'How many of you?' }).getByRole('button', { name: '6 or more', exact: true })).toHaveAttribute('aria-pressed', 'true');
 	await expect(results(page)).toHaveText('No games fit');
 
-	await page.getByRole('button', { name: /Any number of players/ }).click();
+	await page.getByRole('button', { name: /^Any number of players \d+ games?$/ }).click();
 	await expect(results(page)).not.toHaveText('No games fit');
 });
 
-test('start a room opens the create-room dialog for that game', async ({ page }) => {
+test('play opens the create-room dialog for that game', async ({ page }) => {
 	await page.goto('/games?q=hearts');
-	await page.getByRole('button', { name: 'Start a room' }).first().click();
+	await page.getByRole('button', { name: /^Play / }).first().click();
 	await expect(page.getByRole('dialog')).toBeVisible();
-	await expect(page.getByRole('heading', { name: 'Create a Hearts room' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Play Hearts' })).toBeVisible();
+});
+
+test('a shared link in any param order loads cleanly and settles into the canonical URL', async ({ page }) => {
+	const errors: string[] = [];
+	page.on('pageerror', (e) => errors.push(e.message));
+	await page.goto('/games?players=4&type=cards&q=trick');
+	await expect(page).toHaveURL(/\/games\?q=trick&players=4&type=cards$/);
+	expect(errors).toEqual([]);
 });

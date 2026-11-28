@@ -36,14 +36,16 @@
   async function create(e: SubmitEvent) {
     e.preventDefault();
     if (loading) return;
-    if (!name.trim()) { error = 'Enter your name'; return; }
+    if (!name.trim()) { error = 'Add a name so everyone knows who’s hosting.'; return; }
     loading = true;
     error = '';
     try {
       const roomCode = await createRoomAction(name.trim(), gameId);
       await goto(resolve('/lobby/[roomCode]', { roomCode }));
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to create room';
+      // The server's own reason when it gives one; otherwise say what to try.
+      const reason = err instanceof Error ? err.message : '';
+      error = reason && reason !== 'Failed to create room' ? reason : 'Couldn’t create the room. Check your connection and try again.';
     } finally {
       loading = false;
     }
@@ -65,7 +67,7 @@
 >
   {#if open}
     <form class="create-form" onsubmit={create} novalidate>
-      <h2 id="create-title" class="create-title">{game ? `Create a ${game.name} room` : 'Create a room'}</h2>
+      <h2 id="create-title" class="create-title">{game ? `Play ${game.name}` : 'Create a room'}</h2>
       <p id="create-desc" class="create-desc">{game ? 'You’ll get a code to share, and everyone joins from their own device.' : 'Invite friends and vote on what to play.'}</p>
       <label class="field">
         <span class="field-label">Your name</span>

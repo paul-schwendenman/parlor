@@ -1,27 +1,12 @@
 import {
-  defineGame, hasExactKeys, invalid, RoomManager, valid, validateByType,
-  type GameContext, type PlayerContext, type TypedGameDefinition,
+  createTurnDriver, defineGame, hasExactKeys, invalid, RoomManager, valid, validateByType,
+  type PlayerContext, type TypedGameDefinition,
 } from '@parlor/multiplayer';
 import { FarkleEngine } from './engine.js';
 import { farkleMeta } from './meta.js';
 import type { FarkleAction } from './types.js';
 
-const STEP = 'farkle-step';
-
-function drive(game: GameContext<FarkleEngine>) {
-  const { state, instance } = game;
-  instance.cancel(STEP);
-  if (!state.revealing && !state.automaticAction()) return;
-  instance.schedule(() => {
-    if (state.revealing) state.advanceTurn();
-    else {
-      const action = state.automaticAction();
-      if (action) state.act(state.activePlayerId, action);
-    }
-    game.broadcast();
-    drive(game);
-  }, state.revealing ? 1800 : 700, STEP);
-}
+const drive = createTurnDriver<FarkleEngine>('farkle-step', 700, (state) => state.revealing ? 1800 : undefined);
 
 function act(game: PlayerContext<FarkleEngine>, action: FarkleAction) {
   game.state.act(game.playerId, action);

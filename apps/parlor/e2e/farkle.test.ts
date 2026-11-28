@@ -3,14 +3,14 @@ import { expect, test } from '@playwright/test';
 test.use({ viewport: { width: 390, height: 844 } });
 
 test('a Farkle phone controls the dice while the shared screen follows the table', async ({ page }, testInfo) => {
-  await page.goto('/');
+  await page.goto('/games');
   const game = page.getByRole('article').filter({
     has: page.getByRole('heading', { name: 'Farkle', exact: true }),
   });
   await game.getByRole('button', { name: 'How to play' }).click();
   await expect(page.getByRole('dialog').getByRole('heading', { name: 'Scoring dice' })).toBeVisible();
   await page.keyboard.press('Escape');
-  await game.getByRole('button', { name: 'Start a room' }).click();
+  await game.getByRole('button', { name: /^Play / }).click();
   await page.getByPlaceholder('Enter your name').fill('Alex');
   await page.getByRole('button', { name: 'Create Room' }).click();
   const displayPage = page.waitForEvent('popup');

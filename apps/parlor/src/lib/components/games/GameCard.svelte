@@ -32,16 +32,17 @@
   <p class="game-tags">{facts}</p>
   <div class="game-actions">
     <button type="button" class="spine-ghost" onclick={() => onrules(game.id)} {disabled}>How to play</button>
-    <button type="button" class="spine-solid" onclick={() => onstart(game.id)} {disabled}>
+    <button type="button" class="spine-solid" aria-label="Play {game.name}" onclick={() => onstart(game.id)} {disabled}>
       <!-- The same play mark on every block, so the main action reads alike whatever the colour. -->
       <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 1.5v9l8-4.5z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /></svg>
-      Start a room
+      <span>Play<span class="play-name">{` ${game.name}`}</span></span>
     </button>
   </div>
 </article>
 
 <style>
   .game-card {
+    container-type: inline-size;
     background: var(--spine-bg);
     color: var(--spine-fg);
     border: 2.5px solid var(--color-espresso);
@@ -91,7 +92,7 @@
 
   .game-desc {
     margin: 0;
-    font-size: 0.875rem;
+    font-size: 1rem;
     font-weight: 500;
     line-height: 1.45;
     text-wrap: pretty;
@@ -110,13 +111,15 @@
     margin-top: 6px;
   }
 
+  /* "Play Kings Corner" needs the room; "How to play" sizes to its words. */
   .spine-ghost,
   .spine-solid {
-    flex: 1;
     height: 44px;
+    padding: 0 14px;
     border-radius: 999px;
     font-family: var(--font-body);
-    font-size: 0.875rem;
+    font-size: 1rem;
+    white-space: nowrap;
     cursor: pointer;
     transition: background 0.2s ease, transform 0.1s ease;
   }
@@ -126,7 +129,19 @@
     transform: scale(0.98);
   }
 
+  .spine-solid svg {
+    flex-shrink: 0;
+  }
+
+  /* On a narrow block the heading already names the game: the pill says "Play". */
+  @container (max-width: 380px) {
+    .play-name {
+      display: none;
+    }
+  }
+
   .spine-ghost {
+    flex: 0 0 auto;
     border: 2px solid var(--spine-fg);
     background: transparent;
     color: var(--spine-fg);
@@ -134,6 +149,8 @@
   }
 
   .spine-solid {
+    flex: 1;
+    min-width: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;

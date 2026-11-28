@@ -94,7 +94,7 @@ describe('search', () => {
 
 describe('filters', () => {
   it('player count keeps games that seat the group', () => {
-    expect(ids(filterGames(catalog, f({ players: 6 }))).sort()).toEqual(['booty-dice', 'farkle', 'liars-dice', 'oh-hell', 'word-split']);
+    expect(ids(filterGames(catalog, f({ players: 6 })))).toEqual(ids(catalog.filter((game) => game.maxPlayers >= 6)));
     expect(filterGames(catalog, f({ players: 4 })).every((g) => g.minPlayers <= 4 && g.maxPlayers >= 4)).toBe(true);
   });
 
@@ -120,7 +120,7 @@ describe('filters', () => {
 describe('sorting', () => {
   it('shortest and longest use typical time, ties in shelf order', () => {
     const shortest = filterGames(catalog, f(), 'shortest');
-    expect(shortest[0].id).toBe('word-split');
+    expect(shortest[0].id).toBe('signal-relay');
     expect(filterGames(catalog, f(), 'longest')[0].id).toBe('spades');
   });
 
@@ -159,7 +159,7 @@ describe('the 6+ answer', () => {
 describe('options in use', () => {
   it('offers only player counts and kinds some game has', () => {
     expect(playerOptions(catalog)).toEqual([2, 3, 4, 5, 6]);
-    expect(kindsInUse(catalog)).toEqual(['cards', 'dice', 'word']);
+    expect(kindsInUse(catalog)).toEqual(['cards', 'dice', 'word', 'party']);
     expect(playerOptions([{ minPlayers: 2, maxPlayers: 2 }, { minPlayers: 5, maxPlayers: 6 }])).toEqual([2, 5, 6]);
   });
 });

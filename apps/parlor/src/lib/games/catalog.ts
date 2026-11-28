@@ -4,9 +4,27 @@ import { crazyEightsMeta } from '@parlor/crazy-eights/meta';
 import { bootyDiceMeta } from '@parlor/booty-dice/meta';
 import { liarsDiceMeta } from '@parlor/liars-dice/meta';
 import { kingsCornerMeta } from '@parlor/kings-corner/meta';
+import { presidentMeta } from '@parlor/president/meta';
+import { ginRummyMeta } from '@parlor/gin-rummy/meta';
+import { golfMeta } from '@parlor/golf/meta';
 import { heartsMeta } from '@parlor/hearts/meta';
 import { spadesMeta } from '@parlor/spades/meta';
 import { euchreMeta } from '@parlor/euchre/meta';
+import { councilLedgerMeta } from '@parlor/council-ledger/meta';
+import { cipherPostMeta } from '@parlor/cipher-post/meta';
+import { faultLineMeta } from '@parlor/fault-line/meta';
+import { signalRelayMeta } from '@parlor/signal-relay/meta';
+import { nightMarketMeta } from '@parlor/night-market/meta';
+import { ridgeRunMeta } from '@parlor/ridge-run/meta';
+import { boggleMeta } from '@parlor/boggle/meta';
+import { coupMeta } from '@parlor/coup/meta';
+import { theMindMeta } from '@parlor/the-mind/meta';
+import { sushiGoMeta } from '@parlor/sushi-go/meta';
+import { loveLetterMeta } from '@parlor/love-letter/meta';
+import { skullMeta } from '@parlor/skull/meta';
+import { yahtzeeMeta } from '@parlor/yahtzee/meta';
+import { cantStopMeta } from '@parlor/cant-stop/meta';
+import { harborDiceMeta } from '@parlor/harbor-dice/meta';
 import { farkleMeta } from '@parlor/farkle/meta';
 import { wordSplitMeta } from '@parlor/word-split/meta';
 import { ohHellMeta } from '@parlor/oh-hell/meta';
@@ -44,7 +62,25 @@ export const catalog: readonly CatalogGame[] = [
   { ...euchreMeta, shelf: 'felt', tagline: 'Team up, call trump, take 3 tricks' },
   { ...ohHellMeta, shelf: 'mustard', tagline: 'Bid your tricks, then hit it exactly' },
   { ...farkleMeta, shelf: 'linen', tagline: 'Bank your dice points or roll again' },
+  { ...ginRummyMeta, shelf: 'clay', tagline: 'Meld sets and runs, then knock' },
+  { ...presidentMeta, shelf: 'ink', tagline: 'Beat the last play, finish first' },
+  { ...golfMeta, shelf: 'felt', tagline: 'Swap cards to lower your score' },
+  { ...harborDiceMeta, shelf: 'mustard', tagline: 'Hold, reroll, and fill your scorecard' },
+  { ...ridgeRunMeta, shelf: 'clay', tagline: 'Climb another step or make camp' },
+  { ...nightMarketMeta, shelf: 'linen', tagline: 'Draft goods to sell or display' },
+  { ...signalRelayMeta, shelf: 'felt', tagline: 'Route signals together before time runs out' },
+  { ...faultLineMeta, shelf: 'mustard', tagline: 'Hide a cache and bluff the table' },
+  { ...cipherPostMeta, shelf: 'clay', tagline: 'Pass a seal, then guess what they kept' },
+  { ...councilLedgerMeta, shelf: 'linen', tagline: 'Claim a permit or call a bluff' },
   { ...wordSplitMeta, shelf: 'ink', tagline: 'Find words only you thought of' },
+  { ...yahtzeeMeta, shelf: 'mustard', tagline: 'Roll five dice, fill the scorecard' },
+  { ...cantStopMeta, shelf: 'clay', tagline: 'Push your luck up eleven columns' },
+  { ...skullMeta, shelf: 'linen', tagline: 'Bluff, bid, and dodge the skull' },
+  { ...loveLetterMeta, shelf: 'felt', tagline: 'Hold one card. Be the last one in.' },
+  { ...coupMeta, shelf: 'ink', tagline: 'Claim characters and call out bluffs' },
+  { ...sushiGoMeta, shelf: 'mustard', tagline: 'Pick a sushi, pass the rest' },
+  { ...theMindMeta, shelf: 'clay', tagline: 'Play low to high, without a word' },
+  { ...boggleMeta, shelf: 'linen', tagline: 'Find words before the timer ends' },
 ];
 
 export function findGame(id: string | null | undefined): CatalogGame | undefined {

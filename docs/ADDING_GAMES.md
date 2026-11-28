@@ -192,8 +192,8 @@ These are the six places to edit:
 1. **`apps/parlor/package.json`**: add `"@parlor/<id>": "workspace:*"` to dependencies. Run `pnpm install` from the repository root of the worktree you're testing and include the updated `pnpm-lock.yaml` in the change.
 2. **`apps/parlor/src/lib/server/games/index.ts`**: import `myGameDefinition` from `@parlor/<id>/server-definition` and call `registerGame(...)`.
 3. **`apps/parlor/src/lib/components/games/GameRenderer.svelte`**: import from `@parlor/<id>/game-view` and add an `{:else if state.gameId === '<id>'}` branch that passes `view`, `socket`, `playerId` and `isHost`.
-4. **`apps/parlor/src/routes/+page.svelte`** (home shelf) and **`apps/parlor/src/routes/lobby/[roomCode]/+page.svelte`** (game picker): import `myGameMeta` and add it to the `games` list.
-5. **`apps/parlor/src/routes/game/[roomCode]/+page.svelte`**: add the display name to the id → name map.
+4. **`apps/parlor/src/lib/games/catalog.ts`**: import `myGameMeta` and add it to the catalog with a shelf colour and short tagline. The home shelf and lobby picker use this catalog.
+5. The game route uses the same catalog for the display name.
 6. **`apps/parlor/src/lib/components/lobby/RulesModal.svelte`**: add an `{:else if gameId === '<id>'}` section with the rules in short, plain sections. The home shelf's "How to play" and the in-game "?" both read from it.
 
 If the shelf colours need a new entry, update the shelf list in `design-full.md` ("Its colour") as well.

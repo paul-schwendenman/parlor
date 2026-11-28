@@ -4,14 +4,14 @@ import { RACKS } from '../../../games/word-split/src/lexicon.js';
 test.use({ viewport: { width: 390, height: 844 } });
 
 test('two phones share a rack and reveal their words after finishing', async ({ page, browser }) => {
-  await page.goto('/');
+  await page.goto('/games');
   const game = page.getByRole('article').filter({
     has: page.getByRole('heading', { name: 'Word Split', exact: true }),
   });
   await game.getByRole('button', { name: 'How to play' }).click();
   await expect(page.getByRole('dialog').getByRole('heading', { name: 'Score unique finds' })).toBeVisible();
   await page.keyboard.press('Escape');
-  await game.getByRole('button', { name: 'Start a room' }).click();
+  await game.getByRole('button', { name: /^Play / }).click();
   await page.getByPlaceholder('Enter your name').fill('Alex');
   await page.getByRole('button', { name: 'Create Room' }).click();
   await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
