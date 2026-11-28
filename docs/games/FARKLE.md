@@ -1,7 +1,6 @@
 # Farkle: implementation brief
 
-Status: implementation-ready brief, rewritten 2026-11-27. It replaces the pre-platform draft spec.
-Note: a draft package already exists, untracked, in `games/farkle/` (types, rules, engine, definition, meta; no GameView or tests yet). Section 7 lists what in that draft has to change to match this brief.
+Parlor ships the standard scoring table below in peer mode for 2–6 players, with bot seats and stand-ins. The board confirms the kept dice before the player banks or rolls again. The host options and shared dice animation described below are future work.
 
 ---
 

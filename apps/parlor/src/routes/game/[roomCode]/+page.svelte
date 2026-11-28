@@ -14,17 +14,7 @@
   import GameRenderer from '$lib/components/games/GameRenderer.svelte';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
-  const GAME_NAMES: Record<string, string> = {
-    quixx: 'Quixx',
-    'crazy-eights': 'Crazy Eights',
-    'kings-corner': 'Kings Corner',
-    'booty-dice': 'Booty Dice',
-    'liars-dice': "Liar's Dice",
-    hearts: 'Hearts',
-    spades: 'Spades',
-    euchre: 'Euchre',
-    'oh-hell': 'Oh Hell',
-  };
+  import { findGame } from '$lib/games/catalog.js';
 
   let roomCode = $derived($page.params.roomCode ?? '');
   let roomNotFound = $state(false);
@@ -45,7 +35,7 @@
   });
 
   let view = $derived(gameState.state);
-  let gameName = $derived(view ? (GAME_NAMES[view.gameId] ?? '') : '');
+  let gameName = $derived(view ? (findGame(view.gameId)?.name ?? '') : '');
   let rulesOpen = $state(false);
   let hadView = false;
 

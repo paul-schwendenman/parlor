@@ -100,6 +100,7 @@ async function table(gameId: GameId) {
 	return {
 		players,
 		room: () => rooms.getRoom(seat.roomCode)!,
+		reset: () => rooms.resetGame(seat.roomCode),
 		async collect() {
 			// Socket.IO orders packets per connection. Wait for every recipient
 			// to acknowledge a marker after the game's own broadcasts.
@@ -447,4 +448,60 @@ it('Hearts sends private passes and hands to their recipients and advances a com
 	expect(spectatorStates).toMatchObject({
 		phase: 'playing', trickNumber: 2, trick: [], activePlayerId: revealed.trickWinnerId,
 	});
+});
+
+it('Farkle shares the same roll and banked score with players and spectators', async () => {
+	engineInt = () => 0;
+	const game = await table('farkle');
+	const [host] = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'farkle') throw new Error('Expected a Farkle view');
+			return frame.view;
+		});
+	}
+	await views();
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'roll' })).toEqual({ ok: true });
+	const rolled = await views();
+	expect(rolled.every((view) => view.dice.join('') === '111111')).toBe(true);
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', {
+		type: 'keep', indices: [0, 1, 2, 3, 4, 5],
+	})).toEqual({ ok: true });
+	await views();
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'bank' })).toEqual({ ok: true });
+	const banked = await views();
+	expect(banked.every((view) => view.players[0].score === 3000 && view.phase === 'banked')).toBe(true);
+	game.reset();
+});
+
+it('Word Split reveals shared words only after all players finish', async () => {
+	engineInt = (max) => max - 1;
+	const game = await table('word-split');
+	const [host, guest] = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'word-split') throw new Error('Expected a Word Split view');
+			return frame.view;
+		});
+	}
+	const initial = await views();
+	expect(initial[0].letters).toEqual(initial.at(-1)?.letters);
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', {
+		type: 'submit', word: 'able', round: 1,
+	})).toEqual({ ok: true });
+	const privateViews = await views();
+	expect(privateViews.map((view) => view.myWords)).toEqual([['able'], [], [], []]);
+	expect(privateViews.every((view) => view.results.length === 0)).toBe(true);
+	expect(await guest.socket.timeout(1000).emitWithAck('game:action', {
+		type: 'submit', word: 'able', round: 1,
+	})).toEqual({ ok: true });
+	for (const { socket } of game.players) {
+		expect(await socket.timeout(1000).emitWithAck('game:action', { type: 'finish', round: 1 })).toEqual({ ok: true });
+	}
+	const revealed = await views();
+	expect(revealed.every((view) => view.phase === 'reveal')).toBe(true);
+	expect(revealed.at(-1)?.results).toEqual([{ word: 'able', playerIds: [host.id, guest.id], points: 0 }]);
+	game.reset();
 });

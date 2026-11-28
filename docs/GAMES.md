@@ -13,7 +13,8 @@ Parlor aims to host a variety of multiplayer tabletop games. This document catal
 | **Quixx** | Roll-and-write dice | 2-5 | Peer or Jackbox | None | Consensus or Server | Rename | [QUIXX.md](games/QUIXX.md) |
 | **Can't Stop** | Push-your-luck dice | 2-4 | Jackbox (primary) | None | Consensus or Server | Rename | [CANT_STOP.md](games/CANT_STOP.md) |
 | **Yahtzee** | Dice categories | 1+ | Peer or Jackbox | None | Consensus or Server | Rename | [YAHTZEE.md](games/YAHTZEE.md) |
-| **Farkle** | Push-your-luck dice | 2+ | Peer or Jackbox | None | Consensus or Server | None | [FARKLE.md](games/FARKLE.md) |
+| **Farkle** | Push-your-luck dice | 2–6 | Peer | None | Server | None | [FARKLE.md](games/FARKLE.md) |
+| **Word Split** | Shared-letter word game | 2–8 | Peer | Words private until reveal | Server | Original | [WORD_SPLIT.md](games/WORD_SPLIT.md) |
 | **Boggle** | Word-finding | 2+ | Peer or Jackbox | Words hidden during play | Server | Rename | [BOGGLE.md](games/BOGGLE.md) |
 | **Coup** | Bluffing/deduction | 2-6 | Peer or Jackbox | Hidden roles | Server | Rename + re-theme | [COUP.md](games/COUP.md) |
 | **Love Letter** | Deduction cards | 2-6 | Peer or Jackbox | Hidden hand (1 card) | Server | Rename + re-theme | [LOVE_LETTER.md](games/LOVE_LETTER.md) |
