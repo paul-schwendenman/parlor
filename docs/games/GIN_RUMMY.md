@@ -194,7 +194,7 @@ All are turn-based. Only `activePlayerId` may act.
 ## 7. Mapping to this codebase
 
 - **Package** `games/gin-rummy` → `@parlor/gin-rummy`. Files per `docs/ADDING_GAMES.md` §1: `types.ts`, `meta.ts`, `rules.ts`, `engine.ts`, `definition.ts`, `GameView.svelte`. Copy `tsconfig.json`/`turbo.json` from `games/hearts`.
-- **meta:** `minPlayers: 2, maxPlayers: 2, estimatedMinutes: '20-40', tags: ['cards','classic','strategy'], displayModes: ['peer'], supportsBots: true`.
+- **meta:** `minPlayers: 2, maxPlayers: 2, minutes: { min: 20, max: 40 }, kind: 'cards', weight: 'medium', format: 'individual', tags: ['classic', 'melding'], displayModes: ['peer'], supportsBots: true`.
 - **rules.ts** (pure, importable on the client):
   - `cardValue`
   - `allMelds(hand)`: every set of 3, every 3-card subset of a 4-set, and every contiguous run of length ≥ 3 inside each suit (ace low)

@@ -7,8 +7,11 @@ export const wordSplitMeta: GameMeta & { id: 'word-split' } = {
   description: 'Build words from shared letters. Only words you find on your own score.',
   minPlayers: 2,
   maxPlayers: 8,
-  estimatedMinutes: '4-6',
-  tags: ['words', 'party'],
+  minutes: { min: 4, max: 6 },
+  kind: 'word',
+  weight: 'light',
+  format: 'individual',
+  tags: ['spelling', 'anagrams', 'unique answers'],
   displayModes: ['peer', 'jackbox'],
   supportsBots: false,
 };

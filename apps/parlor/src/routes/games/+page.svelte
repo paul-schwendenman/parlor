@@ -1,0 +1,733 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
+  import { afterNavigate, replaceState } from '$app/navigation';
+  import { resolve } from '$app/paths';
+  import { page } from '$app/state';
+  import ParlorMark from '$lib/components/ui/ParlorMark.svelte';
+  import RulesModal from '$lib/components/lobby/RulesModal.svelte';
+  import GameCard from '$lib/components/games/GameCard.svelte';
+  import CreateRoomDialog from '$lib/components/games/CreateRoomDialog.svelte';
+  import GameFilters from '$lib/components/discovery/GameFilters.svelte';
+  import { catalog, findGame } from '$lib/games/catalog.js';
+  import {
+    emptyFilters,
+    filterGames,
+    filtersFromParams,
+    filtersToParams,
+    filterSummary,
+    isEmpty,
+    sortLabels,
+    GAME_SORTS,
+    type GameFilters as Filters,
+    type GameSort,
+  } from '$lib/games/discovery.js';
+  import { getSocket } from '$lib/stores/socketClient.js';
+
+  // The URL is the state: back/forward and shared links restore the answers.
+  const initial = filtersFromParams(page.url.searchParams);
+  let filters = $state<Filters>(initial.filters);
+  let sort = $state<GameSort>(initial.sort);
+
+  let results = $derived(filterGames(catalog, filters, sort));
+  let summary = $derived(filterSummary(filters));
+  let countLine = $derived(
+    isEmpty(filters)
+      ? `All ${catalog.length} games`
+      : results.length === 0
+        ? 'No games fit'
+        : `${results.length} ${results.length === 1 ? 'game fits' : 'games fit'}`,
+  );
+
+  /** Ways out of an empty result: drop one answer, and how many games that brings back. */
+  let loosen = $derived.by(() => {
+    if (results.length) return [];
+    const options: { label: string; patch: Partial<Filters> }[] = [];
+    if (filters.query.trim()) options.push({ label: `Clear the search “${filters.query.trim()}”`, patch: { query: '' } });
+    if (filters.players !== null) options.push({ label: 'Any number of players', patch: { players: null } });
+    if (filters.length) options.push({ label: 'Any length', patch: { length: null } });
+    if (filters.kinds.length) options.push({ label: 'Any kind of game', patch: { kinds: [] } });
+    if (filters.weight) options.push({ label: 'Any amount to learn', patch: { weight: null } });
+    if (filters.format) options.push({ label: 'Any way to play', patch: { format: null } });
+    return options
+      .map((o) => ({ ...o, count: filterGames(catalog, { ...filters, ...o.patch }).length }))
+      .filter((o) => o.count > 0);
+  });
+
+  // replaceState throws if called before the router starts, which a shared
+  // link in a different param order would otherwise do during hydration.
+  // afterNavigate runs once the router is up (including the first load).
+  // Keep the controls inert until hydration attaches their event handlers.
+  let mounted = $state(false);
+  afterNavigate(() => (mounted = true));
+
+  $effect(() => {
+    const search = filtersToParams(filters, sort).toString();
+    if (!browser || !mounted || search === page.url.searchParams.toString()) return;
+    // The path is resolve()d; only the query string is appended.
+    // eslint-disable-next-line svelte/no-navigation-without-resolve
+    replaceState(`${resolve('/games')}${search ? `?${search}` : ''}`, page.state);
+  });
+
+  // Sticky summary: once the questions scroll off the top, keep the answers in view.
+  let sheetGone = $state(false);
+  onMount(() => {
+    getSocket();
+    const sheet = document.getElementById('table-questions');
+    if (!sheet) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      sheetGone = !entry.isIntersecting && entry.boundingClientRect.bottom < 0;
+    });
+    observer.observe(sheet);
+    return () => observer.disconnect();
+  });
+
+  // "/" jumps to search from anywhere that isn't already a text field.
+  let searchInput = $state<HTMLInputElement | null>(null);
+  function shortcut(e: KeyboardEvent) {
+    if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const el = e.target as HTMLElement;
+    if (el.closest('input, textarea, select, [contenteditable], dialog')) return;
+    e.preventDefault();
+    searchInput?.focus();
+  }
+
+  function clearSearch() {
+    filters = { ...filters, query: '' };
+    searchInput?.focus();
+  }
+
+  function changeAnswers() {
+    const sheet = document.getElementById('table-questions');
+    if (!sheet) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    sheet.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    sheet.querySelector<HTMLButtonElement>('button[aria-pressed="true"], button')?.focus({ preventScroll: true });
+  }
+
+  // Rules sheet and create-room dialog, as on the home shelf.
+  let rulesGameId = $state<string | null>(null);
+  let rulesGame = $derived(findGame(rulesGameId));
+  let createGameId = $state<string | undefined>();
+  let creating = $state(false);
+
+  function openCreate(gameId: string) {
+    createGameId = gameId;
+    creating = true;
+  }
+</script>
+
+<svelte:head><title>Find a game · Parlor</title></svelte:head>
+<svelte:window onkeydown={shortcut} />
+
+<a class="skip" href="#results">Skip to the games</a>
+
+<header class="lid">
+  <div class="lid-inner">
+    <div class="lid-top">
+      <a class="wordmark" href={resolve('/')} aria-label="Parlor home"><ParlorMark />Parlor</a>
+      <h1 class="title">Find a game</h1>
+    </div>
+    <label class="search" inert={!mounted}>
+      <span class="sr-only">Search games</span>
+      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+      <input
+        bind:this={searchInput}
+        type="search"
+        value={filters.query}
+        oninput={(e) => (filters = { ...filters, query: e.currentTarget.value })}
+        placeholder="Search, like “pirates” or “trick-taking”"
+        autocomplete="off"
+        spellcheck="false"
+        maxlength="80"
+        aria-keyshortcuts="/"
+      />
+      {#if filters.query.trim()}
+        <!-- The count rides in the field, so it stays in view above a phone keyboard. -->
+        <span class="search-count" aria-hidden="true">{results.length} {results.length === 1 ? 'game' : 'games'}</span>
+      {/if}
+      {#if filters.query}
+        <button type="button" class="search-clear" aria-label="Clear the search" onclick={clearSearch}>
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      {:else}
+        <kbd class="search-key" aria-hidden="true">/</kbd>
+      {/if}
+    </label>
+      <a class="home" href={resolve('/')}>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7" /><path d="M6 9.5V20h12V9.5" /></svg>
+        <span class="home-label">Home</span>
+      </a>
+  </div>
+</header>
+
+<div class="sticky" class:shown={sheetGone} aria-hidden={!sheetGone} inert={!sheetGone}>
+  <div class="sticky-inner">
+    <div class="sticky-text">
+      <strong>{countLine}</strong>
+      {#if summary}<span>{summary}</span>{/if}
+    </div>
+    <button type="button" class="pill" onclick={changeAnswers}>Change</button>
+  </div>
+</div>
+
+<main class="page" inert={!mounted}>
+  <GameFilters {filters} games={catalog} onchange={(next) => (filters = next)} countLine={isEmpty(filters) ? undefined : countLine} resultsId="results" />
+
+  <section class="results" id="results" tabindex="-1" aria-labelledby="results-title">
+    <div class="results-head">
+      <h2 id="results-title" class="results-title" aria-live="polite" aria-atomic="true">{countLine}</h2>
+      {#if results.length}<label class="sort">
+        <span class="sr-only">Sort games</span>
+        <select bind:value={sort}>
+          {#each GAME_SORTS as s (s)}
+            <option value={s}>{sortLabels[s]}</option>
+          {/each}
+        </select>
+      </label>{/if}
+    </div>
+
+    {#if results.length}
+      <div class="game-grid">
+        {#each results as game (game.id)}
+          <GameCard {game} onrules={(id) => (rulesGameId = id)} onstart={openCreate} />
+        {/each}
+      </div>
+    {:else}
+      <div class="empty">
+        <p class="empty-lead">Nothing on the shelf matches all of that.</p>
+        {#if loosen.length}
+          <p class="empty-hint">Try loosening one answer:</p>
+          <ul class="loosen">
+            {#each loosen as option (option.label)}
+              <li>
+                <button type="button" class="pill" onclick={() => (filters = { ...filters, ...option.patch })}>
+                  {option.label}
+                  <span class="loosen-count">{option.count} {option.count === 1 ? 'game' : 'games'}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+        {#if !loosen.length}
+          <!-- Nothing to loosen one answer at a time: the sheet's Start over is the way out, said here too. -->
+          <button type="button" class="link" onclick={() => (filters = { ...emptyFilters, kinds: [] })}>Start over</button>
+        {/if}
+      </div>
+    {/if}
+  </section>
+</main>
+
+<RulesModal
+  open={rulesGameId !== null}
+  gameId={rulesGameId}
+  gameName={rulesGame?.name ?? ''}
+  onclose={() => (rulesGameId = null)}
+  onplay={() => {
+    if (rulesGameId) openCreate(rulesGameId);
+    rulesGameId = null;
+  }}
+/>
+
+<CreateRoomDialog open={creating} gameId={createGameId} onclose={() => (creating = false)} />
+
+<style>
+  .lid {
+    background: var(--color-terracotta);
+    border-bottom: 3px solid var(--color-espresso);
+  }
+
+  .lid-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 24px 20px 92px;
+    box-sizing: border-box;
+    /* Wordmark and title, then search, then Home at the far right. */
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'top search home';
+    align-items: center;
+    gap: 24px;
+  }
+
+  .lid-top {
+    grid-area: top;
+  }
+
+  .lid-top {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    min-width: 0;
+  }
+
+  .wordmark {
+    display: flex;
+    gap: 0.2em;
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.875rem;
+    line-height: 1;
+    letter-spacing: -0.035em;
+    text-transform: uppercase;
+    color: var(--color-cream);
+    text-decoration: none;
+    /* 44px target without a min-height, so the mark centres on the word. */
+    padding-block: 7px;
+    /* Baseline-align on the word so "Find a game" sits on the same line. */
+    align-items: baseline;
+  }
+
+  .skip {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 30;
+    padding: 10px 16px;
+    border: 2px solid var(--color-espresso);
+    border-radius: 999px;
+    background: var(--color-paper);
+    color: var(--color-espresso);
+    font-weight: 700;
+    text-decoration: none;
+    transform: translateY(-200%);
+  }
+
+  .skip:focus-visible {
+    transform: none;
+  }
+
+  /* Paper on the lid: small text stays off the terracotta (Deep Clay Rule). */
+  .home {
+    grid-area: home;
+    align-self: center;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    min-width: 44px;
+    box-sizing: border-box;
+    justify-content: center;
+    padding: 0 14px;
+    border: 2px solid var(--color-espresso);
+    border-radius: 999px;
+    background: var(--color-paper);
+    color: var(--color-espresso);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  @media (hover: hover) {
+    .home:hover {
+      background: var(--color-cream);
+    }
+  }
+
+  .results:focus {
+    outline: none;
+  }
+
+  .wordmark :global(.parlor-mark) {
+    align-self: center;
+  }
+
+  .wordmark:focus-visible {
+    outline-color: var(--color-cream);
+  }
+
+  .title {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.875rem;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--color-cream);
+    white-space: nowrap;
+  }
+
+  .search {
+    grid-area: search;
+    justify-self: end;
+    width: min(100%, 400px);
+    height: 50px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+    border: 2px solid var(--color-espresso);
+    border-radius: 12px;
+    background: var(--color-paper);
+    color: var(--color-ink-muted);
+  }
+
+  .search:focus-within {
+    outline: 3px solid var(--color-espresso);
+    outline-offset: 2px;
+  }
+
+  .search input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--color-espresso);
+    font-family: var(--font-body);
+    font-size: 1rem;
+  }
+
+  .search input::placeholder {
+    color: var(--color-ink-muted);
+  }
+
+  /* Our own clear button replaces the browser's blue one. */
+  .search input::-webkit-search-cancel-button {
+    appearance: none;
+  }
+
+  .search-count {
+    flex-shrink: 0;
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: var(--color-ink-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .search-clear {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    margin-right: -11px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--color-espresso);
+    cursor: pointer;
+  }
+
+  @media (hover: hover) {
+    .search-clear:hover {
+      background: rgba(59, 47, 47, 0.06);
+    }
+  }
+
+  .search-key {
+    flex-shrink: 0;
+    min-width: 22px;
+    height: 24px;
+    box-sizing: border-box;
+    display: grid;
+    place-items: center;
+    border: 1.5px solid var(--color-ink-muted);
+    border-radius: 10px;
+    color: var(--color-ink-muted);
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 0.8125rem;
+  }
+
+  @media (hover: none) {
+    .search-key {
+      display: none;
+    }
+  }
+
+  .page {
+    max-width: 980px;
+    margin: -70px auto 0;
+    padding: 0 20px 48px;
+    box-sizing: border-box;
+  }
+
+  .results {
+    margin-top: 28px;
+  }
+
+  .results-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .results-title {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.875rem;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .sort select {
+    height: 44px;
+    padding: 0 36px 0 14px;
+    border: 2px solid var(--color-espresso);
+    border-radius: 12px;
+    background: var(--color-paper)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%233B2F2F' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")
+      no-repeat right 12px center;
+    appearance: none;
+    color: var(--color-espresso);
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+
+  .game-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  /* Sticky answers bar (shown once the questions scroll away). */
+  /* At the bottom edge, where a thumb reaches Change. */
+  .sticky {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 20;
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--color-paper);
+    border-top: 2px solid var(--color-espresso);
+    box-shadow: 0 -4px 16px rgba(59, 47, 47, 0.12);
+    transform: translateY(110%);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .sticky.shown {
+    transform: none;
+  }
+
+  .sticky-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 10px 20px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .sticky-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sticky-text strong {
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 1.0625rem;
+  }
+
+  .sticky-text span {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .pill {
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: 999px;
+    border: 2px solid var(--color-espresso);
+    background: transparent;
+    color: var(--color-espresso);
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+
+  .pill:active {
+    transform: scale(0.98);
+  }
+
+  @media (hover: hover) {
+    .pill:hover {
+      background: rgba(59, 47, 47, 0.06);
+    }
+  }
+
+  /* Empty result */
+  .empty {
+    padding: 24px;
+    border: 2px dashed var(--color-espresso);
+    border-radius: 18px;
+    background: var(--color-linen);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .empty-lead {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: 1.1875rem;
+  }
+
+  .empty-hint {
+    margin: 0;
+    color: var(--color-ink-muted);
+    font-weight: 600;
+  }
+
+  .loosen {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .loosen .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--color-paper);
+  }
+
+  .loosen-count {
+    font-weight: 600;
+    color: var(--color-ink-muted);
+  }
+
+  .link {
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-espresso);
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.25em;
+    cursor: pointer;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* The sticky answers bar is for phones; on desktop the questions are a short scroll away. */
+  @media (min-width: 721px) {
+    .sticky {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sticky,
+    .pill {
+      transition: none;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .lid-inner {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        'top home'
+        'search search';
+      gap: 14px 12px;
+      padding: 16px 16px 72px;
+    }
+
+    .lid-top {
+      gap: 12px;
+      align-items: center;
+    }
+
+    .wordmark {
+      font-size: 1.5rem;
+      padding-block: 10px;
+    }
+
+    .title {
+      font-size: 1.5rem;
+      line-height: 1.1;
+    }
+
+    /* Icon-only on phones; the house and the accessible name carry it. */
+    .home {
+      padding: 0;
+    }
+
+    .home-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
+
+    .search {
+      width: 100%;
+    }
+
+    .page {
+      margin-top: -56px;
+      /* Room for the answers bar at the bottom edge. */
+      padding: 0 16px 96px;
+    }
+
+    .results {
+      margin-top: 22px;
+    }
+
+    .results-title {
+      font-size: 1.875rem;
+    }
+
+    .game-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .sticky-inner {
+      padding: 10px 16px;
+    }
+  }
+
+  /* Smallest phones: wordmark, title and Home still share one line. */
+  @media (max-width: 380px) {
+    .lid-top {
+      gap: 10px;
+    }
+
+    .wordmark {
+      font-size: 1.1875rem;
+      padding-block: 13px;
+    }
+
+    .title {
+      font-size: 1.1875rem;
+    }
+  }
+</style>

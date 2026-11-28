@@ -264,7 +264,7 @@ Other timing rules:
 | File | Contents / copy from |
 |---|---|
 | `src/types.ts` | §5/§6 types + `declare module '@parlor/game-types'` (`'the-mind': MindView / MindAction`). Pattern: `games/hearts/src/types.ts`. |
-| `src/meta.ts` | `{ id: 'the-mind', name: 'The Mind', description: 'Play your numbers low to high together, without a word.', minPlayers: 2, maxPlayers: 4, estimatedMinutes: '15-25', tags: ['cards', 'cooperative', 'party'], displayModes: ['peer'], supportsBots: true }` |
+| `src/meta.ts` | `{ id: 'the-mind', name: 'The Mind', description: 'Play your numbers low to high together, without a word.', minPlayers: 2, maxPlayers: 4, minutes: { min: 15, max: 25 }, kind: 'cards', weight: 'light', format: 'coop', tags: ['silent', 'numbers'], displayModes: ['peer'], supportsBots: true }` |
 | `src/rules.ts` | `LEVELS_BY_PLAYERS`, `START_LIVES`, `REWARDS`, `MAX_LIVES=5`, `MAX_STARS=3`, `countDescents(pile)`, `rewardFor(level)` (client-safe). |
 | `src/engine.ts` | `TheMindEngine`: constructor `(players, settings, randomInt, now)`; methods `play/ready/stop/proposeStar/voteStar`, `setConnected(id, c)`, `remove(id)` (→ `standIn = true`), `nextDeadline()`, `tick()`, `view(id?)`, `currentPhase`. Deal with `fisherYatesShuffle` from `@parlor/multiplayer/random`. Shape: `games/hearts/src/engine.ts`. |
 | `src/definition.ts` | Copy `games/hearts/src/definition.ts`; replace its `drive` with the deadline loop below. |

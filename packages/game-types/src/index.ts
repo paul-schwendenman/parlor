@@ -46,13 +46,38 @@ export interface SocketData {
   roomCode: string;
 }
 
+/**
+ * What a game is mainly played with. Exactly one per game; it drives the
+ * browse page's grouping and the "Type" filter. Add a kind here (and its
+ * label in the app's `discovery.ts`) before shipping a game that needs it.
+ */
+export const GAME_KINDS = ['cards', 'dice', 'board', 'word', 'drawing', 'trivia', 'party'] as const;
+export type GameKind = (typeof GAME_KINDS)[number];
+
+/** How much there is to learn: light (explain in a minute), medium (a round or two), heavy. */
+export const GAME_WEIGHTS = ['light', 'medium', 'heavy'] as const;
+export type GameWeight = (typeof GAME_WEIGHTS)[number];
+
+/** Who plays against whom. */
+export const GAME_FORMATS = ['individual', 'teams', 'coop'] as const;
+export type GameFormat = (typeof GAME_FORMATS)[number];
+
 export interface GameMeta {
   id: string;
   name: string;
   description: string;
   minPlayers: number;
   maxPlayers: number;
-  estimatedMinutes: string;
+  /** Typical length of a full game in minutes, shortest to longest. */
+  minutes: { min: number; max: number };
+  kind: GameKind;
+  weight: GameWeight;
+  format: GameFormat;
+  /**
+   * Lowercase search keywords for what the structured fields don't cover:
+   * mechanisms ("trick-taking", "bluffing") and themes ("pirates"). Don't
+   * repeat the kind, weight or format here.
+   */
   tags: string[];
   displayModes: ('peer' | 'jackbox')[];
   supportsBots?: boolean;

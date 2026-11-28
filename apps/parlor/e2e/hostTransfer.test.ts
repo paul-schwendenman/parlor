@@ -4,7 +4,7 @@ test('the host can pass the host role to another player', async ({ browser }) =>
 	const hostContext = await browser.newContext();
 	const hostPage = await hostContext.newPage();
 	await hostPage.goto('/');
-	await hostPage.getByRole('button', { name: 'Start Game' }).first().click();
+	await hostPage.getByRole('button', { name: /^Play / }).first().click();
 	await hostPage.getByPlaceholder('Enter your name').fill('Alex');
 	await hostPage.getByRole('button', { name: 'Create Room' }).click();
 	await expect(hostPage).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);

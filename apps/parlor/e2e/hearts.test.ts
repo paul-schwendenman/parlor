@@ -11,7 +11,7 @@ test('a player can pass cards and play a trick in a Hearts room with bots', asyn
 	const rules = page.getByRole('dialog');
 	await expect(rules.getByRole('heading', { name: 'Taking Tricks' })).toBeVisible();
 	await page.keyboard.press('Escape');
-	await game.getByRole('button', { name: 'Start Game' }).click();
+	await game.getByRole('button', { name: /^Play / }).click();
 	await page.getByPlaceholder('Enter your name').fill('Alex');
 	await page.getByRole('button', { name: 'Create Room' }).click();
 	await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);

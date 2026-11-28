@@ -171,7 +171,7 @@ Turn-based. During `exchange`, only the seats with `mustReturn > 0` act. With `t
 ## 7. Mapping to this codebase
 
 - **Package** `games/president` → `@parlor/president`. Files per `docs/ADDING_GAMES.md` §1.
-- **meta:** `minPlayers: 4, maxPlayers: 7, estimatedMinutes: '30-45', tags: ['cards','classic','party'], displayModes: ['peer'], supportsBots: true`. The `RoomManager` cap of 8 allows 7.
+- **meta:** `minPlayers: 4, maxPlayers: 7, minutes: { min: 30, max: 45 }, kind: 'cards', weight: 'light', format: 'individual', tags: ['classic', 'shedding'], displayModes: ['peer'], supportsBots: true`. The `RoomManager` cap of 8 allows 7.
 - **rules.ts:** `presidentRankValue(rank)` (3 = 0 … 2 = 12), `beats(play, standing, reversed)`, `legalPlays(hand, standing, opts)`, `titleFor(place, players, exchange)`, `scoreFor(place)`.
 - **Engine:** model it on `games/oh-hell/src/engine.ts`, the variable-seat-count reference (validates counts against meta, deals by seat). Copy `automaticMove`/`setConnected`/`view` from Hearts.
 - **Definition:** copy `games/hearts/src/definition.ts`. Reveals are `trick-cleared` (1000 ms) and `hand-scoring` (5500 ms), and bot moves take about 600 ms (a little slower than Hearts so humans can follow multi-card plays). `onPlayerRemoved` uses a stand-in, like Hearts.

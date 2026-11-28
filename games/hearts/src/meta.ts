@@ -7,8 +7,11 @@ export const heartsMeta: GameMeta & { id: 'hearts' } = {
   description: 'Pass cards, follow suit, and dodge penalty points in this classic trick-taking game.',
   minPlayers: 4,
   maxPlayers: 4,
-  estimatedMinutes: '25-40',
-  tags: ['cards', 'classic', 'strategy'],
+  minutes: { min: 25, max: 40 },
+  kind: 'cards',
+  weight: 'medium',
+  format: 'individual',
+  tags: ['trick-taking', 'passing', 'classic'],
   displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

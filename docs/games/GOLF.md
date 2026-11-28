@@ -172,7 +172,7 @@ After each turn-ending action, run the end-of-hole check (§3), then move `activ
 ## 7. Mapping to this codebase
 
 - **Package** `games/golf` → `@parlor/golf`. Files per `docs/ADDING_GAMES.md` §1.
-- **meta:** `minPlayers: 2, maxPlayers: 6, estimatedMinutes: '20-30', tags: ['cards','classic','family'], displayModes: ['peer'], supportsBots: true`.
+- **meta:** `minPlayers: 2, maxPlayers: 6, minutes: { min: 20, max: 30 }, kind: 'cards', weight: 'light', format: 'individual', tags: ['classic'], displayModes: ['peer'], supportsBots: true`.
 - **rules.ts:** `golfValue(rank)`, `columnScore(top, bottom)`, `gridScore(grid, opts)`, `showingScore(grid)`, `isOut(grid)`. The board imports these to label columns.
 - **Engine:** shape it like `games/oh-hell/src/engine.ts` (variable seats, rounds, `round-scoring` reveal → here `hole-scoring`). Copy `setConnected`/`automaticMove`/`view` from Hearts. The deck is `createDeck()`, doubled for 5–6, with `fisherYatesShuffle`.
 - **Simultaneous setup:** like the Hearts `passing` phase. `automaticMove` resolves any automated seat that hasn't flipped, one seat per step.

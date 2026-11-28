@@ -8,11 +8,11 @@ test.describe('Homepage', () => {
 		await expect(page.getByText('Game night, anywhere')).toBeVisible();
 
 		// Game cards are visible
-		await expect(page.getByText('Quixx')).toBeVisible();
-		await expect(page.getByText('Crazy Eights')).toBeVisible();
-		await expect(page.getByText('Booty Dice')).toBeVisible();
-		await expect(page.getByText("Liar's Dice")).toBeVisible();
-		await expect(page.getByText('Kings Corner')).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Quixx', exact: true })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Crazy Eights', exact: true })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Booty Dice', exact: true })).toBeVisible();
+		await expect(page.getByRole('heading', { name: "Liar's Dice", exact: true })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Kings Corner', exact: true })).toBeVisible();
 	});
 
 	test('shows join section with inputs', async ({ page }) => {
@@ -28,7 +28,7 @@ test.describe('Create Room Flow', () => {
 	test('clicking a game opens the create room modal', async ({ page }) => {
 		await page.goto('/');
 
-		await page.getByRole('button', { name: 'Start Game' }).first().click();
+		await page.getByRole('button', { name: /^Play / }).first().click();
 
 		await expect(page.getByRole('dialog')).toBeVisible();
 		await expect(page.getByPlaceholder('Enter your name')).toBeVisible();
@@ -38,8 +38,8 @@ test.describe('Create Room Flow', () => {
 	test('creating a room navigates to lobby', async ({ page }) => {
 		await page.goto('/');
 
-		// Click "Start Game" on any game card
-		await page.getByRole('button', { name: 'Start Game' }).first().click();
+		// Click "Play <game>" on any game card
+		await page.getByRole('button', { name: /^Play / }).first().click();
 
 		// Fill in name and create
 		await page.getByPlaceholder('Enter your name').fill('TestHost');
@@ -61,7 +61,7 @@ test.describe('Multiplayer Flow', () => {
 		const hostPage = await hostContext.newPage();
 
 		await hostPage.goto('/');
-		await hostPage.getByRole('button', { name: 'Start Game' }).first().click();
+		await hostPage.getByRole('button', { name: /^Play / }).first().click();
 		await hostPage.getByPlaceholder('Enter your name').fill('Alex');
 		await hostPage.getByRole('button', { name: 'Create Room' }).click();
 
@@ -94,7 +94,7 @@ test.describe('Multiplayer Flow', () => {
 
 		// Create a room with a bot-supporting game (Quixx)
 		const quixxCard = page.locator('.game-card', { hasText: 'Quixx' });
-		await quixxCard.getByRole('button', { name: 'Start Game' }).click();
+		await quixxCard.getByRole('button', { name: /^Play / }).click();
 		await page.getByPlaceholder('Enter your name').fill('Player1');
 		await page.getByRole('button', { name: 'Create Room' }).click();
 

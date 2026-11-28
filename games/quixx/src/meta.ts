@@ -6,8 +6,11 @@ export const quixxMeta: GameMeta & { id: 'quixx' } = {
   description: 'A fast-paced dice game of marking numbers and strategic choices.',
   minPlayers: 2,
   maxPlayers: 5,
-  estimatedMinutes: '15-20',
-  tags: ['dice', 'strategy', 'quick'],
+  minutes: { min: 15, max: 20 },
+  kind: 'dice',
+  weight: 'light',
+  format: 'individual',
+  tags: ['roll and write'],
   displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

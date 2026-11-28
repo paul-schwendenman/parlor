@@ -10,7 +10,7 @@ test('a Farkle phone controls the dice while the shared screen follows the table
   await game.getByRole('button', { name: 'How to play' }).click();
   await expect(page.getByRole('dialog').getByRole('heading', { name: 'Scoring dice' })).toBeVisible();
   await page.keyboard.press('Escape');
-  await game.getByRole('button', { name: 'Start Game' }).click();
+  await game.getByRole('button', { name: /^Play / }).click();
   await page.getByPlaceholder('Enter your name').fill('Alex');
   await page.getByRole('button', { name: 'Create Room' }).click();
   const displayPage = page.waitForEvent('popup');

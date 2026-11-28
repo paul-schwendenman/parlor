@@ -221,7 +221,7 @@ All turn-based. Only the active seat may act (`GameRuleError('It is not your tur
 
 - **Package:** `games/cant-stop`, `@parlor/cant-stop`, id `'cant-stop'`. No `@parlor/cards` dependency.
 - **Files** (per `docs/ADDING_GAMES.md`): `package.json`, `tsconfig.json`, and `turbo.json` copied from `games/hearts`; `src/types.ts`, `src/meta.ts`, `src/rules.ts`, `src/engine.ts`, `src/definition.ts`, `src/GameView.svelte`, plus `src/bot.ts` (pure policy, unit-testable).
-- **Meta:** `minPlayers: 2, maxPlayers: 4, estimatedMinutes: '15-30', tags: ['dice', 'push-your-luck', 'family'], displayModes: ['peer'], supportsBots: true`.
+- **Meta:** `minPlayers: 2, maxPlayers: 4, minutes: { min: 15, max: 30 }, kind: 'dice', weight: 'light', format: 'individual', tags: ['push your luck'], displayModes: ['peer'], supportsBots: true`.
 - **Copy from:**
 
 | What | From |

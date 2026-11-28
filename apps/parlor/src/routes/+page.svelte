@@ -5,10 +5,12 @@
   import { page } from '$app/stores';
   import { onMount, tick } from 'svelte';
   import { browser } from '$app/environment';
-  import { getSocket, createRoomAction, joinRoomAction, lookupRoomAction, spectateRoomAction } from '$lib/stores/socketClient.js';
+  import { getSocket, joinRoomAction, lookupRoomAction, spectateRoomAction } from '$lib/stores/socketClient.js';
   import { PLAYER_NAME_MAX_LENGTH, ROOM_CODE_LENGTH } from '@parlor/game-types';
-  import { catalog as games, findGame, minutesRange, playerRange } from '$lib/games/catalog.js';
+  import { catalog as games, findGame } from '$lib/games/catalog.js';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
+  import GameCard from '$lib/components/games/GameCard.svelte';
+  import CreateRoomDialog from '$lib/components/games/CreateRoomDialog.svelte';
 
   let prefillCode = $derived(($page.url.searchParams.get('join') ?? '').trim().toUpperCase());
   let editingCode = $derived(prefillCode.length !== ROOM_CODE_LENGTH || !/^[A-Z0-9]+$/.test(prefillCode));
@@ -29,9 +31,6 @@
   // For game card "create" flow
   let selectedGameForCreate = $state<string | undefined>();
   let creatingRoom = $state(false);
-  let createName = $state('');
-  let createDialog = $state<HTMLDialogElement | null>(null);
-  let createGame = $derived(findGame(selectedGameForCreate));
 
   $effect(() => {
     const code = normalizedCode;
@@ -50,13 +49,6 @@
       cancelled = true;
       clearTimeout(timer);
     };
-  });
-
-  // Native <dialog>: focus moves inside, Escape closes, background is inert.
-  $effect(() => {
-    if (!createDialog) return;
-    if (creatingRoom && !createDialog.open) createDialog.showModal();
-    if (!creatingRoom && createDialog.open) createDialog.close();
   });
 
   onMount(() => {
@@ -118,30 +110,9 @@
     creatingRoom = true;
   }
 
-  async function handleCreateRoom() {
-    if (!createName.trim()) { error = 'Enter your name'; return; }
-    loading = true;
-    error = '';
-    try {
-      const roomCode = await createRoomAction(createName.trim(), selectedGameForCreate);
-      await goto(resolve('/lobby/[roomCode]', { roomCode }));
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to create room';
-    } finally {
-      loading = false;
-    }
-  }
-
   function cancelCreate() {
     creatingRoom = false;
     selectedGameForCreate = undefined;
-    createName = '';
-    error = '';
-  }
-
-  function handleDialogClick(e: MouseEvent) {
-    // A click on the dialog element itself (not its contents) is the backdrop.
-    if (e.target === createDialog) cancelCreate();
   }
 
   let rulesGameId = $state<string | null>(null);
@@ -168,10 +139,6 @@
     handleJoin().catch(console.error);
   }
 
-  function handleCreateSubmit(e: SubmitEvent) {
-    e.preventDefault();
-    handleCreateRoom().catch(console.error);
-  }
 </script>
 
 <svelte:head><title>Parlor - Game Night</title></svelte:head>
@@ -285,20 +252,10 @@
       <button type="button" class="btn btn-accent create-room" onclick={() => openCreateRoom()} disabled={!interactive || loading}>Create a room</button>
       <div class="game-grid">
         {#each games as game (game.id)}
-          <article class="game-card spine-{game.shelf}">
-            <div class="game-head">
-              <h3 class="game-name">{game.name}</h3>
-              <span class="game-meta">{playerRange(game)} · {minutesRange(game)}m</span>
-            </div>
-            <p class="game-desc">{game.description}</p>
-            <p class="game-tags">{game.tags.join(' · ')}</p>
-            <div class="game-actions">
-              <button type="button" class="spine-ghost" onclick={() => openRules(game.id)} disabled={!interactive}>How to play</button>
-              <button type="button" class="spine-solid" onclick={() => openCreateRoom(game.id)} disabled={!interactive}>Start game</button>
-            </div>
-          </article>
+          <GameCard {game} disabled={!interactive} onrules={openRules} onstart={openCreateRoom} />
         {/each}
       </div>
+      <p class="browse-all"><a href={resolve('/games')}>Browse all {games.length} games</a></p>
     </section>
 
     <RulesModal
@@ -311,44 +268,7 @@
   {/if}
 </div>
 
-<!-- Create room dialog -->
-<dialog
-  bind:this={createDialog}
-  class="create"
-  aria-labelledby="create-title"
-  aria-describedby="create-desc"
-  onclose={cancelCreate}
-  onclick={handleDialogClick}
->
-  {#if creatingRoom}
-    <form class="create-form" onsubmit={handleCreateSubmit} novalidate>
-      <h2 id="create-title" class="create-title">{createGame ? `Create a ${createGame.name} room` : 'Create a room'}</h2>
-      <p id="create-desc" class="create-desc">{createGame?.description ?? 'Invite friends and vote on what to play.'}</p>
-      <label class="field">
-        <span class="field-label">Your name</span>
-        <input
-          type="text"
-          bind:value={createName}
-          placeholder="Enter your name"
-          maxlength={PLAYER_NAME_MAX_LENGTH}
-          autocomplete="nickname"
-          class="input"
-          aria-invalid={!!error && !createName.trim()}
-          aria-describedby={error ? 'create-error' : undefined}
-        />
-      </label>
-      {#if error}
-        <p id="create-error" class="error" role="alert">{error}</p>
-      {/if}
-      <div class="create-actions">
-        <button type="button" class="pill" onclick={cancelCreate}>Cancel</button>
-        <button type="submit" class="btn btn-accent" disabled={loading}>
-          {loading ? 'Creating…' : 'Create room'}
-        </button>
-      </div>
-    </form>
-  {/if}
-</dialog>
+<CreateRoomDialog open={creatingRoom} gameId={selectedGameForCreate} onclose={cancelCreate} />
 
 <style>
   .code-field {
@@ -656,158 +576,28 @@
     gap: 14px;
   }
 
-  /* Spine colours (--spine-bg, --spine-fg, --spine-solid-*) come from the
-     shared .spine-{shelf} classes in app.css. */
-  .game-card {
-    background: var(--spine-bg);
-    color: var(--spine-fg);
-    border: 2.5px solid var(--color-espresso);
-    border-radius: 18px;
-    padding: 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  .browse-all {
+    margin: 16px 0 0;
+    text-align: center;
   }
 
-  @media (hover: hover) {
-    .game-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 16px rgba(59, 47, 47, 0.12);
-    }
-  }
-
-  .game-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .game-name {
-    margin: 0;
-    font-family: var(--font-heading);
-    font-weight: 900;
-    font-size: 1.75rem;
-    line-height: 1;
-    letter-spacing: -0.02em;
-  }
-
-  .game-meta {
-    flex-shrink: 0;
-    font-size: 0.8125rem;
+  .browse-all a {
+    display: inline-block;
+    min-height: 44px;
+    align-content: center;
+    color: var(--color-espresso);
     font-weight: 700;
-    padding: 3px 9px;
-    border-radius: 999px;
-    border: 1.5px solid currentColor;
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .game-desc {
-    margin: 0;
-    font-size: 0.875rem;
-    font-weight: 500;
-    line-height: 1.45;
-    flex: 1;
-  }
-
-  .game-tags {
-    margin: 0;
-    font-size: 0.8125rem;
-    font-weight: 700;
-  }
-
-  .game-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 6px;
-  }
-
-  .spine-ghost,
-  .spine-solid {
-    flex: 1;
-    height: 44px;
-    border-radius: 999px;
-    font-family: var(--font-body);
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: background 0.2s ease, transform 0.1s ease;
-  }
-
-  .spine-ghost {
-    border: 2px solid var(--spine-fg);
-    background: transparent;
-    color: var(--spine-fg);
-    font-weight: 700;
-  }
-
-  @media (hover: hover) {
-    .spine-ghost:hover {
-      background: color-mix(in srgb, var(--spine-fg) 12%, transparent);
-    }
-  }
-
-  .spine-solid {
-    border: 2px solid var(--spine-solid-bg);
-    background: var(--spine-solid-bg);
-    color: var(--spine-solid-fg);
-    font-weight: 800;
-  }
-
-  @media (hover: hover) {
-    .spine-solid:hover {
-      background: color-mix(in srgb, var(--spine-solid-bg) 88%, var(--spine-fg));
-    }
-  }
-
-  .game-card:not(.spine-mustard):not(.spine-linen) :focus-visible {
-    outline-color: var(--color-cream);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.25em;
   }
 
   .create-room {
     margin-bottom: 16px;
   }
 
-  /* Create dialog */
-  .create {
-    /* Tailwind preflight zeroes dialog margins; restore centring. */
-    margin: auto;
-    width: min(420px, calc(100% - 32px));
-    box-sizing: border-box;
-    padding: 24px;
-    border: 2.5px solid var(--color-espresso);
-    border-radius: 20px;
-    background: var(--color-paper);
-    color: var(--color-espresso);
-    box-shadow: 0 8px 32px rgba(59, 47, 47, 0.15);
-  }
-
-  .create::backdrop {
-    background: rgba(59, 47, 47, 0.5);
-  }
-
-  .create-desc {
-    margin: -4px 0 4px;
-    font-size: 0.875rem;
-    line-height: 1.45;
-    color: var(--color-ink-muted);
-  }
-
-  .create-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-    margin-top: 4px;
-  }
-
   @media (max-width: 600px) {
     .game-grid {
       grid-template-columns: minmax(0, 1fr);
-    }
-
-    .create-actions > * {
-      flex: 1;
     }
   }
 </style>

@@ -9,7 +9,7 @@ Brief for *Sushi Go!* (Phil Walker-Harding, Gamewright, 2013): the original base
 Players draft sushi from hands that move around the table. Every turn, everyone picks one card from their hand in secret. All picks are then revealed together, and everyone passes the rest of their hand to the left. Cards score by set: pairs, sets of three, escalating piles, a majority race and multipliers. Pudding is a long-term dessert race scored only at the end of the game. The game lasts 3 rounds.
 
 - **Players:** 2–5 (`minPlayers: 2`, `maxPlayers: 5`). Bots can fill seats.
-- **Play time:** 15–20 minutes (`estimatedMinutes: '15-20'`).
+- **Play time:** 15–20 minutes (`minutes: { min: 15, max: 20 }`).
 - **Display mode:** `['peer']`. Each player needs a private hand, and there is no turn order to follow.
 - **Why it fits Parlor:**
   - Everyone acts at once, so nobody waits for a slow turn.
@@ -272,7 +272,7 @@ deal(round) ──► picking ──(last seat locks)──► reveal ──adva
 ## 7. Mapping to this codebase
 
 - **Package:** `@parlor/sushi-go`. **id:** `sushi-go`, used everywhere.
-- **Meta:** `tags: ['cards','drafting','family']`, `supportsBots: true`.
+- **Meta:** `kind: 'cards'`, `weight: 'light'`, `format: 'individual'`, `tags: ['drafting', 'set collection']`, `supportsBots: true`.
 - **Dependencies:** follow ADDING_GAMES.md but **drop `@parlor/cards`**. These are not standard playing cards.
 
 **Files:** follow `docs/ADDING_GAMES.md` §1, copying `games/hearts/` (layout, tsconfig, turbo.json).

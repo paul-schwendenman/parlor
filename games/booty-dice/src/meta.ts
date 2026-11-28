@@ -6,8 +6,11 @@ export const bootyDiceMeta: GameMeta & { id: 'booty-dice' } = {
   description: 'A pirate dice game of treasure, attacks, and survival.',
   minPlayers: 2,
   maxPlayers: 6,
-  estimatedMinutes: '15-30',
-  tags: ['dice', 'pirates', 'competitive'],
+  minutes: { min: 15, max: 30 },
+  kind: 'dice',
+  weight: 'light',
+  format: 'individual',
+  tags: ['pirates', 'take that'],
   displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

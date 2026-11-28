@@ -11,7 +11,7 @@ test('two phones share a rack and reveal their words after finishing', async ({ 
   await game.getByRole('button', { name: 'How to play' }).click();
   await expect(page.getByRole('dialog').getByRole('heading', { name: 'Score unique finds' })).toBeVisible();
   await page.keyboard.press('Escape');
-  await game.getByRole('button', { name: 'Start Game' }).click();
+  await game.getByRole('button', { name: /^Play / }).click();
   await page.getByPlaceholder('Enter your name').fill('Alex');
   await page.getByRole('button', { name: 'Create Room' }).click();
   await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
