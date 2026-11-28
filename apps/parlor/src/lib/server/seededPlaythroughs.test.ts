@@ -63,7 +63,7 @@ async function table(gameId: GameId) {
 	if (!address || typeof address === 'string') throw new Error('Expected TCP address');
 
 	const recipients: Recipient[] = [];
-	for (let index = 0; index < (gameId === 'president' ? 9 : gameId === 'golf' ? 7 : gameId === 'hearts' ? 6 : 5); index++) {
+	for (let index = 0; index < (gameId === 'president' ? 9 : gameId === 'golf' ? 7 : gameId === 'hearts' ? 6 : gameId === 'gin-rummy' ? 4 : 5); index++) {
 		const socket: Client = io(`http://127.0.0.1:${address.port}`, {
 			transports: ['websocket'], autoConnect: false, reconnection: false, timeout: 1000,
 		});
@@ -568,5 +568,36 @@ it('President sends seven private hands and a public play, then clears after all
 		expect(await socket.timeout(1000).emitWithAck('game:action', { type: 'pass' })).toEqual({ ok: true });
 	}
 	expect((await views()).at(-1)?.phase).toBe('trick-cleared');
+	game.reset();
+});
+
+it('Gin Rummy redacts the stock draw until a player knocks and reveals both spreads', async () => {
+	engineInt = (max) => max - 1;
+	const game = await table('gin-rummy');
+	const [host, guest] = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'gin-rummy') throw new Error('Expected a Gin Rummy view');
+			return frame.view;
+		});
+	}
+	expect((await views())[2].myHand).toEqual([]);
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'pass-upcard' })).toEqual({ ok: true });
+	expect(await guest.socket.timeout(1000).emitWithAck('game:action', { type: 'pass-upcard' })).toEqual({ ok: true });
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'draw-stock' })).toEqual({ ok: true });
+	const [drawing, waiting, watching] = await views();
+	expect(drawing.myHand).toHaveLength(11);
+	expect(waiting.myHand).toHaveLength(10);
+	expect(watching).toMatchObject({ myHand: [], knockable: [], discardable: [], lastResult: null });
+	const card = drawing.knockable.at(-1);
+	expect(card).toBeTruthy();
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'knock', card })).toEqual({ ok: true });
+	const revealed = await views();
+	for (const view of revealed) {
+		expect(view.phase).toBe('hand-scoring');
+		expect(view.lastResult).toEqual(revealed[2].lastResult);
+		expect(view.lastResult?.knocker?.deadwoodCount).toBe(0);
+	}
 	game.reset();
 });

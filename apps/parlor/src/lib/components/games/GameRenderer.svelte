@@ -10,6 +10,7 @@
   import OhHellGame from '@parlor/oh-hell/game-view';
   import SpadesGame from '@parlor/spades/game-view';
   import PresidentGame from '@parlor/president/game-view';
+  import GinRummyGame from '@parlor/gin-rummy/game-view';
   import GolfGame from '@parlor/golf/game-view';
   import HeartsGame from '@parlor/hearts/game-view';
   import FarkleGame from '@parlor/farkle/game-view';
@@ -50,6 +51,8 @@
   <FarkleGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'president'}
   <PresidentGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
+{:else if state.gameId === 'gin-rummy'}
+  <GinRummyGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'golf'}
   <GolfGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'word-split'}

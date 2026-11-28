@@ -177,6 +177,19 @@
         <p>The first player out becomes President and earns two points. The second earns one point. In the next hand, the last-place player gives the President their highest card. The President returns any card and leads.</p>
         <p>Finish the hand in which someone reaches 11 points. The highest score wins. Final-hand placement breaks ties.</p>
       </section>
+    {:else if gameId === 'gin-rummy'}
+      <section>
+        <h3>Make sets and runs</h3>
+        <p>Build groups of three or four cards of a rank or sequences of three or more in one suit. Aces are low. Cards outside your groups are deadwood. Aces count one, face cards count ten, and other cards count their number.</p>
+      </section>
+      <section>
+        <h3>Draw and discard</h3>
+        <p>Both players get a chance to take the opening upcard. On later turns, draw from the stock or take the top discard, then discard a card. You must keep the card you took from the discard pile for that turn.</p>
+      </section>
+      <section>
+        <h3>Knock or go gin</h3>
+        <p>You may knock if your chosen discard leaves at most ten deadwood. The other player can lay off onto your groups and scores an undercut if they finish even or lower. Going gin leaves zero deadwood, scores a bonus, and prevents layoffs. Reach 100 points to end the game.</p>
+      </section>
     {:else if gameId === 'golf'}
       <section>
         <h3>Set up your grid</h3>

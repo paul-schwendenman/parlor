@@ -15,6 +15,7 @@ Parlor aims to host a variety of multiplayer tabletop games. This document catal
 | **Yahtzee** | Dice categories | 1+ | Peer or Jackbox | None | Consensus or Server | Rename | [YAHTZEE.md](games/YAHTZEE.md) |
 | **Farkle** | Push-your-luck dice | 2–6 | Peer or Jackbox | None | Server | None | [FARKLE.md](games/FARKLE.md) |
 | **President** | Climbing and shedding | 4–7 | Peer | Hands and exchanges | Server | None | [PRESIDENT.md](games/PRESIDENT.md) |
+| **Gin Rummy** | Meld building | 2 | Peer | Hands | Server | None | [GIN_RUMMY.md](games/GIN_RUMMY.md) |
 | **Golf** | Six-card tableau | 2–6 | Peer | Face-down cards | Server | None | [GOLF.md](games/GOLF.md) |
 | **Word Split** | Shared-letter word game | 2–8 | Peer or Jackbox | Words private until reveal | Server | Original | [WORD_SPLIT.md](games/WORD_SPLIT.md) |
 | **Boggle** | Word-finding | 2+ | Peer or Jackbox | Words hidden during play | Server | Rename | [BOGGLE.md](games/BOGGLE.md) |

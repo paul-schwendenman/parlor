@@ -17,3 +17,4 @@ export { default as TeamScore } from './TeamScore.svelte';
 export { default as TrickTable } from './cards/TrickTable.svelte';
 export { default as CardGrid } from './cards/CardGrid.svelte';
 export { default as DiscardPile } from './cards/DiscardPile.svelte';
+export { default as MeldSpread } from './cards/MeldSpread.svelte';

@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./melds": {
+      "types": "./dist/melds.d.ts",
+      "import": "./dist/melds.js"
     }
   },
   "scripts": {
