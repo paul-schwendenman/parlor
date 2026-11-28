@@ -57,6 +57,7 @@
   // replaceState throws if called before the router starts, which a shared
   // link in a different param order would otherwise do during hydration.
   // afterNavigate runs once the router is up (including the first load).
+  // Keep the controls inert until hydration attaches their event handlers.
   let mounted = $state(false);
   afterNavigate(() => (mounted = true));
 
@@ -127,7 +128,7 @@
       <a class="wordmark" href={resolve('/')} aria-label="Parlor home"><ParlorMark />Parlor</a>
       <h1 class="title">Find a game</h1>
     </div>
-    <label class="search">
+    <label class="search" inert={!mounted}>
       <span class="sr-only">Search games</span>
       <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
       <input
@@ -170,7 +171,7 @@
   </div>
 </div>
 
-<main class="page">
+<main class="page" inert={!mounted}>
   <GameFilters {filters} games={catalog} onchange={(next) => (filters = next)} countLine={isEmpty(filters) ? undefined : countLine} resultsId="results" />
 
   <section class="results" id="results" tabindex="-1" aria-labelledby="results-title">
