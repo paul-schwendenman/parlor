@@ -10,6 +10,7 @@ import { golfMeta } from '@parlor/golf/meta';
 import { heartsMeta } from '@parlor/hearts/meta';
 import { spadesMeta } from '@parlor/spades/meta';
 import { euchreMeta } from '@parlor/euchre/meta';
+import { councilLedgerMeta } from '@parlor/council-ledger/meta';
 import { cipherPostMeta } from '@parlor/cipher-post/meta';
 import { faultLineMeta } from '@parlor/fault-line/meta';
 import { signalRelayMeta } from '@parlor/signal-relay/meta';
@@ -62,6 +63,7 @@ export const catalog: readonly CatalogGame[] = [
   { ...signalRelayMeta, shelf: 'felt', tagline: 'Route signals together before time runs out' },
   { ...faultLineMeta, shelf: 'mustard', tagline: 'Hide a cache and bluff the table' },
   { ...cipherPostMeta, shelf: 'clay', tagline: 'Pass a seal, then guess what they kept' },
+  { ...councilLedgerMeta, shelf: 'linen', tagline: 'Claim a permit or call a bluff' },
   { ...wordSplitMeta, shelf: 'ink', tagline: 'Find words only you thought of' },
 ];
 

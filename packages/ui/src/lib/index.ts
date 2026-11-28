@@ -20,3 +20,4 @@ export { default as DiscardPile } from './cards/DiscardPile.svelte';
 export { default as MeldSpread } from './cards/MeldSpread.svelte';
 export { default as DiceTray } from './dice/DiceTray.svelte';
 export { default as RollStopBar } from './dice/RollStopBar.svelte';
+export { default as Countdown } from './Countdown.svelte';

@@ -13,6 +13,7 @@
   import GinRummyGame from '@parlor/gin-rummy/game-view';
   import GolfGame from '@parlor/golf/game-view';
   import HeartsGame from '@parlor/hearts/game-view';
+  import CouncilLedgerGame from '@parlor/council-ledger/game-view';
   import CipherPostGame from '@parlor/cipher-post/game-view';
   import FaultLineGame from '@parlor/fault-line/game-view';
   import SignalRelayGame from '@parlor/signal-relay/game-view';
@@ -53,6 +54,8 @@
   <HeartsGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'kings-corner'}
   <KingsCornerGame view={state.view} {socket} {playerId} />
+{:else if state.gameId === 'council-ledger'}
+  <CouncilLedgerGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'cipher-post'}
   <CipherPostGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'fault-line'}

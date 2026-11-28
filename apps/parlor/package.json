@@ -16,11 +16,12 @@
   "dependencies": {
     "@parlor/booty-dice": "workspace:*",
     "@parlor/cipher-post": "workspace:*",
+    "@parlor/council-ledger": "workspace:*",
     "@parlor/crazy-eights": "workspace:*",
     "@parlor/euchre": "workspace:*",
     "@parlor/farkle": "workspace:*",
-    "@parlor/game-types": "workspace:*",
     "@parlor/fault-line": "workspace:*",
+    "@parlor/game-types": "workspace:*",
     "@parlor/gin-rummy": "workspace:*",
     "@parlor/golf": "workspace:*",
     "@parlor/harbor-dice": "workspace:*",

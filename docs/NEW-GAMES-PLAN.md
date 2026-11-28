@@ -1,8 +1,6 @@
 # New Games: Build Plan (2026-11-27)
 
-Handoff for the implementation session. Each game has an implementation-ready brief in `docs/games/`
-(verified rules, naming/IP, state + redacted views, actions, codebase mapping, board UI, bot, test plan,
-open questions, sources). Traditional games use their established names. Commercial references guide Parlor adaptations with their own names, scoring, and presentation. Read the brief's **Open questions** before starting a game.
+Implementation checklist for the November game plan. The linked briefs in `docs/games/` describe the playable games. Traditional games use their established names. The Parlor adaptations have their own names, rules, and presentation.
 
 | Brief | Parlor name (id) | Players | Notes |
 |---|---|---|---|
@@ -15,7 +13,7 @@ open questions, sources). Traditional games use their established names. Commerc
 | CIPHER_POST.md | Cipher Post (`cipher-post`) | 2–6 | Private passes and public clues |
 | NIGHT_MARKET.md | Night Market (`night-market`) | 2–5 | Simultaneous draft with sell-or-display picks |
 | FAULT_LINE.md | Fault Line (`fault-line`) | 3–6 | Hidden caches, public bounties, and secret openings |
-| COUP.md | Coup (`coup`) | 2–6 | Timed challenge/block windows; 3 FAQ rulings unverified |
+| COUNCIL_LEDGER.md | Council Ledger (`council-ledger`) | 2–6 | Private permits and simultaneous timed challenges |
 | SIGNAL_RELAY.md | Signal Relay (`signal-relay`) | 2–4 | Cooperative timed antenna routing |
 
 Runners-up not specced: Cribbage (best next pick), Rummy 500 (build on Gin meld logic), Go Fish, Spit, Durak,
@@ -32,50 +30,25 @@ Pinochle, Old Maid, Blackjack.
 - [x] President — fixed seats, private card exchanges, and a shared bot and reveal scheduler. Verified engine, seven-seat socket play, and phone browser flow.
 - [x] Fault Line — Parlor's hidden-cache bluffing adaptation. Bounties create a public signal before opening choices are locked.
 - [x] Gin Rummy — standard rules, bot play, automatic melds and layoffs, and final bonuses. Verified engine, socket redaction, and phone browser flow.
-- [ ] Coup
+- [x] Council Ledger — Parlor's timed challenge adaptation. Settle challenges together and race to twelve standing.
 - [x] Signal Relay — Parlor's real-time cooperative adaptation. Clear four relays using two antennas and a shared reroute.
 
-The commercial briefs guide mechanics for distinct Parlor adaptations. Harbor Dice, Ridge Run, Night Market, and Signal Relay fill the five-dice scorecard, push-your-luck climbing, simultaneous drafting, and real-time cooperative slots.
+All eleven slots are implemented, including seven original Parlor adaptations.
 
-## Cross-cutting issues (decide/build before or alongside the games)
+## Shared implementation decisions
 
 1. **Per-game host options.** Every brief wants variant toggles; the lobby has no channel for them and
    `createState` takes no options. Briefs put options on the engine with defaults, so games can ship on
    defaults first. Build one shared "House rules" path (lobby UI → room → `createState(options)`) once,
    rather than per game.
-2. **Shelf colours.** Nearly every brief picked linen (Kings Corner's) because the six palette colours are
-   all taken by games or seat colours. Needs a palette decision (extend it, or allow sharing with a rule).
-3. **Bot seat colours.** `SeatChip`/`GameOver` render all bots in one dark colour; Can't Stop (and any game
-   colouring pieces by seat) needs bots in their own seat colours.
-4. **`docs/ADDING_GAMES.md` is stale on wiring.** Home shelf and lobby picker now read from
-   `apps/parlor/src/lib/games/catalog.ts`. The wiring guide was updated with Golf.
-5. **Dead-connection detection.** Socket.io heartbeat (~45s to notice) stalls The Mind's ready-check and
-   Coup's windows. Tighten before those two.
-6. **Previous winner starts** on Play again (Coup brief asks for `createState` to receive it).
+2. **Shelf colours.** New games reuse the existing palette. Their colours are set in the game catalog.
+3. **Bot seat colours.** Ridge Run shows a seat-colour swatch for each player and bot and matches it to their route markers.
+4. **App wiring.** The home shelf and lobby picker both read `apps/parlor/src/lib/games/catalog.ts`.
+5. **Dead-connection detection.** Signal Relay and Council Ledger run server deadlines independently of the socket heartbeat.
+6. **Play again.** Council Ledger chooses its first proposer at random.
 
-## Board-kit additions (build once, in `@parlor/ui`)
+## Shared components
 
-- **Dice:** `DiceTray` supports selections and blank pre-roll slots. `PipDie` supplies the roll animation. `RollStopBar` supplies the two turn actions. Farkle uses this kit.
-- **Generic cards:** `CardFrame` (refactor `PlayingCard` onto it), generic `CardHand<T>`,
-  `CharacterCard` (named + numbered), number face for The Mind. Used by Love Letter, Coup,
-  Sushi Go, The Mind, Skull.
+- **Dice:** `DiceTray` supports selections and blank pre-roll slots. `PipDie` supplies the roll animation. `RollStopBar` supplies the two turn actions. Farkle, Harbor Dice, and Ridge Run use this kit.
 - **Standard deck:** Golf and Gin Rummy share `DiscardPile`. Golf adds `CardGrid`, and Gin Rummy adds `MeldSpread`.
-- **Misc:** `CountdownBar` (Coup), `GameLog` (move from Booty Dice).
-
-## Suggested build order
-
-Easiest/highest-reuse first; each game introduces the kit pieces the later ones lean on.
-
-1. **Farkle**: implemented. Uses the shared dice kit.
-2. **Harbor Dice**: implemented. Reuses the dice tray and automated turn scheduler.
-3. **Golf**: simple standard-deck game; extracts `DiscardPile`, adds `CardGrid`.
-4. **Ridge Run**: implemented. Reuses the dice kit and marks each player's route progress with their seat colour.
-5. **Cipher Post**: implemented. Private passes become evidence for simultaneous guesses.
-6. **Night Market**: implemented. Locks private simultaneous picks and reveals them together.
-7. **President**: reuses multi-select hand; 7-player layout.
-8. **Fault Line**: implemented. Keeps caches and opening choices private until the reveal.
-9. **Gin Rummy**: meld/layoff solver is the main work.
-10. **Coup**: hardest turn flow (response windows, timers); after #5 for `CharacterCard`.
-11. **Signal Relay**: implemented. Uses server deadlines and rejects stale antenna plays.
-
-Host options (#1) can land any time; the earlier it lands, the fewer games ship defaults-only.
+- **Timed play:** `Countdown` and an absolute server deadline are shared by Signal Relay and Council Ledger.

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { GameSocket } from '@parlor/multiplayer/client';
-  import { Button, CardBoard, Felt, SeatChip, TurnBanner } from '@parlor/ui';
+  import { Button, CardBoard, Countdown, Felt, SeatChip, TurnBanner } from '@parlor/ui';
   import { antennas, fits, levels } from './rules.js';
   import type { RelayAction, RelayView } from './types.js';
 
@@ -12,18 +12,9 @@
   let pending = $state(false);
   let error = $state('');
   let rerouting = $state(false);
-  let now = $state(0);
   let selected = $derived(choice?.level === view.level ? view.hand.find(({ id }) => id === choice?.id) : undefined);
   let canReroute = $derived(view.rerouteAvailable && rerouting && !!selected);
-  let seconds = $derived(view.deadline === null ? 0 : Math.max(0, Math.ceil((view.deadline - now) / 1000)));
   let me = $derived(view.players.find(({ id }) => id === playerId));
-
-  $effect(() => {
-    if (view.deadline === null) return;
-    now = Date.now();
-    const timer = setInterval(() => now = Date.now(), 200);
-    return () => clearInterval(timer);
-  });
 
   async function send(antenna: RelayAction['antenna']) {
     if (!selected || pending) return;
@@ -75,8 +66,8 @@
     </ul>
     <Felt label="Antennas" tone="night">
       <div class="console">
-        {#if view.phase === 'playing'}
-          <p class="clock" role="timer" aria-label="Seconds remaining">{now ? seconds : '–'} s</p>
+        {#if view.deadline !== null}
+          <p class="clock"><Countdown deadline={view.deadline} /></p>
         {/if}
         <div class="antennas">
           {#each antennas as antenna (antenna)}

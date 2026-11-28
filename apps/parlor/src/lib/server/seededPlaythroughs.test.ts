@@ -766,3 +766,33 @@ it('Cipher Post sends a private seal to its recipient and later publishes only e
 	expect(exposed.at(-1)).toMatchObject({ phase: 'guess', hand: [], sent: null, myGuess: null, results: [] });
 	game.reset();
 });
+
+it('Council Ledger keeps its permit private and accepts a claim on the server deadline', async () => {
+	engineInt = () => 0;
+	const game = await table('council-ledger');
+	const [host, guest] = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'council-ledger') throw new Error('Expected a Council Ledger view');
+			return frame.view;
+		});
+	}
+	expect((await views()).map(({ myPermit }) => myPermit)).toEqual(['contracts', null, null, null]);
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', {
+		type: 'claim', turn: 1, permit: 'outreach',
+	})).toEqual({ ok: true });
+	const claimed = await views();
+	expect(claimed.map(({ canRespond }) => canRespond)).toEqual([false, true, true, false]);
+	expect(claimed.at(-1)).toMatchObject({ phase: 'response', claim: 'outreach', myPermit: null, outcome: null });
+	expect(await guest.socket.timeout(1000).emitWithAck('game:action', {
+		type: 'respond', turn: 1, challenge: false,
+	})).toEqual({ ok: true });
+	await views();
+	await vi.waitFor(async () => {
+		expect((await views()).at(-1)).toMatchObject({
+			phase: 'reveal', deadline: null, outcome: { accepted: true, challengerIds: [], shown: null },
+		});
+	}, { timeout: 10_000 });
+	game.reset();
+}, 12_000);

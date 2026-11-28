@@ -1,5 +1,5 @@
 import {
-  createTurnDriver, defineGame, hasExactKeys, invalid, isIntInRange, RoomManager, valid, validateByType,
+  createTurnDriver, defineGame, hasExactKeys, invalid, isIntInRange, RoomManager, scheduleGameDeadline, valid, validateByType,
   type GameContext, type PlayerContext, type TypedGameDefinition,
 } from '@parlor/multiplayer';
 import { SignalRelayEngine } from './engine.js';
@@ -12,14 +12,7 @@ const driveTurn = createTurnDriver<SignalRelayEngine>('signal-relay-step', 525, 
   (game) => scheduleDeadline(game));
 
 function scheduleDeadline(game: GameContext<SignalRelayEngine>) {
-  game.instance.cancel(deadlineKey);
-  const ends = game.state.deadline;
-  if (ends !== null) game.instance.schedule(() => {
-    if (game.state.expire()) {
-      game.broadcast();
-      driveTurn(game);
-    } else scheduleDeadline(game);
-  }, Math.max(1, ends - Date.now()), deadlineKey);
+  scheduleGameDeadline(game, deadlineKey, driveTurn);
 }
 
 function drive(game: GameContext<SignalRelayEngine>) {

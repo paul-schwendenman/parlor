@@ -148,6 +148,16 @@
         <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
       </section>
 
+    {:else if gameId === 'council-ledger'}
+      <section>
+        <h3>Make a proposal</h3>
+        <p>Each turn you get a private permit. Claim any permit to earn coins or standing, or do public service for one coin and one standing. Public service needs no permit.</p>
+      </section>
+      <section>
+        <h3>Challenge a claim</h3>
+        <p>Rivals with a coin have eight seconds to challenge or stand. An unchallenged claim goes through. A challenge reveals the permit. If it matches, the claim goes through and each challenger loses one coin. If it differs, the claim fails, each challenger gains one standing, and the proposer loses up to one coin.</p>
+        <p>Finish when someone reaches 12 standing or after eight rounds. The highest standing wins. Ties share the win.</p>
+      </section>
     {:else if gameId === 'cipher-post'}
       <section>
         <h3>Pass a seal and reveal a clue</h3>
