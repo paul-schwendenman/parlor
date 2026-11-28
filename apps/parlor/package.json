@@ -17,6 +17,8 @@
     "@parlor/booty-dice": "workspace:*",
     "@parlor/crazy-eights": "workspace:*",
     "@parlor/euchre": "workspace:*",
+    "@parlor/farkle": "workspace:*",
+    "@parlor/word-split": "workspace:*",
     "@parlor/game-types": "workspace:*",
     "@parlor/hearts": "workspace:*",
     "@parlor/kings-corner": "workspace:*",
