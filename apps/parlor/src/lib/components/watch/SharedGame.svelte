@@ -7,6 +7,8 @@
 
   import QuixxScreen from './QuixxScreen.svelte';
 
+  import BootyDiceScreen from './BootyDiceScreen.svelte';
+
   let { state }: { state: GameStateEnvelope } = $props();
 </script>
 
@@ -18,4 +20,6 @@
   <LiarsDiceScreen view={state.view} />
 {:else if state.gameId === 'quixx'}
   <QuixxScreen view={state.view} />
+{:else if state.gameId === 'booty-dice'}
+  <BootyDiceScreen view={state.view} />
 {/if}
