@@ -9,6 +9,7 @@ import { liarsDiceDefinition } from '@parlor/liars-dice/server-definition';
 import { spadesDefinition } from '@parlor/spades/server-definition';
 import { euchreDefinition } from '@parlor/euchre/server-definition';
 import { ohHellDefinition } from '@parlor/oh-hell/server-definition';
+import { golfDefinition } from '@parlor/golf/server-definition';
 import { heartsDefinition } from '@parlor/hearts/server-definition';
 import { kingsCornerDefinition } from '@parlor/kings-corner/server-definition';
 
@@ -26,5 +27,6 @@ export function registerAllGames(): void {
 	registerGame(euchreDefinition);
 	registerGame(ohHellDefinition);
 	registerGame(farkleDefinition);
+	registerGame(golfDefinition);
 	registerGame(wordSplitDefinition);
 }

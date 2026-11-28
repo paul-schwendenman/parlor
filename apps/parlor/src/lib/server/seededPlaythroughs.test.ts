@@ -63,7 +63,7 @@ async function table(gameId: GameId) {
 	if (!address || typeof address === 'string') throw new Error('Expected TCP address');
 
 	const recipients: Recipient[] = [];
-	for (let index = 0; index < (gameId === 'hearts' ? 6 : 5); index++) {
+	for (let index = 0; index < (gameId === 'golf' ? 7 : gameId === 'hearts' ? 6 : 5); index++) {
 		const socket: Client = io(`http://127.0.0.1:${address.port}`, {
 			transports: ['websocket'], autoConnect: false, reconnection: false, timeout: 1000,
 		});
@@ -503,5 +503,41 @@ it('Word Split reveals shared words only after all players finish', async () => 
 	const revealed = await views();
 	expect(revealed.every((view) => view.phase === 'reveal')).toBe(true);
 	expect(revealed.at(-1)?.results).toEqual([{ word: 'able', playerIds: [host.id, guest.id], points: 0 }]);
+	game.reset();
+});
+
+it('Golf redacts every hidden slot through a five-seat hole over the socket', async () => {
+	engineInt = seededInt(530);
+	const game = await table('golf');
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'golf') throw new Error('Expected a Golf view');
+			return frame.view;
+		});
+	}
+	async function move(index: number, action: GameAction<'golf'>) {
+		expect(await game.players[index].socket.timeout(1000).emitWithAck('game:action', action)).toEqual({ ok: true });
+	}
+	const initial = await views();
+	expect(initial[0].stockCount).toBe(73);
+	for (const view of initial) expect(view.players.every(({ grid }) => grid.every((card) => card === null))).toBe(true);
+	for (const index of game.players.keys()) {
+		await move(index, { type: 'reveal', slot: 0 });
+		await move(index, { type: 'reveal', slot: 3 });
+	}
+	let current = await views();
+	const first = game.players.findIndex(({ id }) => id === current[0].activePlayerId);
+	for (let turn = 0; turn <= 15; turn++) {
+		const index = (first + turn) % game.players.length;
+		expect(current.map(({ canTakeDiscard }) => canTakeDiscard)).toEqual(current.map((_, viewer) => viewer === index));
+		await move(index, { type: 'take-discard', slot: index === first ? [1, 2, 4, 5][Math.floor(turn / 5)] : 0 });
+		current = await views();
+		const spectator = current.at(-1)!;
+		expect(current.every((view) => JSON.stringify(view.players) === JSON.stringify(spectator.players))).toBe(true);
+		if (turn < 15) expect(spectator.players.filter(({ grid }) => grid.filter(Boolean).length === 2)).toHaveLength(4);
+	}
+	expect(current.at(-1)?.phase).toBe('hole-scoring');
+	expect(current.at(-1)?.players.every(({ grid }) => grid.every(Boolean))).toBe(true);
 	game.reset();
 });

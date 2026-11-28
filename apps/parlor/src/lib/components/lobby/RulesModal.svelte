@@ -166,6 +166,20 @@
         <h3>Final turns</h3>
         <p>When someone banks 10,000 points or more, everyone else gets one last turn. The highest score wins, with ties shared.</p>
       </section>
+    {:else if gameId === 'golf'}
+      <section>
+        <h3>Set up your grid</h3>
+        <p>Each hole starts with six face-down cards in two rows. Turn any two face up.</p>
+      </section>
+      <section>
+        <h3>Draw and swap</h3>
+        <p>On your turn, draw from the stock and swap that card into any slot or discard it. If you take the top discard, you must swap it into your grid. The replaced card goes on the discard pile. The hole ends when any player turns their sixth card face up.</p>
+      </section>
+      <section>
+        <h3>Aim low</h3>
+        <p>Matching ranks in a column cancel out. Kings are worth zero, twos are worth minus two, aces are worth one, and jacks and queens are worth ten. All other cards are worth their number.</p>
+        <p>Reveal and score every grid at the end of each hole. The lowest total after nine holes wins. Ties share the win.</p>
+      </section>
     {:else if gameId === 'word-split'}
       <section>
         <h3>Build words</h3>

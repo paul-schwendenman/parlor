@@ -15,3 +15,5 @@ export { SEAT_TONES, seatTone, initial, type SeatTone, type Standing } from './s
 export { SUIT_NAMES, isRedSuit, cardName, type CardSuit } from './cards/suits.js';
 export { default as TeamScore } from './TeamScore.svelte';
 export { default as TrickTable } from './cards/TrickTable.svelte';
+export { default as CardGrid } from './cards/CardGrid.svelte';
+export { default as DiscardPile } from './cards/DiscardPile.svelte';

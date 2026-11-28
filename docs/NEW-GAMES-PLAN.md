@@ -7,7 +7,7 @@ rules text, art and layout must be our own, never copied from a rulebook. Read t
 
 | Brief | Parlor name (id) | Players | Notes |
 |---|---|---|---|
-| FARKLE.md | Farkle (`farkle`) | 2–6 | Untracked draft already in `games/farkle/`; brief lists what it must change |
+| FARKLE.md | Farkle (`farkle`) | 2–6 | Already implemented on the starting branch |
 | YAHTZEE.md | Yahtzee (`yahtzee`) | 2–6 | Forced-Joker default |
 | CANT_STOP.md | Can't Stop (`cant-stop`) | 2–4 | Column board is a new visual |
 | GOLF.md | Golf (`golf`) | 2–6 | 6-card Golf; two decks at 5–6p, address cards by slot |
@@ -21,6 +21,20 @@ rules text, art and layout must be our own, never copied from a rulebook. Read t
 
 Runners-up not specced: Cribbage (best next pick), Rummy 500 (build on Gin meld logic), Go Fish, Spit, Durak,
 Pinochle, Old Maid, Blackjack.
+
+## Implementation checklist
+
+- [x] Farkle — already implemented on the starting branch.
+- [x] Golf — nine-hole default, bots, shared card grid and discard pile. Verified engine, five-seat socket play, and phone browser flow.
+- [ ] Yahtzee
+- [ ] Can't Stop
+- [ ] Love Letter
+- [ ] Sushi Go
+- [ ] President
+- [ ] Skull
+- [ ] Gin Rummy
+- [ ] Coup
+- [ ] The Mind
 
 ## Cross-cutting issues (decide/build before or alongside the games)
 

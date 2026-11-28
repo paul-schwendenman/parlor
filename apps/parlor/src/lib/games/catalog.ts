@@ -4,6 +4,7 @@ import { crazyEightsMeta } from '@parlor/crazy-eights/meta';
 import { bootyDiceMeta } from '@parlor/booty-dice/meta';
 import { liarsDiceMeta } from '@parlor/liars-dice/meta';
 import { kingsCornerMeta } from '@parlor/kings-corner/meta';
+import { golfMeta } from '@parlor/golf/meta';
 import { heartsMeta } from '@parlor/hearts/meta';
 import { spadesMeta } from '@parlor/spades/meta';
 import { euchreMeta } from '@parlor/euchre/meta';
@@ -44,6 +45,7 @@ export const catalog: readonly CatalogGame[] = [
   { ...euchreMeta, shelf: 'felt', tagline: 'Team up, call trump, take 3 tricks' },
   { ...ohHellMeta, shelf: 'mustard', tagline: 'Bid your tricks, then hit it exactly' },
   { ...farkleMeta, shelf: 'linen', tagline: 'Bank your dice points or roll again' },
+  { ...golfMeta, shelf: 'felt', tagline: 'Swap cards to lower your score' },
   { ...wordSplitMeta, shelf: 'ink', tagline: 'Find words only you thought of' },
 ];
 

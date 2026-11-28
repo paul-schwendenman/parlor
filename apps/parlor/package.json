@@ -19,6 +19,7 @@
     "@parlor/euchre": "workspace:*",
     "@parlor/farkle": "workspace:*",
     "@parlor/game-types": "workspace:*",
+    "@parlor/golf": "workspace:*",
     "@parlor/hearts": "workspace:*",
     "@parlor/kings-corner": "workspace:*",
     "@parlor/liars-dice": "workspace:*",
