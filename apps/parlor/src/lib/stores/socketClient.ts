@@ -1,3 +1,4 @@
+import type { RoomInvitePreview } from '@parlor/game-types';
 import { browser } from '$app/environment';
 import { createParlorRuntime, saveSession, loadSession, clearSession } from '@parlor/multiplayer/client';
 import type { GameSocket } from '@parlor/multiplayer/client';
@@ -41,6 +42,11 @@ export function getSocket(): GameSocket {
 		});
 		socket.on('lobby:hostChanged', (newHostId, reason) => {
 			roomNotice.hostChanged(playerState.roomCode, playerState.id, newHostId, reason);
+		});
+		socket.on('lobby:gameKept', (roomCode, hostName, gameName) => {
+			if (playerState.roomCode === roomCode && playerState.id !== lobbyState.hostId) {
+				roomNotice.show(roomCode, `${hostName} kept ${gameName}.`);
+			}
 		});
 		socket.on('room:closed', (roomCode) => {
 			if (playerState.roomCode === roomCode) clearRoomState();
@@ -153,11 +159,11 @@ export async function roomExistsAction(roomCode: string): Promise<boolean | null
 	return result?.exists ?? null;
 }
 
-export function lookupRoomAction(roomCode: string): Promise<{ exists: boolean; gameId?: string | null } | null> {
+export function lookupRoomAction(roomCode: string): Promise<{ exists: boolean; gameId?: string | null; preview?: RoomInvitePreview } | null> {
 	const socket = getSocket();
 	return new Promise((resolve) => {
-		socket.timeout(5000).emit('lobby:roomExists', roomCode.trim().toUpperCase(), (timeout, exists, error, gameId) => {
-			resolve(timeout || error ? null : { exists, gameId });
+		socket.timeout(5000).emit('lobby:roomExists', roomCode.trim().toUpperCase(), (timeout, exists, error, gameId, preview) => {
+			resolve(timeout || error ? null : { exists, gameId, preview });
 		});
 	});
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ParlorMark from '$lib/components/ui/ParlorMark.svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
@@ -9,7 +10,7 @@
   import { playerState } from '$lib/stores/playerStore.svelte.js';
   import { connectionState } from '$lib/stores/connectionStore.svelte.js';
   import { getSocket, ballotAction, readyAction, roomExistsAction, startGameAction } from '$lib/stores/socketClient.js';
-  import { catalog as games, findGame, minutesRange, playerCount, playerRange, playersNeeded, type CatalogGame } from '$lib/games/catalog.js';
+  import { catalog as games, findGame, minutesRange, playerCount, playersNeeded, type CatalogGame } from '$lib/games/catalog.js';
   import { MAX_BOTS, ROOM_CODE_LENGTH, type LobbyPlayer } from '@parlor/game-types';
   import { seatTone, initial } from '@parlor/ui';
   import LeaveRoomButton from '$lib/components/LeaveRoomButton.svelte';
@@ -138,6 +139,7 @@
    * the host's own vote). Keeping it restores the room exactly.
    */
   let currentGame = $derived(findGame(ballot?.currentGameId));
+  let myVoteGame = $derived(findGame(ballot?.myVote));
   /**
    * The current game, only while the room can still seat it. A room that has
    * outgrown it (more people, or bots it can't use) can't keep it, so it
@@ -152,6 +154,8 @@
     if (!topVotes) return keepableGame ? [keepableGame] : [];
     return games.filter(game => (ballot?.totals[game.id] ?? 0) === topVotes);
   });
+  let suggestionsAhead = $derived(currentGame && topVotes > (ballot?.totals[currentGame.id] ?? 0) ? leaders : []);
+  let suggestionNote = $derived(suggestionsAhead.map(game => `${nameList(votersFor(game.id))} suggested ${game.name}.`).join(' '));
   /** Games the room fits (or could, with more players or a bot), in shelf order. */
   let shelfGames = $derived(games.filter(game => seatCount <= game.maxPlayers));
   /** Games with too many people in the room: muted, at the bottom. */
@@ -299,7 +303,7 @@
   let playLine = $derived([playHint, replaceNote].filter(Boolean).join(' '));
   let ballotIntro = $derived(spectator
     ? `${hostName} picks the game.`
-    : isHost ? `${tapWord} a game to vote, then play the winner.` : `${tapWord} a game to vote. ${hostName} picks the game.`);
+    : `Suggest a game if you like. Select it again to undo. ${isHost ? 'You pick what to play.' : `${hostName} picks the game.`}`);
   // Seats: once a game is confirmed, the list fills out to its minimum with
   // open seats, and says how much room is left up to its maximum.
   let openSeats = $derived(selectedGame ? Math.max(0, selectedGame.minPlayers - seatCount) : 0);
@@ -475,7 +479,8 @@
     area.setAttribute('readonly', '');
     area.style.position = 'fixed';
     area.style.opacity = '0';
-    document.body.appendChild(area);
+    const trigger = document.activeElement;
+    (trigger?.closest('dialog') ?? document.body).appendChild(area);
     area.select();
     let ok: boolean;
     try {
@@ -484,6 +489,7 @@
       ok = false;
     }
     area.remove();
+    if (trigger instanceof HTMLElement) trigger.focus({ preventScroll: true });
     return ok;
   }
 
@@ -495,6 +501,12 @@
   /** The host is the only one here: the bottom bar invites instead of playing. */
   let inviteFirst = $derived(isHost && alone);
   let qrOpen = $state(false);
+  let inviteSheet = $state(false);
+
+  function openInvite() {
+    inviteSheet = true;
+    qrOpen = true;
+  }
 
   onMount(() => {
     canShare = typeof navigator.share === 'function';
@@ -545,7 +557,7 @@
   <header class="lid">
     <div class="lid-inner">
       <div class="lid-bar">
-        <a href={resolve('/')} class="wordmark">PARLOR</a>
+        <a href={resolve('/')} class="wordmark"><ParlorMark />PARLOR</a>
       </div>
     </div>
   </header>
@@ -583,27 +595,34 @@
   <header class="lid" class:wide={!!selectedGame || !!ballot}>
     <div class="lid-inner">
       <div class="lid-bar">
-        <a href={resolve('/')} class="wordmark">PARLOR</a>
+        <a href={resolve('/')} class="wordmark"><ParlorMark />PARLOR</a>
         {#if playerState.roomCode === roomCode}<LeaveRoomButton />{/if}
       </div>
 
-      <div class="code">
+      <div class="code" class:invite-first={inviteFirst}>
         <p class="sr-only">Room code {roomCode}</p>
+        <p class="code-line" aria-hidden="true">{roomCode}</p>
         <div class="code-tiles" aria-hidden="true">
           {#each codeChars as char, i (i)}
             <span class="tile">{char}</span>
           {/each}
         </div>
-        <div class="share-row">
-          <button type="button" class="copy" onclick={() => shareInvite('lid')}>
+        {#if !inviteFirst}
+          <button type="button" class="copy compact-invite" onclick={openInvite}>
             {@render shareIcon(16)}
-            {inviteLabel}
+            Invite
           </button>
-          <button type="button" class="copy" onclick={() => (qrOpen = true)}>
-            {@render qrIcon(16)}
-            Show QR code
-          </button>
-        </div>
+          <div class="share-row">
+            <button type="button" class="copy" onclick={() => shareInvite('lid')}>
+              {@render shareIcon(16)}
+              {inviteLabel}
+            </button>
+            <button type="button" class="copy" onclick={() => (qrOpen = true)}>
+              {@render qrIcon(16)}
+              Show QR code
+            </button>
+          </div>
+        {/if}
         <span class="sr-only" aria-live="polite">
           {copyStatus === 'copied' ? 'Invite link copied' : copyStatus === 'failed' ? "Couldn't copy the link. Read the code out instead." : ''}
         </span>
@@ -657,7 +676,7 @@
     {@const current = game === currentGame}
     <span class="row-head">
       <span class="row-name">{game.name}</span>
-      <span class="row-meta">{playerRange(game)} · {minutesRange(game)}m</span>
+      <span class="row-meta">{playerCount(game)} · {minutesRange(game)} min</span>
     </span>
     <!-- Phones get the one-line tagline; the description would be cut off. -->
     <span class="row-desc">{game.description}</span>
@@ -707,20 +726,20 @@
   <div class="content" class:voting={!selectedGame && !!ballot} class:reopened={!selectedGame && !!currentGame}
     class:confirmed={!!selectedGame}>
     {#if selectedGame}
-      <section class="game-panel" aria-label="Selected game">
+      <section class="game-panel spine-{selectedGame.shelf}" aria-label="Selected game">
         <div class="game-panel-text">
           <h2 class="game-panel-name" tabindex="-1" bind:this={gameHeading}>{selectedGame.name}</h2>
-          <span class="game-panel-meta">{playerCount(selectedGame)} · {minutesRange(selectedGame)} min</span>
+          <span class="game-panel-meta">{playerCount(selectedGame)} · <span class="play-time">{minutesRange(selectedGame)} min</span></span>
           <!-- Wide screens only, where the panel heads a column of its own. -->
           <p class="game-panel-desc">{selectedGame.description}</p>
         </div>
         <div class="game-panel-actions">
-          <button type="button" class="icon-btn icon-on-dark" onclick={() => (rulesGameId = selectedGame?.id ?? null)}
+          <button type="button" class="icon-btn icon-on-spine" onclick={() => (rulesGameId = selectedGame?.id ?? null)}
             aria-label="How to play {selectedGame.name}" title="How to play {selectedGame.name}">
             <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><path d="M12 17.5h.01"/></svg>
           </button>
           {#if isHost}
-            <button type="button" class="pill pill-on-dark" onclick={changeGame} disabled={ballotPending}>Change game</button>
+            <button type="button" class="pill pill-on-spine" onclick={changeGame} disabled={ballotPending}>Change game</button>
           {/if}
         </div>
       </section>
@@ -728,13 +747,14 @@
       {#if currentGame}
         <!-- "Change game" reopened the ballot: the game stays on, where the
              host tapped Change, with Keep to back out. -->
-        <section class="game-panel current-panel" aria-label="Current game">
+        <section class="game-panel current-panel spine-{currentGame.shelf}" aria-label="Current game">
           <div class="game-panel-text">
             <h2 class="game-panel-name">{currentGame.name}</h2>
             <span class="game-panel-meta">{currentNote}</span>
+            {#if suggestionNote}<span class="game-panel-meta">{suggestionNote}</span>{/if}
           </div>
           {#if isHost && keepableGame}
-            <button type="button" class="pill pill-on-dark" onclick={keepCurrentGame} aria-disabled={ballotPending || undefined}>Keep {currentGame.name}</button>
+            <button type="button" class="pill pill-on-spine" onclick={keepCurrentGame} aria-disabled={ballotPending || undefined}>Keep {currentGame.name}{suggestionsAhead.length ? ' anyway' : ''}</button>
           {/if}
         </section>
       {/if}
@@ -777,7 +797,7 @@
         <h2 id="ballot-title" class="section-title" tabindex="-1" bind:this={ballotHeading}>Vote on a game</h2>
         <p class="ballot-intro">{ballotIntro}</p>
         {#if alone && !spectator}
-          <p class="ballot-summary invite-prompt">Share the code so others can join, or add a bot. You can vote while you wait.</p>
+          <p class="ballot-summary invite-prompt">Share the code so others can join, or add a bot.</p>
         {:else if leadSummary}
           <!-- On a phone a single leader is pinned above the list as a small
                status strip (its colour, the standing, its voters), so it's in
@@ -795,6 +815,9 @@
             {/if}
           </p>
         {/if}
+        {#if myVoteGame}
+          <p class="ballot-summary own-vote">Your vote: {myVoteGame.name}</p>
+        {/if}
         <!-- Announced only when the leader changes; every vote would be noise. -->
         <p class="sr-only" aria-live="polite" aria-atomic="true">{leaderAnnouncement}</p>
         <ul class="picker-list">
@@ -806,7 +829,7 @@
           <details class="crowded-group">
             <summary>
               <svg class="chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-              Not for {seatCount} players ({crowdedGames.length})
+              Games with too few seats ({crowdedGames.length})
             </summary>
             <ul class="picker-list">
               {#each crowdedGames as game (game.id)}
@@ -967,7 +990,11 @@
     </section>
   </div>
 
-  <QrModal open={qrOpen} url={inviteUrl} {roomCode} onclose={() => (qrOpen = false)} />
+  <QrModal open={qrOpen} url={inviteUrl} {roomCode}
+    shareLabel={inviteSheet ? inviteLabel : undefined}
+    onshare={inviteSheet ? () => shareInvite('lid') : undefined}
+    shareFailed={inviteSheet && copyStatus === 'failed'}
+    onclose={() => { qrOpen = false; inviteSheet = false; }} />
 
   <RulesModal
     open={rulesOpen}
@@ -1032,6 +1059,7 @@
     /* 44px hit area without a heavier lid: the text stays the same size. */
     display: inline-flex;
     align-items: center;
+    gap: 0.3em;
     min-height: 44px;
   }
 
@@ -1050,6 +1078,49 @@
     flex-direction: column;
     align-items: center;
     gap: 12px;
+  }
+
+  .code-line,
+  .code .copy.compact-invite {
+    display: none;
+  }
+
+  .code.invite-first .code-line {
+    display: block;
+  }
+
+  .code.invite-first .code-tiles {
+    display: none;
+  }
+
+  .code-line {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 900;
+    letter-spacing: 0.15em;
+  }
+
+  @media (max-width: 600px) {
+    .code {
+      flex-direction: row;
+      justify-content: space-between;
+      min-height: 44px;
+    }
+
+    .code .code-line,
+    .code .copy.compact-invite {
+      display: inline-flex;
+    }
+
+    .code .code-tiles,
+    .code .share-row {
+      display: none;
+    }
+  }
+
+  .own-vote {
+    margin-top: 4px;
   }
 
   .code-tiles {
@@ -1157,8 +1228,8 @@
 
   /* Tonight's game: felt panel */
   .game-panel {
-    background: var(--color-forest-deep);
-    color: var(--color-cream);
+    background: var(--spine-bg);
+    color: var(--spine-fg);
     border: 2px solid var(--color-espresso);
     border-radius: 18px;
     padding: 14px 16px;
@@ -1187,7 +1258,7 @@
   .game-panel-meta {
     font-size: 0.8125rem;
     font-weight: 600;
-    color: var(--color-cream);
+    color: var(--spine-fg);
   }
 
   .game-panel-desc {
@@ -1196,12 +1267,12 @@
     font-size: 0.9375rem;
     font-weight: 500;
     line-height: 1.45;
-    color: var(--color-cream);
+    color: var(--spine-fg);
     text-wrap: pretty;
   }
 
   .game-panel :focus-visible {
-    outline-color: var(--color-cream);
+    outline-color: currentColor;
   }
 
   .game-panel-actions {
@@ -1211,15 +1282,18 @@
     gap: 4px;
   }
 
-  /* The rules "?" on the felt: cream, like the ballot's on a dark spine. */
-  .icon-btn.icon-on-dark {
-    color: var(--color-cream);
+  .icon-btn.icon-on-spine {
+    color: var(--spine-fg);
   }
 
   @media (hover: hover) {
-    .icon-btn.icon-on-dark:hover {
-      background: rgba(253, 246, 236, 0.14);
+    .icon-btn.icon-on-spine:hover {
+      background: color-mix(in srgb, currentColor 14%, transparent);
     }
+  }
+
+  .play-time {
+    white-space: nowrap;
   }
 
   /* Ballot: each game is its shelf spine. Tap the box to vote for it. */
@@ -1370,6 +1444,7 @@
     min-height: 28px;
     /* Room for the "?" button in the corner. */
     padding-right: 36px;
+    flex-wrap: wrap;
   }
 
   .row-name {
@@ -1383,7 +1458,6 @@
 
   .row-meta {
     flex-shrink: 0;
-    margin-left: auto;
     font-size: 0.75rem;
     font-weight: 700;
     padding: 2px 8px;
@@ -1990,20 +2064,31 @@
     font-size: 0.875rem;
   }
 
-  .pill-on-dark {
+  .pill-on-spine {
     min-height: 44px;
     height: auto;
     padding: 0 14px;
     flex-shrink: 0;
     white-space: nowrap;
-    border-color: var(--color-cream);
-    color: var(--color-cream);
+    border-color: var(--spine-fg);
+    color: var(--spine-fg);
     font-size: 0.8125rem;
   }
 
+  .current-panel .pill-on-spine {
+    max-width: 50%;
+    white-space: normal;
+    text-wrap: balance;
+  }
+
+  .pill-on-spine:disabled {
+    background: transparent;
+    opacity: 0.7;
+  }
+
   @media (hover: hover) {
-    .pill-on-dark:where(:hover:not(:disabled)) {
-      background: rgba(253, 246, 236, 0.14);
+    .pill-on-spine:where(:hover:not(:disabled)) {
+      background: color-mix(in srgb, currentColor 14%, transparent);
     }
   }
 
@@ -2307,6 +2392,7 @@
     align-self: center;
     display: inline-flex;
     align-items: center;
+    gap: 0.3em;
     min-height: 44px;
     font-weight: 700;
     color: var(--color-espresso);

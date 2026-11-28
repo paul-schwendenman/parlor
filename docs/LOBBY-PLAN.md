@@ -248,28 +248,32 @@ From the critique at `apps/parlor/.impeccable/critique/2026-11-27T20-03-47Z__src
   - Make keyboard focus look different from the "your vote" ring.
   - Done: "Bot" role (and ", bot" in the strip's label) hidden when the name starts with "Bot"; at the seat cap the voting Add bot (strip and side line) is hidden and the reason is a next step ("That's a full table: no game here seats more than 6. Remove a bot to make room for a friend."); "Short on players?" hidden whenever Add bot is off; a confirmed game's full table hides Add bot; Change game removed from the rules sheet (the `onchange` prop is gone); not-found reads "There's no room QQQQQQ." with a prefilled code field + JOIN that re-checks the code (`/?join=` on success, an inline error otherwise) and an "Or start a new room" link; "Tap"/"Click" from `(hover: hover) and (pointer: fine)`; the confirmed state keeps the 920px two columns at ≥900px (panel with description + START left, players right; the lid stays wide too); standing line no longer `aria-live`, a separate sr-only region says "Quixx is leading." / "Tied: …" only when the leader set changes; ballot rows focus with a 3px Deep Clay ring offset 4px. The phone gap above Players was the sticky bar's empty slot in full-page screenshots; viewport shots show no gap, so no change.
 
-## Backlog: fourth-critique findings (not scheduled)
+## Fourth-critique follow-up
 
-The critique at `apps/parlor/.impeccable/critique/2026-11-27T21-10-15Z__src-routes-lobby-roomcode-page-svelte.md` scored 28/40. The trend is 21 → 28 → 29 → 28. Each run uses a fresh, unanchored reviewer, so ±1 is noise. None of phase 9's P1s came back. On 2026-11-27 the user chose to stop here and move on. These items are recorded for later and are not planned work.
+The critique at `apps/parlor/.impeccable/critique/2026-11-27T21-10-15Z__src-routes-lobby-roomcode-page-svelte.md` scored 28/40. The trend is 21 → 28 → 29 → 28. Each run uses a fresh, unanchored reviewer, so ±1 is noise. None of phase 9's P1s came back. The user initially deferred these findings and later asked to implement the five prioritized items. The minor notes and open questions below remain deferred.
 
 **Decision: what voting is for.** Voting is a way to *suggest* a game. It's an optional step that helps the host choose, not a democracy, and the host's pick is final. Don't turn it into majority rule. Future copy and UI should frame it that way ("Suggest a game", "Margaret picks"), and Keep overriding the leader is expected. Guests should be told plainly rather than left to discover it.
 
-- **[P1] Join page from a pasted link.**
+- [x] **[P1] Join page from a pasted link.**
   - The problem: `/lobby/CODE` sends a new browser to `/?join=CODE`, the full home page. Below the join card sit "Or start a new room", Create a room and nine "Start game" buttons, so a relative can start their own room by mistake. The card never says whose room it is.
+  - Done: the invite view shows the host and human player count from the rate-limited room lookup. Change unlocks the code, and “Not what you meant?” offers spectating and a link back to the full home page.
   - The idea: when `?join` is present, show a focused screen instead: "Join Margaret's room · 3 people here", the code read-only with "Change", the name field and JOIN. Put the shelf and spectating behind "Not what you meant?" This lives in `apps/parlor/src/routes/+page.svelte`, and may need `lobby:roomExists` to return the host's name and player count. Check that doesn't reveal more than joining by code already does.
-- **[P2] Phone chrome.**
+- [x] **[P2] Phone chrome.**
   - The header (code tiles and two buttons) is about 215px for everyone in every state.
   - A lone host gets the invite controls twice: header buttons plus a two-row bar.
-  - A guest's own vote is usually below the fold.
+  - A guest's own vote was usually below the fold.
+  - Done: the phone header uses a one-line code and a single Invite sheet with QR and share or copy. A lone host uses the existing bottom bar. The ballot summary shows the viewer’s vote.
   - The idea:
     - Shrink the header to a one-line code with a single "Invite" button (opening share and QR) once 2 or more people are seated, and for guests.
     - Keep only one set of invite controls when the host is alone.
     - Show "Your vote: Hearts" in the standing strip.
-- **[P2] Keep overriding the leader.** This is allowed by the decision above, but it's currently silent. The idea: label it "Keep Hearts anyway" when another game leads, add a panel line ("Joe and Ana suggested Crazy Eights"), and send guests a toast, "Margaret kept Hearts", reusing `RoomToast`.
-- **[P2] Game colour on the panel.**
+- [x] **[P2] Keep overriding the leader.** The current panel credits the leading suggestions, the button reads “Keep [game] anyway,” and guests receive a toast. This is allowed by the decision above, but it's currently silent. The idea: label it "Keep Hearts anyway" when another game leads, add a panel line ("Joe and Ana suggested Crazy Eights"), and send guests a toast, "Margaret kept Hearts", reusing `RoomToast`.
+- [x] **[P2] Game colour on the panel.**
   - The problem: the confirmed and current-game panel is always felt, so Hearts, Booty Dice and Spades turn green. That breaks the Collection Rule's one fixed colour per game.
+  - Done: both panels use the catalogue’s shelf colours, including the foreground for light spines.
   - The idea: paint the panel with the game's `spine-{shelf}` class, and keep felt for Ready.
-- **[P3] Copy and shorthand.**
+- [x] **[P3] Copy and shorthand.**
+  - Done: the copy explains that suggestions are optional and reversible and the host picks. The metadata spells out players and minutes, the play time stays together, and the folded group says “Games with too few seats.”
   - Write the chips out as "4 players · 25–40 min".
   - Rename "Not for 6 players (6)".
   - Keep the panel's play time on one line at 390px (it wraps "15–30 / min").

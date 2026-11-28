@@ -56,6 +56,7 @@ test('Crazy Eights renders each seat its own hand from the typed envelope', asyn
 
 async function watchRoom(page: Page, roomCode: string) {
   await page.goto(`/?join=${roomCode.toLowerCase()}`);
+  await page.getByText('Not what you meant?', { exact: true }).click();
   await page.getByRole('button', { name: 'Watch as spectator' }).click();
 }
 

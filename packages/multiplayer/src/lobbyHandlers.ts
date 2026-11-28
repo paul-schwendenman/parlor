@@ -265,8 +265,12 @@ export function setupLobbyHandlers(
         return;
       }
       const room = isNonEmptyString(roomCode) ? roomManager.getRoom(roomCode) : undefined;
-      if (room) ack(true, undefined, room.gameId);
-      else ack(false);
+      if (room) {
+        ack(true, undefined, room.gameId, {
+          hostName: room.players.get(room.hostId)?.name,
+          peopleCount: [...room.players.values()].filter(player => !player.isBot).length,
+        });
+      } else ack(false);
     } catch (err) {
       ack?.(false, toPublicError(err, 'Could not check this room', context()).message);
     }
