@@ -11,6 +11,8 @@
 
   import KingsCornerScreen from './KingsCornerScreen.svelte';
 
+  import CrazyEightsScreen from './CrazyEightsScreen.svelte';
+
   let { state }: { state: GameStateEnvelope } = $props();
 </script>
 
@@ -26,4 +28,6 @@
   <BootyDiceScreen view={state.view} />
 {:else if state.gameId === 'kings-corner'}
   <KingsCornerScreen view={state.view} />
+{:else if state.gameId === 'crazy-eights'}
+  <CrazyEightsScreen view={state.view} />
 {/if}

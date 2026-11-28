@@ -8,6 +8,6 @@ export const crazyEightsMeta: GameMeta & { id: 'crazy-eights' } = {
   maxPlayers: 5,
   estimatedMinutes: '10-15',
   tags: ['cards', 'classic', 'quick'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };
