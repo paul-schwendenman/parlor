@@ -28,6 +28,12 @@ typography:
     fontWeight: 900
     lineHeight: 1.05
     letterSpacing: "-0.02em"
+  shelf-name:
+    fontFamily: "Nunito, system-ui, sans-serif"
+    fontSize: "1.75rem"
+    fontWeight: 900
+    lineHeight: 1
+    letterSpacing: "-0.02em"
   title:
     fontFamily: "Nunito, system-ui, sans-serif"
     fontSize: "1.5rem"

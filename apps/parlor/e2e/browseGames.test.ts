@@ -24,7 +24,7 @@ test('answering the questions narrows the shelf and lands in the URL', async ({ 
 
 	// Tapping the current answer clears it.
 	await kind.getByRole('button', { name: 'Dice', exact: true }).click();
-	await expect(kind.getByRole('button', { name: 'Any', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await expect(kind.getByRole('button', { name: 'Any kind', exact: true })).toHaveAttribute('aria-pressed', 'true');
 
 	await page.getByRole('searchbox', { name: 'Search games' }).fill('pirate');
 	await expect(results(page)).toHaveText('1 game fits');
@@ -39,13 +39,21 @@ test('a shared link restores the answers, and an empty result offers a way out',
 	await expect(page.getByRole('group', { name: 'How many of you?' }).getByRole('button', { name: '6 or more', exact: true })).toHaveAttribute('aria-pressed', 'true');
 	await expect(results(page)).toHaveText('No games fit');
 
-	await page.getByRole('button', { name: /Any number of players/ }).click();
+	await page.getByRole('button', { name: /^Any number of players \d+ games?$/ }).click();
 	await expect(results(page)).not.toHaveText('No games fit');
 });
 
-test('start a room opens the create-room dialog for that game', async ({ page }) => {
+test('play opens the create-room dialog for that game', async ({ page }) => {
 	await page.goto('/games?q=hearts');
-	await page.getByRole('button', { name: 'Start a room' }).first().click();
+	await page.getByRole('button', { name: /^Play / }).first().click();
 	await expect(page.getByRole('dialog')).toBeVisible();
-	await expect(page.getByRole('heading', { name: 'Create a Hearts room' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Play Hearts' })).toBeVisible();
+});
+
+test('a shared link in any param order loads cleanly and settles into the canonical URL', async ({ page }) => {
+	const errors: string[] = [];
+	page.on('pageerror', (e) => errors.push(e.message));
+	await page.goto('/games?players=4&type=cards&q=trick');
+	await expect(page).toHaveURL(/\/games\?q=trick&players=4&type=cards$/);
+	expect(errors).toEqual([]);
 });

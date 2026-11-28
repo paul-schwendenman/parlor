@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { replaceState } from '$app/navigation';
+  import { afterNavigate, replaceState } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import ParlorMark from '$lib/components/ui/ParlorMark.svelte';
@@ -17,11 +17,7 @@
     filtersToParams,
     filterSummary,
     isEmpty,
-    kindLabels,
-    lengthLabels,
     sortLabels,
-    weightLabels,
-    formatChipLabels,
     GAME_SORTS,
     type GameFilters as Filters,
     type GameSort,
@@ -49,18 +45,24 @@
     const options: { label: string; patch: Partial<Filters> }[] = [];
     if (filters.query.trim()) options.push({ label: `Clear the search “${filters.query.trim()}”`, patch: { query: '' } });
     if (filters.players !== null) options.push({ label: 'Any number of players', patch: { players: null } });
-    if (filters.length) options.push({ label: `Not just ${lengthLabels[filters.length].toLowerCase()}`, patch: { length: null } });
-    if (filters.kinds.length) options.push({ label: `Not just ${filters.kinds.map((k) => kindLabels[k].toLowerCase()).join(' or ')}`, patch: { kinds: [] } });
-    if (filters.weight) options.push({ label: `Not just ${weightLabels[filters.weight].toLowerCase()}`, patch: { weight: null } });
-    if (filters.format) options.push({ label: `Not just ${formatChipLabels[filters.format].toLowerCase()}`, patch: { format: null } });
+    if (filters.length) options.push({ label: 'Any length', patch: { length: null } });
+    if (filters.kinds.length) options.push({ label: 'Any kind of game', patch: { kinds: [] } });
+    if (filters.weight) options.push({ label: 'Any amount to learn', patch: { weight: null } });
+    if (filters.format) options.push({ label: 'Any way to play', patch: { format: null } });
     return options
       .map((o) => ({ ...o, count: filterGames(catalog, { ...filters, ...o.patch }).length }))
       .filter((o) => o.count > 0);
   });
 
+  // replaceState throws if called before the router starts, which a shared
+  // link in a different param order would otherwise do during hydration.
+  // afterNavigate runs once the router is up (including the first load).
+  let mounted = $state(false);
+  afterNavigate(() => (mounted = true));
+
   $effect(() => {
     const search = filtersToParams(filters, sort).toString();
-    if (!browser || search === page.url.searchParams.toString()) return;
+    if (!browser || !mounted || search === page.url.searchParams.toString()) return;
     // The path is resolve()d; only the query string is appended.
     // eslint-disable-next-line svelte/no-navigation-without-resolve
     replaceState(`${resolve('/games')}${search ? `?${search}` : ''}`, page.state);
@@ -124,10 +126,6 @@
     <div class="lid-top">
       <a class="wordmark" href={resolve('/')} aria-label="Parlor home"><ParlorMark />Parlor</a>
       <h1 class="title">Find a game</h1>
-      <a class="home" href={resolve('/')}>
-        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7" /><path d="M6 9.5V20h12V9.5" /></svg>
-        <span class="home-label">Home</span>
-      </a>
     </div>
     <label class="search">
       <span class="sr-only">Search games</span>
@@ -155,6 +153,10 @@
         <kbd class="search-key" aria-hidden="true">/</kbd>
       {/if}
     </label>
+      <a class="home" href={resolve('/')}>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7" /><path d="M6 9.5V20h12V9.5" /></svg>
+        <span class="home-label">Home</span>
+      </a>
   </div>
 </header>
 
@@ -169,7 +171,7 @@
 </div>
 
 <main class="page">
-  <GameFilters {filters} games={catalog} onchange={(next) => (filters = next)} {countLine} resultsId="results" />
+  <GameFilters {filters} games={catalog} onchange={(next) => (filters = next)} countLine={isEmpty(filters) ? undefined : countLine} resultsId="results" />
 
   <section class="results" id="results" tabindex="-1" aria-labelledby="results-title">
     <div class="results-head">
@@ -239,9 +241,16 @@
     margin: 0 auto;
     padding: 24px 20px 92px;
     box-sizing: border-box;
-    display: flex;
+    /* Wordmark and title, then search, then Home at the far right. */
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'top search home';
     align-items: center;
     gap: 24px;
+  }
+
+  .lid-top {
+    grid-area: top;
   }
 
   .lid-top {
@@ -289,7 +298,7 @@
 
   /* Paper on the lid: small text stays off the terracotta (Deep Clay Rule). */
   .home {
-    margin-left: auto;
+    grid-area: home;
     align-self: center;
     flex-shrink: 0;
     display: inline-flex;
@@ -338,8 +347,9 @@
   }
 
   .search {
-    margin-left: auto;
-    flex: 0 1 400px;
+    grid-area: search;
+    justify-self: end;
+    width: min(100%, 400px);
     height: 50px;
     box-sizing: border-box;
     display: flex;
@@ -479,14 +489,16 @@
   }
 
   /* Sticky answers bar (shown once the questions scroll away). */
+  /* At the bottom edge, where a thumb reaches Change. */
   .sticky {
     position: fixed;
-    inset: 0 0 auto;
+    inset: auto 0 0;
     z-index: 20;
+    padding-bottom: env(safe-area-inset-bottom);
     background: var(--color-paper);
-    border-bottom: 2px solid var(--color-espresso);
-    box-shadow: 0 4px 16px rgba(59, 47, 47, 0.12);
-    transform: translateY(-110%);
+    border-top: 2px solid var(--color-espresso);
+    box-shadow: 0 -4px 16px rgba(59, 47, 47, 0.12);
+    transform: translateY(110%);
     transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -638,9 +650,11 @@
 
   @media (max-width: 720px) {
     .lid-inner {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 14px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        'top home'
+        'search search';
+      gap: 14px 12px;
       padding: 16px 16px 72px;
     }
 
@@ -674,13 +688,13 @@
     }
 
     .search {
-      margin-left: 0;
-      flex-basis: auto;
+      width: 100%;
     }
 
     .page {
       margin-top: -56px;
-      padding: 0 16px 40px;
+      /* Room for the answers bar at the bottom edge. */
+      padding: 0 16px 96px;
     }
 
     .results {
@@ -708,7 +722,7 @@
 
     .wordmark {
       font-size: 1.1875rem;
-      padding-block: 12px;
+      padding-block: 13px;
     }
 
     .title {
