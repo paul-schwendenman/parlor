@@ -1,3 +1,5 @@
+import type { CatalogGame } from './catalog.js';
+
 /**
  * Which games the home shelf shows (docs/DISCOVERY-PLAN.md, Phase 4).
  * Up to `showAllUpTo` games, the shelf shows every one. Past that, it shows
@@ -8,20 +10,40 @@
  */
 
 /** Picks `limit` games to show from the full catalogue. Must be pure. */
-export type ShelfStrategy = <T>(games: readonly T[], limit: number) => T[];
+export type ShelfStrategy<T> = (games: readonly T[], limit: number) => T[];
 
 /** Catalogue shelf order: the first `limit` games. */
-export const shelfOrder: ShelfStrategy = (games, limit) => games.slice(0, limit);
+export const shelfOrder = <T>(games: readonly T[], limit: number): T[] => games.slice(0, limit);
+
+// Traditional card games and Parlor originals, in homepage order.
+const featuredGameIds = [
+  'crazy-eights',
+  'word-split',
+  'gin-rummy',
+  'signal-relay',
+  'euchre',
+  'night-market',
+  'hearts',
+  'golf',
+];
+
+export const featuredShelfOrder: ShelfStrategy<CatalogGame> = (games, limit) => {
+  const byId = new Map(games.map((game) => [game.id, game]));
+  return featuredGameIds
+    .map((id) => byId.get(id))
+    .filter((game): game is CatalogGame => game !== undefined)
+    .slice(0, limit);
+};
 
 export const SHELF_SHOW_ALL_UP_TO = 12;
 export const SHELF_CAPPED_LIMIT = 8;
 
-export interface ShelfOptions {
+export interface ShelfOptions<T> {
   /** Show every game while the catalogue has at most this many. */
   showAllUpTo?: number;
   /** How many to show once the catalogue is larger. */
   limit?: number;
-  strategy?: ShelfStrategy;
+  strategy?: ShelfStrategy<T>;
 }
 
 export interface ShelfPick<T> {
@@ -31,7 +53,7 @@ export interface ShelfPick<T> {
   total: number;
 }
 
-export function pickShelfGames<T>(games: readonly T[], options: ShelfOptions = {}): ShelfPick<T> {
+export function pickShelfGames<T>(games: readonly T[], options: ShelfOptions<T> = {}): ShelfPick<T> {
   const { showAllUpTo = SHELF_SHOW_ALL_UP_TO, limit = SHELF_CAPPED_LIMIT, strategy = shelfOrder } = options;
   const total = games.length;
   const shown = total <= showAllUpTo ? [...games] : strategy(games, limit).slice(0, limit);

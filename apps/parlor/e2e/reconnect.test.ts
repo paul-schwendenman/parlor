@@ -8,9 +8,8 @@ import { test, expect, type Page, type BrowserContext } from '@playwright/test';
  */
 
 async function createQuixxRoom(page: Page): Promise<string> {
-  await page.goto('/');
-  const quixxCard = page.locator('.game-card', { hasText: 'Quixx' });
-  await quixxCard.getByRole('button', { name: /^Play / }).click();
+  await page.goto('/games');
+  await page.getByRole('button', { name: 'Play Quixx', exact: true }).click();
   await page.getByPlaceholder('Enter your name').fill('Host');
   await page.getByRole('button', { name: 'Create Room' }).click();
   await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);

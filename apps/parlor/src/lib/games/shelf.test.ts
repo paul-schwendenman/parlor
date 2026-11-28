@@ -34,7 +34,7 @@ describe('pickShelfGames', () => {
   });
 
   it('lets a strategy choose which games, and never shows more than the limit', () => {
-    const lastFirst: ShelfStrategy = (all) => [...all].reverse();
+    const lastFirst: ShelfStrategy<string> = (all) => [...all].reverse();
     const pick = pickShelfGames(games(20), { strategy: lastFirst });
     expect(pick.shown).toEqual(['g20', 'g19', 'g18', 'g17', 'g16', 'g15', 'g14', 'g13']);
     expect(pick.hidden).toBe(12);
@@ -42,7 +42,7 @@ describe('pickShelfGames', () => {
 
   it('only asks the strategy once the shelf is capped', () => {
     let calls = 0;
-    const counting: ShelfStrategy = (all, limit) => {
+    const counting: ShelfStrategy<string> = (all, limit) => {
       calls++;
       return all.slice(0, limit);
     };

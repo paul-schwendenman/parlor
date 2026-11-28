@@ -10,9 +10,8 @@ import { test, expect, type Page, type WebSocket } from '@playwright/test';
  */
 
 async function createRoom(page: Page, game: string): Promise<string> {
-  await page.goto('/');
-  const card = page.locator('.game-card', { hasText: game });
-  await card.getByRole('button', { name: /^Play / }).click();
+  await page.goto('/games');
+  await page.getByRole('button', { name: `Play ${game}`, exact: true }).click();
   await page.getByPlaceholder('Enter your name').fill('Host');
   await page.getByRole('button', { name: 'Create Room' }).click();
   await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);

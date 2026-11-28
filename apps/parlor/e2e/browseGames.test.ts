@@ -2,22 +2,17 @@ import { test, expect } from '@playwright/test';
 
 const results = (page: import('@playwright/test').Page) => page.locator('#results-title');
 
-// Up to 12 games the home shelf shows them all; past that, 8 and a link (src/lib/games/shelf.ts).
-test('the home shelf shows every game, or 8 and a link to the full list', async ({ page }) => {
+test('the home shelf shows the featured games in order and links to the full list', async ({ page }) => {
 	await page.goto('/games');
 	const total = Number((await results(page).textContent())?.match(/\d+/)?.[0]);
 
 	await page.goto('/');
 	const shelf = page.getByRole('region', { name: 'Or start a new room' });
-	const playButtons = shelf.getByRole('button', { name: /^Play / });
+	await expect(shelf.getByRole('heading', { level: 3 })).toHaveText([
+		'Crazy Eights', 'Word Split', 'Gin Rummy', 'Signal Relay',
+		'Euchre', 'Night Market', 'Hearts', 'Golf',
+	]);
 	const link = shelf.getByRole('link', { name: `See all ${total} games and find one that fits your group` });
-	if (total <= 12) {
-		await expect(playButtons).toHaveCount(total);
-		await expect(link).toHaveCount(0);
-		return;
-	}
-
-	await expect(playButtons).toHaveCount(8);
 	await link.click();
 	await expect(page).toHaveURL(/\/games$/);
 	await expect(page.getByRole('heading', { name: 'Find a game' })).toBeVisible();

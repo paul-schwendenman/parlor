@@ -8,7 +8,7 @@
   import { getSocket, joinRoomAction, lookupRoomAction, spectateRoomAction } from '$lib/stores/socketClient.js';
   import { PLAYER_NAME_MAX_LENGTH, ROOM_CODE_LENGTH } from '@parlor/game-types';
   import { catalog, findGame } from '$lib/games/catalog.js';
-  import { pickShelfGames } from '$lib/games/shelf.js';
+  import { featuredShelfOrder, pickShelfGames } from '$lib/games/shelf.js';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
   import GameCard from '$lib/components/games/GameCard.svelte';
   import CreateRoomDialog from '$lib/components/games/CreateRoomDialog.svelte';
@@ -29,8 +29,7 @@
   let interactive = $state(false);
   let nameInput = $state<HTMLInputElement | null>(null);
 
-  // Every game while the catalogue is small; past that, a few and a link to /games.
-  const shelf = pickShelfGames(catalog);
+  const shelf = pickShelfGames(catalog, { showAllUpTo: 0, strategy: featuredShelfOrder });
 
   // For game card "create" flow
   let selectedGameForCreate = $state<string | undefined>();
