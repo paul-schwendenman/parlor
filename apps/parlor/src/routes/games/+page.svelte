@@ -79,6 +79,21 @@
     return () => observer.disconnect();
   });
 
+  // "/" jumps to search from anywhere that isn't already a text field.
+  let searchInput = $state<HTMLInputElement | null>(null);
+  function shortcut(e: KeyboardEvent) {
+    if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const el = e.target as HTMLElement;
+    if (el.closest('input, textarea, select, [contenteditable], dialog')) return;
+    e.preventDefault();
+    searchInput?.focus();
+  }
+
+  function clearSearch() {
+    filters = { ...filters, query: '' };
+    searchInput?.focus();
+  }
+
   function changeAnswers() {
     const sheet = document.getElementById('table-questions');
     if (!sheet) return;
@@ -100,17 +115,25 @@
 </script>
 
 <svelte:head><title>Find a game · Parlor</title></svelte:head>
+<svelte:window onkeydown={shortcut} />
+
+<a class="skip" href="#results">Skip to the games</a>
 
 <header class="lid">
   <div class="lid-inner">
     <div class="lid-top">
       <a class="wordmark" href={resolve('/')} aria-label="Parlor home"><ParlorMark />Parlor</a>
       <h1 class="title">Find a game</h1>
+      <a class="home" href={resolve('/')}>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7" /><path d="M6 9.5V20h12V9.5" /></svg>
+        <span class="home-label">Home</span>
+      </a>
     </div>
     <label class="search">
       <span class="sr-only">Search games</span>
       <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
       <input
+        bind:this={searchInput}
         type="search"
         value={filters.query}
         oninput={(e) => (filters = { ...filters, query: e.currentTarget.value })}
@@ -118,7 +141,19 @@
         autocomplete="off"
         spellcheck="false"
         maxlength="80"
+        aria-keyshortcuts="/"
       />
+      {#if filters.query.trim()}
+        <!-- The count rides in the field, so it stays in view above a phone keyboard. -->
+        <span class="search-count" aria-hidden="true">{results.length} {results.length === 1 ? 'game' : 'games'}</span>
+      {/if}
+      {#if filters.query}
+        <button type="button" class="search-clear" aria-label="Clear the search" onclick={clearSearch}>
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      {:else}
+        <kbd class="search-key" aria-hidden="true">/</kbd>
+      {/if}
     </label>
   </div>
 </header>
@@ -134,9 +169,9 @@
 </div>
 
 <main class="page">
-  <GameFilters {filters} games={catalog} onchange={(next) => (filters = next)} />
+  <GameFilters {filters} games={catalog} onchange={(next) => (filters = next)} {countLine} resultsId="results" />
 
-  <section class="results" aria-labelledby="results-title">
+  <section class="results" id="results" tabindex="-1" aria-labelledby="results-title">
     <div class="results-head">
       <h2 id="results-title" class="results-title" aria-live="polite" aria-atomic="true">{countLine}</h2>
       {#if results.length}<label class="sort">
@@ -233,6 +268,56 @@
     align-items: baseline;
   }
 
+  .skip {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 30;
+    padding: 10px 16px;
+    border: 2px solid var(--color-espresso);
+    border-radius: 999px;
+    background: var(--color-paper);
+    color: var(--color-espresso);
+    font-weight: 700;
+    text-decoration: none;
+    transform: translateY(-200%);
+  }
+
+  .skip:focus-visible {
+    transform: none;
+  }
+
+  /* Paper on the lid: small text stays off the terracotta (Deep Clay Rule). */
+  .home {
+    margin-left: auto;
+    align-self: center;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    min-width: 44px;
+    box-sizing: border-box;
+    justify-content: center;
+    padding: 0 14px;
+    border: 2px solid var(--color-espresso);
+    border-radius: 999px;
+    background: var(--color-paper);
+    color: var(--color-espresso);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  @media (hover: hover) {
+    .home:hover {
+      background: var(--color-cream);
+    }
+  }
+
+  .results:focus {
+    outline: none;
+  }
+
   .wordmark :global(.parlor-mark) {
     align-self: center;
   }
@@ -245,9 +330,9 @@
     margin: 0;
     font-family: var(--font-heading);
     font-weight: 900;
-    font-size: 1.5rem;
-    line-height: 1.1;
-    letter-spacing: -0.01em;
+    font-size: 1.875rem;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
     color: var(--color-cream);
     white-space: nowrap;
   }
@@ -288,6 +373,61 @@
     color: var(--color-ink-muted);
   }
 
+  /* Our own clear button replaces the browser's blue one. */
+  .search input::-webkit-search-cancel-button {
+    appearance: none;
+  }
+
+  .search-count {
+    flex-shrink: 0;
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: var(--color-ink-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .search-clear {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    margin-right: -11px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--color-espresso);
+    cursor: pointer;
+  }
+
+  @media (hover: hover) {
+    .search-clear:hover {
+      background: rgba(59, 47, 47, 0.06);
+    }
+  }
+
+  .search-key {
+    flex-shrink: 0;
+    min-width: 22px;
+    height: 24px;
+    box-sizing: border-box;
+    display: grid;
+    place-items: center;
+    border: 1.5px solid var(--color-ink-muted);
+    border-radius: 10px;
+    color: var(--color-ink-muted);
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 0.8125rem;
+  }
+
+  @media (hover: none) {
+    .search-key {
+      display: none;
+    }
+  }
+
   .page {
     max-width: 980px;
     margin: -70px auto 0;
@@ -311,9 +451,9 @@
     margin: 0;
     font-family: var(--font-heading);
     font-weight: 900;
-    font-size: 1.5rem;
-    line-height: 1.1;
-    letter-spacing: -0.01em;
+    font-size: 1.875rem;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
   }
 
   .sort select {
@@ -482,6 +622,13 @@
     border: 0;
   }
 
+  /* The sticky answers bar is for phones; on desktop the questions are a short scroll away. */
+  @media (min-width: 721px) {
+    .sticky {
+      display: none;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .sticky,
     .pill {
@@ -497,12 +644,33 @@
       padding: 16px 16px 72px;
     }
 
+    .lid-top {
+      gap: 12px;
+      align-items: center;
+    }
+
     .wordmark {
       font-size: 1.5rem;
+      padding-block: 10px;
     }
 
     .title {
-      font-size: 1.1875rem;
+      font-size: 1.5rem;
+      line-height: 1.1;
+    }
+
+    /* Icon-only on phones; the house and the accessible name carry it. */
+    .home {
+      padding: 0;
+    }
+
+    .home-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
     }
 
     .search {
@@ -520,7 +688,7 @@
     }
 
     .results-title {
-      font-size: 1.5rem;
+      font-size: 1.875rem;
     }
 
     .game-grid {
@@ -529,6 +697,22 @@
 
     .sticky-inner {
       padding: 10px 16px;
+    }
+  }
+
+  /* Smallest phones: wordmark, title and Home still share one line. */
+  @media (max-width: 380px) {
+    .lid-top {
+      gap: 10px;
+    }
+
+    .wordmark {
+      font-size: 1.1875rem;
+      padding-block: 12px;
+    }
+
+    .title {
+      font-size: 1.1875rem;
     }
   }
 </style>

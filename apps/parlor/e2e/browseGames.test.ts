@@ -13,7 +13,7 @@ test('the home shelf links to the full list', async ({ page }) => {
 test('answering the questions narrows the shelf and lands in the URL', async ({ page }) => {
 	await page.goto('/games');
 
-	await page.getByRole('group', { name: 'How many of you?' }).getByRole('button', { name: '6', exact: true }).click();
+	await page.getByRole('group', { name: 'How many of you?' }).getByRole('button', { name: '6 or more', exact: true }).click();
 	const kind = page.getByRole('group', { name: 'What kind of game?' });
 	await kind.getByRole('button', { name: 'Dice', exact: true }).click();
 	await expect(results(page)).toHaveText('3 games fit');
@@ -36,16 +36,16 @@ test('answering the questions narrows the shelf and lands in the URL', async ({ 
 
 test('a shared link restores the answers, and an empty result offers a way out', async ({ page }) => {
 	await page.goto('/games?players=6&type=cards&length=long');
-	await expect(page.getByRole('group', { name: 'How many of you?' }).getByRole('button', { name: '6', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.getByRole('group', { name: 'How many of you?' }).getByRole('button', { name: '6 or more', exact: true })).toHaveAttribute('aria-pressed', 'true');
 	await expect(results(page)).toHaveText('No games fit');
 
 	await page.getByRole('button', { name: /Any number of players/ }).click();
 	await expect(results(page)).not.toHaveText('No games fit');
 });
 
-test('start game opens the create-room dialog for that game', async ({ page }) => {
+test('start a room opens the create-room dialog for that game', async ({ page }) => {
 	await page.goto('/games?q=hearts');
-	await page.getByRole('button', { name: 'Start game' }).first().click();
+	await page.getByRole('button', { name: 'Start a room' }).first().click();
 	await expect(page.getByRole('dialog')).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Create a Hearts room' })).toBeVisible();
 });

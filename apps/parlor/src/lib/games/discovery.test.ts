@@ -14,6 +14,8 @@ import {
   lengthOf,
   normalize,
   playerOptions,
+  playersLabel,
+  PLAYERS_OR_MORE,
   searchScore,
   type DiscoverableGame,
   type GameFilters,
@@ -143,9 +145,20 @@ describe('facetCounts', () => {
   });
 });
 
+describe('the 6+ answer', () => {
+  it('reads as "six or more" and folds bigger counts from old links into it', () => {
+    const big = filterGames(catalog, f({ players: PLAYERS_OR_MORE }));
+    expect(big.length).toBeGreaterThan(0);
+    expect(big.every((g) => g.maxPlayers >= PLAYERS_OR_MORE)).toBe(true);
+    expect(filtersFromParams(new URLSearchParams('players=8')).filters.players).toBe(PLAYERS_OR_MORE);
+    expect(filterSummary(f({ players: PLAYERS_OR_MORE }))).toBe('6+ players');
+    expect(playersLabel(4)).toBe('4');
+  });
+});
+
 describe('options in use', () => {
   it('offers only player counts and kinds some game has', () => {
-    expect(playerOptions(catalog)).toEqual([2, 3, 4, 5, 6, 7, 8]);
+    expect(playerOptions(catalog)).toEqual([2, 3, 4, 5, 6]);
     expect(kindsInUse(catalog)).toEqual(['cards', 'dice', 'word']);
     expect(playerOptions([{ minPlayers: 2, maxPlayers: 2 }, { minPlayers: 5, maxPlayers: 6 }])).toEqual([2, 5, 6]);
   });

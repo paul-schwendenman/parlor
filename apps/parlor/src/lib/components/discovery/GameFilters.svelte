@@ -11,6 +11,8 @@
     lengthLabels,
     lengthsInUse,
     playerOptions,
+    playersLabel,
+    PLAYERS_OR_MORE,
     weightLabels,
     weightsInUse,
     type DiscoverableGame,
@@ -23,9 +25,13 @@
     onchange: (filters: GameFilters) => void;
     /** Id for the sheet, so a "Change" button elsewhere can bring it back. */
     id?: string;
+    /** "5 games fit": shown at the sheet's foot on phones, where the results sit below the fold. */
+    countLine?: string;
+    /** The results section to jump to from that line. */
+    resultsId?: string;
   }
 
-  let { filters, games, onchange, id = 'table-questions' }: Props = $props();
+  let { filters, games, onchange, id = 'table-questions', countLine, resultsId }: Props = $props();
 
   // Offer only what some game has: no "Trivia" chip on a shelf of cards and dice.
   let players = $derived(playerOptions(games));
@@ -52,6 +58,37 @@
 
   let anything = $derived(activeFilterCount(filters) > 0 || filters.query.trim() !== '');
 
+  /** Whether any visible answer is dashed, so the sheet can say what dashed means. */
+  let anyDashed = $derived(
+    players.some((n) => counts.players[n] === 0 && filters.players !== n) ||
+      lengths.some((l) => counts.length[l] === 0 && filters.length !== l) ||
+      kinds.some((k) => counts.kinds[k] === 0 && !filters.kinds.includes(k)) ||
+      (moreOpen &&
+        (weights.some((w) => counts.weight[w] === 0 && filters.weight !== w) ||
+          formats.some((fm) => counts.format[fm] === 0 && filters.format !== fm))),
+  );
+  /** The kind row's one tab stop: its first chosen answer, else "Any". */
+  let kindStop = $derived(kinds.find((k) => filters.kinds.includes(k)) ?? null);
+
+  /**
+   * Each question is one Tab stop; arrow keys, Home and End move between its
+   * answers (a toolbar's roving focus), so the keyboard path to the games is short.
+   */
+  function roving(node: HTMLElement) {
+    const step: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+    const onkey = (e: KeyboardEvent) => {
+      if (!(e.key in step) && e.key !== 'Home' && e.key !== 'End') return;
+      const items = [...node.querySelectorAll<HTMLButtonElement>('button')];
+      const i = items.indexOf(document.activeElement as HTMLButtonElement);
+      if (i < 0) return;
+      e.preventDefault();
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (i + step[e.key] + items.length) % items.length;
+      items[next].focus();
+    };
+    node.addEventListener('keydown', onkey);
+    return { destroy: () => node.removeEventListener('keydown', onkey) };
+  }
+
   function set(patch: Partial<GameFilters>) {
     onchange({ ...filters, ...patch });
   }
@@ -71,9 +108,9 @@
   }
 </script>
 
-{#snippet chip(label: string, pressed: boolean, empty: boolean, onclick: () => void)}
-  <button type="button" class="chip" class:empty={empty && !pressed} aria-pressed={pressed} {onclick}>
-    {label}{#if empty && !pressed}<span class="sr-only"> (none fit)</span>{/if}
+{#snippet chip(label: string, pressed: boolean, empty: boolean, onclick: () => void, stop = pressed, check = false)}
+  <button type="button" class="chip" class:empty={empty && !pressed} class:check aria-pressed={pressed} tabindex={stop ? 0 : -1} {onclick}>
+    {#if check && pressed}<svg class="tick" aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>{/if}{label}{#if empty && !pressed}<span class="sr-only"> (none fit)</span>{/if}
   </button>
 {/snippet}
 
@@ -81,14 +118,14 @@
   {#if players.length > 1}
     <div class="question" role="group" aria-labelledby="{id}-players">
       <span class="q" id="{id}-players">How many of you?</span>
-      <div class="answers tiles">
+      <div class="answers tiles" use:roving>
         {#each players as n (n)}
           {@const empty = counts.players[n] === 0 && filters.players !== n}
-          <button type="button" class="tile" class:empty aria-pressed={filters.players === n} onclick={() => pick('players', n)}>
-            {n}{#if empty}<span class="sr-only"> (none fit)</span>{/if}
+          <button type="button" class="tile" class:empty aria-pressed={filters.players === n} tabindex={filters.players === n ? 0 : -1} onclick={() => pick('players', n)}>
+            {#if n >= PLAYERS_OR_MORE}<span aria-hidden="true">{playersLabel(n)}</span><span class="sr-only">{n} or more</span>{:else}{n}{/if}{#if empty}<span class="sr-only"> (none fit)</span>{/if}
           </button>
         {/each}
-        <button type="button" class="tile tile-any" aria-pressed={filters.players === null} onclick={() => set({ players: null })}>Any</button>
+        <button type="button" class="tile tile-any" aria-pressed={filters.players === null} tabindex={filters.players === null ? 0 : -1} onclick={() => set({ players: null })}>Any</button>
       </div>
     </div>
   {/if}
@@ -96,7 +133,7 @@
   {#if lengths.length > 1}
     <div class="question" role="group" aria-labelledby="{id}-length">
       <span class="q" id="{id}-length">How long have you got?</span>
-      <div class="answers">
+      <div class="answers" use:roving>
         {#each lengths as l (l)}
           {@render chip(lengthLabels[l], filters.length === l, counts.length[l] === 0, () => pick('length', l))}
         {/each}
@@ -108,13 +145,18 @@
   {#if kinds.length > 1}
     <div class="question" role="group" aria-labelledby="{id}-kind">
       <span class="q" id="{id}-kind">{kindQuestion}</span>
-      <div class="answers">
+      <div class="answers" use:roving>
+        <!-- The one question that takes several answers: chosen kinds carry a tick. -->
         {#each kinds as k (k)}
-          {@render chip(kindLabels[k], filters.kinds.includes(k), counts.kinds[k] === 0, () => toggleKind(k))}
+          {@render chip(kindLabels[k], filters.kinds.includes(k), counts.kinds[k] === 0, () => toggleKind(k), kindStop === k, true)}
         {/each}
         {@render chip(kinds.length === 2 ? 'Either' : 'Any', filters.kinds.length === 0, false, () => set({ kinds: [] }))}
       </div>
     </div>
+  {/if}
+
+  {#if anyDashed}
+    <p class="hint"><span class="dash" aria-hidden="true"></span>Dashed answers would leave no games, with what you’ve picked so far.</p>
   {/if}
 
   {#if moreQuestions.length || anything}
@@ -125,7 +167,7 @@
           More questions{#if moreAnswered && !moreOpen}&nbsp;({moreAnswered} answered){/if}
         </button>
       {/if}
-      {#if anything && !moreOpen}
+      {#if anything}
         <button type="button" class="start-over" onclick={startOver}>Start over</button>
       {/if}
     </div>
@@ -136,7 +178,7 @@
       {#if weights.length > 1}
         <div class="question" role="group" aria-labelledby="{id}-weight">
           <span class="q" id="{id}-weight">How much to learn?</span>
-          <div class="answers">
+          <div class="answers" use:roving>
             {#each weights as w (w)}
               {@render chip(weightLabels[w], filters.weight === w, counts.weight[w] === 0, () => pick('weight', w))}
             {/each}
@@ -147,7 +189,7 @@
       {#if formats.length > 1}
         <div class="question" role="group" aria-labelledby="{id}-format">
           <span class="q" id="{id}-format">{formatQuestion}</span>
-          <div class="answers">
+          <div class="answers" use:roving>
             {#each formats as fm (fm)}
               {@render chip(formatChipLabels[fm], filters.format === fm, counts.format[fm] === 0, () => pick('format', fm))}
             {/each}
@@ -157,8 +199,13 @@
       {/if}
     </div>
   {/if}
-  {#if anything && moreOpen}
-    <button type="button" class="start-over start-over-last" onclick={startOver}>Start over</button>
+
+  {#if countLine && resultsId}
+    <!-- Phones only: the results start below the fold, so the answer's effect shows here. -->
+    <a class="see" href="#{resultsId}">
+      <strong>{countLine}</strong>
+      <span class="see-go">See them<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg></span>
+    </a>
   {/if}
 </section>
 
@@ -258,6 +305,40 @@
     color: var(--color-cream);
   }
 
+  .chip.check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tick {
+    flex-shrink: 0;
+    margin-left: -4px;
+  }
+
+  .hint {
+    margin: -6px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
+  }
+
+  /* A swatch of the dashed outline the hint is talking about. */
+  .dash {
+    flex-shrink: 0;
+    width: 28px;
+    height: 16px;
+    border: 2px dashed var(--color-ink-muted);
+    border-radius: 999px;
+  }
+
+  .see {
+    display: none;
+  }
+
   /* Would leave no games with the other answers: still tappable, just quiet.
      A dashed Faded Ink outline, as for seats that aren't a real person, keeps
      the label at 4.5:1 instead of fading the whole control. */
@@ -300,7 +381,7 @@
     border: 0;
     background: none;
     font-weight: 700;
-    font-size: 0.875rem;
+    font-size: 1rem;
   }
 
   .more-toggle {
@@ -367,12 +448,46 @@
 
   @media (max-width: 720px) {
     .sheet {
-      padding: 18px 16px;
-      gap: 16px;
+      padding: 16px 14px;
+      gap: 14px;
     }
 
     .question {
       grid-template-columns: 1fr;
+      gap: 6px;
+    }
+
+    .hint {
+      margin-top: -4px;
+    }
+
+    .see {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 48px;
+      margin: 2px -2px -2px;
+      padding: 0 16px;
+      border: 2px solid var(--color-espresso);
+      border-radius: 999px;
+      background: var(--color-mustard-tint);
+      color: var(--color-espresso);
+      text-decoration: none;
+    }
+
+    .see strong {
+      font-family: var(--font-heading);
+      font-weight: 900;
+      font-size: 1.1875rem;
+    }
+
+    .see-go {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 700;
+      white-space: nowrap;
     }
 
     .q {
@@ -383,21 +498,22 @@
       gap: 6px;
     }
 
-    /* Tiles share an even grid, so a second row (7, 8, Any) lines up. */
+    /* Tiles share one even row: 2–5, 6+ and Any. */
     .tiles {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
     }
 
     .tile {
       width: auto;
-      height: 50px;
+      height: 48px;
       font-size: 1.5rem;
     }
 
     .tile-any {
       width: auto;
-      padding: 0 12px;
+      padding: 0 4px;
       font-size: 0.875rem;
     }
 

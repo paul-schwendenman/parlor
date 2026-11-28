@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { CatalogGame } from '$lib/games/catalog.js';
-  import { minutesRange, playerRange } from '$lib/games/catalog.js';
+  import { minutesRange, playerCount } from '$lib/games/catalog.js';
   import { formatLabels, kindLabels, weightLabels } from '$lib/games/discovery.js';
 
   interface Props {
@@ -26,13 +26,17 @@
 <article class="game-card spine-{game.shelf}">
   <div class="game-head">
     <svelte:element this={`h${level}`} class="game-name">{game.name}</svelte:element>
-    <span class="game-meta" aria-label="{playerRange(game)} players, {minutesRange(game)} minutes">{playerRange(game)} · {minutesRange(game)}m</span>
+    <span class="game-meta">{playerCount(game)} · {minutesRange(game)} min</span>
   </div>
   <p class="game-desc">{game.description}</p>
   <p class="game-tags">{facts}</p>
   <div class="game-actions">
     <button type="button" class="spine-ghost" onclick={() => onrules(game.id)} {disabled}>How to play</button>
-    <button type="button" class="spine-solid" onclick={() => onstart(game.id)} {disabled}>Start game</button>
+    <button type="button" class="spine-solid" onclick={() => onstart(game.id)} {disabled}>
+      <!-- The same play mark on every block, so the main action reads alike whatever the colour. -->
+      <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 1.5v9l8-4.5z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /></svg>
+      Start a room
+    </button>
   </div>
 </article>
 
@@ -56,11 +60,13 @@
     }
   }
 
+  /* Name and meta share a line when there's room; the meta wraps under a long name. */
   .game-head {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 10px;
+    align-items: center;
+    gap: 8px 10px;
   }
 
   .game-name {
@@ -74,7 +80,7 @@
 
   .game-meta {
     flex-shrink: 0;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 700;
     padding: 3px 9px;
     border-radius: 999px;
@@ -88,12 +94,13 @@
     font-size: 0.875rem;
     font-weight: 500;
     line-height: 1.45;
+    text-wrap: pretty;
     flex: 1;
   }
 
   .game-tags {
     margin: 0;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 700;
   }
 
@@ -127,6 +134,10 @@
   }
 
   .spine-solid {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     border: 2px solid var(--spine-solid-bg);
     background: var(--spine-solid-bg);
     color: var(--spine-solid-fg);

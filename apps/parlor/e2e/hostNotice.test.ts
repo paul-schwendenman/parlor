@@ -7,7 +7,7 @@ async function createRoom(browser: Browser, name: string) {
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	await page.goto('/');
-	await page.getByRole('button', { name: 'Start Game' }).first().click();
+	await page.getByRole('button', { name: 'Start a room' }).first().click();
 	await page.getByPlaceholder('Enter your name').fill(name);
 	await page.getByRole('button', { name: 'Create Room' }).click();
 	await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);

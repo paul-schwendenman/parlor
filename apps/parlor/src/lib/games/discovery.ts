@@ -93,7 +93,7 @@ export const formatChipLabels: Record<GameFormat, string> = {
 };
 
 export const sortLabels: Record<GameSort, string> = {
-  shelf: 'Shelf order',
+  shelf: 'Suggested',
   name: 'A–Z',
   shortest: 'Shortest first',
   longest: 'Longest first',
@@ -119,6 +119,22 @@ export function lengthOf(game: Pick<GameMeta, 'minutes'>): GameLength {
 /** Whether a group of `players` can sit down to this game without bots or waiting. */
 export function seats(game: Pick<GameMeta, 'minPlayers' | 'maxPlayers'>, players: number): boolean {
   return players >= game.minPlayers && players <= game.maxPlayers;
+}
+
+/**
+ * The last player-count answer, read as "this many or more". Few games seat
+ * big groups yet, so 7 and 8 fold into one tile; revisit as the shelf grows.
+ */
+export const PLAYERS_OR_MORE = 6;
+
+/** "6+" for the open-ended answer, the number otherwise. */
+export function playersLabel(players: number): string {
+  return players >= PLAYERS_OR_MORE ? `${PLAYERS_OR_MORE}+` : String(players);
+}
+
+/** Whether the group answer fits: an exact count, or "6+" for any game that seats six or more. */
+export function fitsGroup(game: Pick<GameMeta, 'minPlayers' | 'maxPlayers'>, players: number): boolean {
+  return players >= PLAYERS_OR_MORE ? game.maxPlayers >= PLAYERS_OR_MORE : seats(game, players);
 }
 
 /** Lowercase, strip accents and apostrophes, collapse everything else to spaces. */
@@ -182,7 +198,7 @@ export function searchScore(game: DiscoverableGame, query: string): number {
 type Facet = 'players' | 'kinds' | 'length' | 'weight' | 'format';
 
 function matchesExcept(game: DiscoverableGame, f: GameFilters, skip: Facet | null): boolean {
-  if (skip !== 'players' && f.players !== null && !seats(game, f.players)) return false;
+  if (skip !== 'players' && f.players !== null && !fitsGroup(game, f.players)) return false;
   if (skip !== 'kinds' && f.kinds.length && !f.kinds.includes(game.kind)) return false;
   if (skip !== 'length' && f.length && lengthOf(game) !== f.length) return false;
   if (skip !== 'weight' && f.weight && game.weight !== f.weight) return false;
@@ -230,7 +246,7 @@ export function facetCounts(games: readonly DiscoverableGame[], filters: GameFil
 
   const playersPool = games.filter((g) => matchesExcept(g, filters, 'players'));
   const players: Record<number, number> = {};
-  for (const n of playerOptions(games)) players[n] = playersPool.filter((g) => seats(g, n)).length;
+  for (const n of playerOptions(games)) players[n] = playersPool.filter((g) => fitsGroup(g, n)).length;
 
   return {
     kinds: tally('kinds', GAME_KINDS, (g) => g.kind),
@@ -241,13 +257,13 @@ export function facetCounts(games: readonly DiscoverableGame[], filters: GameFil
   };
 }
 
-/** Group sizes worth offering as chips: every count some game seats. */
+/** Group sizes worth offering as tiles: every count some game seats, up to "6+". */
 export function playerOptions(games: readonly Pick<GameMeta, 'minPlayers' | 'maxPlayers'>[]): number[] {
   if (!games.length) return [];
   const lo = Math.min(...games.map((g) => g.minPlayers));
-  const hi = Math.max(...games.map((g) => g.maxPlayers));
+  const hi = Math.min(PLAYERS_OR_MORE, Math.max(...games.map((g) => g.maxPlayers)));
   const out: number[] = [];
-  for (let n = lo; n <= hi; n++) if (games.some((g) => seats(g, n))) out.push(n);
+  for (let n = lo; n <= hi; n++) if (games.some((g) => fitsGroup(g, n))) out.push(n);
   return out;
 }
 
@@ -292,7 +308,7 @@ export function filtersFromParams(params: URLSearchParams): { filters: GameFilte
   return {
     filters: {
       query: (params.get('q') ?? '').slice(0, 80),
-      players: Number.isInteger(players) && players > 0 && players < 100 ? players : null,
+      players: Number.isInteger(players) && players > 0 && players < 100 ? Math.min(players, PLAYERS_OR_MORE) : null,
       kinds: [...new Set(kinds)],
       length: oneOf(GAME_LENGTHS, params.get('length')),
       weight: oneOf(GAME_WEIGHTS, params.get('level')),
@@ -321,7 +337,7 @@ export function filtersToParams(filters: GameFilters, sort: GameSort = 'shelf'):
 export function filterSummary(f: GameFilters): string {
   const parts: string[] = [];
   if (f.query.trim()) parts.push(`“${f.query.trim()}”`);
-  if (f.players !== null) parts.push(`${f.players} ${f.players === 1 ? 'player' : 'players'}`);
+  if (f.players !== null) parts.push(`${playersLabel(f.players)} ${f.players === 1 ? 'player' : 'players'}`);
   if (f.length) parts.push(lengthLabels[f.length]);
   if (f.kinds.length) parts.push(f.kinds.map((k) => kindLabels[k].toLowerCase()).join(' or '));
   if (f.weight) parts.push(weightLabels[f.weight].toLowerCase());

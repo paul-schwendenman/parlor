@@ -66,7 +66,7 @@
   {#if open}
     <form class="create-form" onsubmit={create} novalidate>
       <h2 id="create-title" class="create-title">{game ? `Create a ${game.name} room` : 'Create a room'}</h2>
-      <p id="create-desc" class="create-desc">{game?.description ?? 'Invite friends and vote on what to play.'}</p>
+      <p id="create-desc" class="create-desc">{game ? 'You’ll get a code to share, and everyone joins from their own device.' : 'Invite friends and vote on what to play.'}</p>
       <label class="field">
         <span class="field-label">Your name</span>
         <input
@@ -230,6 +230,7 @@
   @media (max-width: 600px) {
     .create-actions > * {
       flex: 1;
+      padding: 0 12px;
     }
   }
 </style>
