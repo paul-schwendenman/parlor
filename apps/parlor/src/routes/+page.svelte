@@ -261,7 +261,9 @@
         {/each}
       </div>
       {#if shelf.hidden > 0}
-        <p class="browse-all"><a href={resolve('/games')}>See all {shelf.total} games and find one that fits your group</a></p>
+        <p class="browse-all">
+          <a href={resolve('/games')}>See all {shelf.total} games and find one that fits your <span class="nowrap">group<svg class="arrow" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span></a>
+        </p>
       {/if}
     </section>
 
@@ -303,7 +305,13 @@
 
   .invite-options a {
     display: block;
+    width: fit-content;
+    padding: 0 8px;
+    border-radius: 999px;
     color: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.25em;
   }
 
   /* Lid */
@@ -592,19 +600,66 @@
     gap: 14px;
   }
 
+  /* A section-level way out under the grid, not a footnote to the last card. */
   .browse-all {
-    margin: 16px 0 0;
+    margin: 28px 0 0;
     text-align: center;
   }
 
   .browse-all a {
     display: inline-block;
+    box-sizing: border-box;
+    max-width: 100%;
     min-height: 44px;
+    padding: 8px 16px;
+    border-radius: 999px;
     align-content: center;
     color: var(--color-espresso);
     font-weight: 700;
+    line-height: 1.4;
+    text-wrap: balance;
+    text-decoration: underline;
     text-decoration-thickness: 2px;
     text-underline-offset: 0.25em;
+    transition: text-decoration-thickness 0.15s ease-out;
+  }
+
+  .browse-all .nowrap {
+    white-space: nowrap;
+  }
+
+  .browse-all .arrow {
+    display: inline-block;
+    margin-left: 6px;
+    vertical-align: -0.15em;
+    transition: transform 0.15s ease-out;
+  }
+
+  @media (hover: hover) {
+    .browse-all a:hover,
+    .invite-options a:hover {
+      text-decoration-thickness: 3px;
+    }
+
+    .browse-all a:hover .arrow {
+      transform: translateX(3px);
+    }
+  }
+
+  .browse-all a:active,
+  .invite-options a:active {
+    text-decoration-thickness: 3px;
+  }
+
+  .browse-all a:active .arrow {
+    transform: translateX(3px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .browse-all a,
+    .browse-all .arrow {
+      transition: none;
+    }
   }
 
   .create-room {
@@ -614,6 +669,11 @@
   @media (max-width: 600px) {
     .game-grid {
       grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* Two balanced lines that the focus pill can hug, not a full-width oval. */
+    .browse-all a {
+      max-width: 16rem;
     }
   }
 </style>
