@@ -16,6 +16,12 @@ test('two phones share a rack and reveal their words after finishing', async ({ 
   await page.getByRole('button', { name: 'Create Room' }).click();
   await expect(page).toHaveURL(/\/lobby\/[A-Z2-9]{4}$/);
   const roomCode = new URL(page.url()).pathname.split('/').at(-1);
+  const popup = page.waitForEvent('popup');
+  await page.getByRole('link', { name: 'Open shared screen' }).click();
+  const display = await popup;
+  await display.setViewportSize({ width: 1440, height: 900 });
+  await expect(display.getByRole('heading', { name: 'Waiting for Word Split' })).toBeVisible();
+
 
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   try {
@@ -28,6 +34,8 @@ test('two phones share a rack and reveal their words after finishing', async ({ 
     await expect(guest).toHaveURL(/\/game\/[A-Z2-9]{4}$/);
     const tiles = (player: typeof page) => player.getByRole('list', { name: 'Available letters' }).getByRole('listitem');
     await expect(tiles(page)).toHaveCount(8);
+    await expect(display.getByRole('list', { name: 'Shared letters' }).getByRole('listitem')).toHaveCount(8);
+    await expect(display.getByRole('timer', { name: 'Round time remaining' })).toBeVisible();
     await expect(tiles(guest)).toHaveText(await tiles(page).allTextContents());
     const signature = (letters: string) => [...letters].sort().join('');
     const rack = signature((await tiles(page).allTextContents()).join('').toLowerCase());
@@ -38,11 +46,13 @@ test('two phones share a rack and reveal their words after finishing', async ({ 
     await page.getByRole('button', { name: 'Add word' }).click();
     await expect(page.getByRole('region', { name: 'Your submitted words' })).toContainText(word);
     await expect(guest.getByText(word, { exact: true })).toHaveCount(0);
+    await expect(display.getByText(word, { exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: 'Finish round' }).click();
     await guest.getByRole('button', { name: 'Finish round' }).click();
     const results = guest.getByRole('region', { name: 'Round results' });
     await expect(results).toContainText(word);
     await expect(results).toContainText('+8');
+    await expect(display.getByRole('list', { name: 'Revealed words' })).toContainText(word);
   } finally {
     await context.close();
   }

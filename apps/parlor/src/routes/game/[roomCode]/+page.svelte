@@ -74,7 +74,7 @@
             <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
           </button>
         {/if}
-        {#if view?.gameId === 'farkle' && playerState.id}
+        {#if findGame(view?.gameId)?.displayModes.includes('jackbox') && playerState.id}
           <a class="shared-screen" href={resolve('/watch/[roomCode]', { roomCode })} target="_blank" rel="noopener">Shared screen</a>
         {/if}
         <LeaveRoomButton />

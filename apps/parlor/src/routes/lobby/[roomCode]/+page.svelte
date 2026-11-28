@@ -726,7 +726,7 @@
   <div class="content" class:voting={!selectedGame && !!ballot} class:reopened={!selectedGame && !!currentGame}
     class:confirmed={!!selectedGame}>
     {#if selectedGame}
-      <section class="game-panel spine-{selectedGame.shelf}" class:has-shared-screen={selectedGame.id === 'farkle' && isHost} aria-label="Selected game">
+      <section class="game-panel spine-{selectedGame.shelf}" class:has-shared-screen={selectedGame.displayModes.includes('jackbox') && isHost} aria-label="Selected game">
         <div class="game-panel-text">
           <h2 class="game-panel-name" tabindex="-1" bind:this={gameHeading}>{selectedGame.name}</h2>
           <span class="game-panel-meta">{playerCount(selectedGame)} · <span class="play-time">{minutesRange(selectedGame)} min</span></span>
@@ -742,7 +742,7 @@
             <button type="button" class="pill pill-on-spine" onclick={changeGame} disabled={ballotPending}>Change game</button>
           {/if}
         </div>
-        {#if selectedGame.id === 'farkle' && isHost}
+        {#if selectedGame.displayModes.includes('jackbox') && isHost}
           <a class="pill pill-on-spine shared-screen" href={resolve('/watch/[roomCode]', { roomCode })} target="_blank" rel="noopener">Open shared screen</a>
         {/if}
       </section>

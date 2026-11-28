@@ -9,6 +9,6 @@ export const wordSplitMeta: GameMeta & { id: 'word-split' } = {
   maxPlayers: 8,
   estimatedMinutes: '4-6',
   tags: ['words', 'party'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: false,
 };

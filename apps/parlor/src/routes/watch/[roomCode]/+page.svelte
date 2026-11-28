@@ -2,22 +2,26 @@
   import { page } from '$app/state';
   import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
-  import type { GameView } from '@parlor/game-types';
+  import type { GameStateEnvelope } from '@parlor/game-types';
   import { createGameClient } from '@parlor/multiplayer/client';
   import { Felt } from '@parlor/ui';
-  import SharedScreen from '@parlor/farkle/shared-screen';
+  import SharedGame from '$lib/components/watch/SharedGame.svelte';
+  import { findGame } from '$lib/games/catalog.js';
   import ParlorMark from '$lib/components/ui/ParlorMark.svelte';
   import { qrPath } from '$lib/qr.js';
 
   let roomCode = $derived(page.params.roomCode?.toUpperCase() ?? '');
-  let view = $state<GameView<'farkle'>>();
+  let view = $state<GameStateEnvelope>();
+  let selected = $state<string | null>(null);
+  let game = $derived(findGame(view?.gameId ?? selected));
+  let supported = $derived(game?.displayModes.includes('jackbox') ?? false);
   let joined = $state(false);
   let reconnecting = $state(false);
   let closed = $state('');
   let fullscreenAvailable = $state(false);
   let fullscreen = $state(false);
   let origin = $state('');
-  let qr = $derived(joined && !view && origin ? qrPath(`${origin}${resolve('/')}?join=${encodeURIComponent(roomCode)}`) : null);
+  let qr = $derived(joined && (!view || !supported) && origin ? qrPath(`${origin}${resolve('/')}?join=${encodeURIComponent(roomCode)}`) : null);
 
   onMount(() => {
     origin = window.location.origin;
@@ -39,10 +43,9 @@
     });
     socket.on('connect_error', () => { reconnecting = true; });
     socket.on('disconnect', () => { reconnecting = true; });
-    socket.on('lobby:returned', () => { view = undefined; });
-    socket.on('game:state', (state) => {
-      view = state.gameId === 'farkle' ? state.view : undefined;
-    });
+    socket.on('lobby:gameSelected', (id) => { selected = id; });
+    socket.on('lobby:returned', (id) => { selected = id; view = undefined; });
+    socket.on('game:state', (state) => { view = state; });
     socket.on('room:closed', () => {
       closed = 'This room has closed.';
       view = undefined;
@@ -63,12 +66,12 @@
   }
 </script>
 
-<svelte:head><title>Farkle shared screen · Parlor</title></svelte:head>
+<svelte:head><title>{game?.name ?? 'Room'} shared screen · Parlor</title></svelte:head>
 
 <header class="lid">
   <div class="lid-inner">
     <span class="wordmark"><ParlorMark /> PARLOR</span>
-    <h1>Farkle</h1>
+    <h1>{game?.name ?? 'Shared screen'}</h1>
     <div class="display-actions">
       <span class="code" aria-label={`Room code ${roomCode}`}>{roomCode}</span>
       {#if fullscreenAvailable}
@@ -80,12 +83,12 @@
 
 <div class="display">
   {#if reconnecting}<p class="connection" role="status">Reconnecting to the room…</p>{/if}
-  {#if view}
-    <SharedScreen {view} />
+  {#if view && supported}
+    {#key view.gameId}<SharedGame state={view} />{/key}
   {:else}
     <Felt label="Shared screen lobby">
       <div class="waiting">
-        <h2>{closed || (joined ? 'Waiting for Farkle' : 'Connecting to the room…')}</h2>
+        <h2>{closed || (joined ? supported ? `Waiting for ${game?.name}` : game ? `${game.name} has no shared screen` : 'Waiting for the host to choose a game' : 'Connecting to the room…')}</h2>
         {#if closed}
           <a href={resolve('/')}>Back to Parlor</a>
         {:else if joined && qr}
@@ -93,7 +96,7 @@
             <rect width={qr.size} height={qr.size} fill="white" />
             <path d={qr.path} fill="currentColor" />
           </svg>
-          <p>Scan to join on your phone. The table goes live when the host starts Farkle.</p>
+          <p>Scan to join on your phone. The table goes live when the host starts a game with a shared screen.</p>
         {/if}
       </div>
     </Felt>
