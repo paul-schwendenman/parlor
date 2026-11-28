@@ -9,7 +9,7 @@ test('the home shelf shows every game, or 8 and a link to the full list', async 
 
 	await page.goto('/');
 	const shelf = page.getByRole('region', { name: 'Or start a new room' });
-	const link = shelf.getByRole('link', { name: `Browse all ${total} games` });
+	const link = shelf.getByRole('link', { name: `See all ${total} games and find one that fits your group` });
 	if (total <= 12) {
 		await expect(shelf.getByRole('button', { name: 'Start a room' })).toHaveCount(total);
 		await expect(link).toHaveCount(0);

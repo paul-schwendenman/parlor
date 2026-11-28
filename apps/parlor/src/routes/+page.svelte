@@ -261,7 +261,7 @@
         {/each}
       </div>
       {#if shelf.hidden > 0}
-        <p class="browse-all"><a href={resolve('/games')}>Browse all {shelf.total} {shelf.total === 1 ? 'game' : 'games'}</a></p>
+        <p class="browse-all"><a href={resolve('/games')}>See all {shelf.total} games and find one that fits your group</a></p>
       {/if}
     </section>
 
