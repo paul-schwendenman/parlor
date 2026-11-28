@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test.use({ viewport: { width: 390, height: 844 } });
 
 test('a Farkle phone controls the dice while the shared screen follows the table', async ({ page }, testInfo) => {
-  await page.goto('/');
+  await page.goto('/games');
   const game = page.getByRole('article').filter({
     has: page.getByRole('heading', { name: 'Farkle', exact: true }),
   });

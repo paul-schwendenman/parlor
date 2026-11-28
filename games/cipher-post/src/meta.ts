@@ -7,8 +7,11 @@ export const cipherPostMeta: GameMeta & { id: 'cipher-post' } = {
   description: 'Pass a seal, reveal a clue, and deduce what your rivals kept.',
   minPlayers: 2,
   maxPlayers: 6,
-  estimatedMinutes: '8-15',
-  tags: ['cards', 'deduction'],
+  minutes: { min: 8, max: 15 },
+  kind: 'cards',
+  weight: 'medium',
+  format: 'individual',
+  tags: ['deduction'],
   displayModes: ['peer'],
   supportsBots: true,
 };

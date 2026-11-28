@@ -7,8 +7,11 @@ export const golfMeta: GameMeta & { id: 'golf' } = {
   description: 'Swap cards and match columns to finish nine holes with the lowest score.',
   minPlayers: 2,
   maxPlayers: 6,
-  estimatedMinutes: '20-30',
-  tags: ['cards', 'classic', 'family'],
+  minutes: { min: 20, max: 30 },
+  kind: 'cards',
+  weight: 'light',
+  format: 'individual',
+  tags: ['classic', 'family'],
   displayModes: ['peer'],
   supportsBots: true,
 };

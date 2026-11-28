@@ -7,8 +7,11 @@ export const presidentMeta: GameMeta & { id: 'president' } = {
   description: 'Beat the current play with a higher set and empty your hand first.',
   minPlayers: 4,
   maxPlayers: 7,
-  estimatedMinutes: '30-45',
-  tags: ['cards', 'classic', 'party'],
+  minutes: { min: 30, max: 45 },
+  kind: 'cards',
+  weight: 'medium',
+  format: 'individual',
+  tags: ['classic', 'shedding'],
   displayModes: ['peer'],
   supportsBots: true,
 };

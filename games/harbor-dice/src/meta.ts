@@ -7,8 +7,11 @@ export const harborDiceMeta: GameMeta & { id: 'harbor-dice' } = {
   description: 'Hold and reroll five dice to fill a ten-category scorecard.',
   minPlayers: 2,
   maxPlayers: 6,
-  estimatedMinutes: '15-25',
-  tags: ['dice', 'strategy'],
+  minutes: { min: 15, max: 25 },
+  kind: 'dice',
+  weight: 'light',
+  format: 'individual',
+  tags: ['rerolling', 'scorecard'],
   displayModes: ['peer'],
   supportsBots: true,
 };

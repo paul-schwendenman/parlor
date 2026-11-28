@@ -7,8 +7,11 @@ export const faultLineMeta: GameMeta & { id: 'fault-line' } = {
   description: 'Post a bounty on a hidden cache, then decide which rival cache to open.',
   minPlayers: 3,
   maxPlayers: 6,
-  estimatedMinutes: '8-15',
-  tags: ['bluffing', 'strategy'],
+  minutes: { min: 8, max: 15 },
+  kind: 'party',
+  weight: 'light',
+  format: 'individual',
+  tags: ['bluffing', 'bounties'],
   displayModes: ['peer'],
   supportsBots: true,
 };

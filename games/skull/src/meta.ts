@@ -7,8 +7,11 @@ export const skullMeta: GameMeta & { id: 'skull' } = {
   description: 'Stack flowers and one skull face down, then bid on how many flowers you can turn over.',
   minPlayers: 3,
   maxPlayers: 6,
-  estimatedMinutes: '15-30',
-  tags: ['bluffing', 'party'],
+  minutes: { min: 15, max: 30 },
+  kind: 'cards',
+  weight: 'light',
+  format: 'individual',
+  tags: ['bluffing', 'bidding'],
   displayModes: ['peer'],
   supportsBots: true,
 };

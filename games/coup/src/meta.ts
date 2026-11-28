@@ -7,8 +7,11 @@ export const coupMeta: GameMeta & { id: 'coup' } = {
   description: 'Claim any character, call out bluffs, and be the last with a secret left.',
   minPlayers: 2,
   maxPlayers: 6,
-  estimatedMinutes: '10-15',
-  tags: ['cards', 'bluffing', 'party'],
+  minutes: { min: 10, max: 15 },
+  kind: 'cards',
+  weight: 'medium',
+  format: 'individual',
+  tags: ['bluffing', 'deduction'],
   displayModes: ['peer'],
   supportsBots: true,
 };

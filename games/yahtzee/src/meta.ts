@@ -7,8 +7,11 @@ export const yahtzeeMeta: GameMeta & { id: 'yahtzee' } = {
   description: 'Roll five dice up to three times and fill a 13-box scorecard. Most points wins.',
   minPlayers: 2,
   maxPlayers: 6,
-  estimatedMinutes: '15-35',
-  tags: ['dice', 'classic', 'family'],
+  minutes: { min: 15, max: 35 },
+  kind: 'dice',
+  weight: 'light',
+  format: 'individual',
+  tags: ['classic', 'family'],
   displayModes: ['peer'],
   supportsBots: true,
 };

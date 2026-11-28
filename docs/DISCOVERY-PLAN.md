@@ -77,6 +77,7 @@ Direction chosen 2026-11-28 from an impeccable decision round (three layouts ske
 | 2026-11-28 | 2+3 | Ask the table: GameFilters sheet, `/games` with URL state, sticky answers bar, empty state; GameCard + CreateRoomDialog extracted; e2e | bc02de4 |
 | 2026-11-28 | merge | Merged main (Farkle, Word Split, shared TV screens). Kept structured meta + main's `['peer', 'jackbox']`; ported Farkle (dice) and Word Split (word, 2–8 players); new-game briefs in `docs/games/` now specify the new fields | b67e7ad |
 | 2026-11-28 | 2+3 review | Impeccable finish review: dimmed options now dashed Faded Ink (opacity failed contrast), lid baseline, "More questions", Start over closes the sheet, no sort on an empty result; 2–8 player tiles fit (980px page, even phone grid). Verdict: ship | review commit |
+| 2026-11-28 | 4 (cap only) | Home shelf cap: `pickShelfGames` in `src/lib/games/shelf.ts` (all games up to 12, else 8 via a swappable strategy, shelf order for now); browse link only when games are hidden; shelf hint names the two ways to start. Filter chips still to do | home-shelf-cap |
 
 ## Notes
 

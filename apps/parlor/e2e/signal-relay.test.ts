@@ -3,12 +3,12 @@ import { expect, test } from '@playwright/test';
 test.use({ viewport: { width: 390, height: 844 } });
 
 test('a Signal Relay player sends a private signal through a shared antenna', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/games');
   const game = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Signal Relay', exact: true }) });
   await game.getByRole('button', { name: 'How to play' }).click();
   await expect(page.getByRole('dialog').getByRole('heading', { name: 'Send signals together' })).toBeVisible();
   await page.keyboard.press('Escape');
-  await game.getByRole('button', { name: 'Start Game' }).click();
+  await game.getByRole('button', { name: "Play Signal Relay", exact: true }).click();
   await page.getByPlaceholder('Enter your name').fill('Alex');
   await page.getByRole('button', { name: 'Create Room' }).click();
   await page.getByRole('button', { name: /^Add bot to seat/ }).first().click();

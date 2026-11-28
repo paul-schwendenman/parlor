@@ -7,8 +7,11 @@ export const signalRelayMeta: GameMeta & { id: 'signal-relay' } = {
   description: 'Work together to route private signals through two shared antennas.',
   minPlayers: 2,
   maxPlayers: 4,
-  estimatedMinutes: '3-6',
-  tags: ['cards', 'cooperative'],
+  minutes: { min: 3, max: 6 },
+  kind: 'cards',
+  weight: 'light',
+  format: 'coop',
+  tags: ['communication'],
   displayModes: ['peer'],
   supportsBots: true,
 };

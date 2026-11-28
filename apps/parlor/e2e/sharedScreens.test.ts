@@ -14,7 +14,7 @@ const games = [
 
 for (const { name, bots, sidebar } of games) {
   test(`${name} shows its public table on a shared screen`, async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/games');
     const game = page.getByRole('article').filter({ has: page.getByRole('heading', { name, exact: true }) });
     await game.getByRole('button', { name: /^Play / }).click();
     await page.getByPlaceholder('Enter your name').fill('Alex');

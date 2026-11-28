@@ -7,8 +7,11 @@ export const ginRummyMeta: GameMeta & { id: 'gin-rummy' } = {
   description: 'Build sets and runs, then knock when you have little deadwood left.',
   minPlayers: 2,
   maxPlayers: 2,
-  estimatedMinutes: '20-40',
-  tags: ['cards', 'classic', 'strategy'],
+  minutes: { min: 20, max: 40 },
+  kind: 'cards',
+  weight: 'medium',
+  format: 'individual',
+  tags: ['classic', 'melding'],
   displayModes: ['peer'],
   supportsBots: true,
 };

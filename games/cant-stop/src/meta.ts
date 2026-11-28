@@ -7,8 +7,11 @@ export const cantStopMeta: GameMeta & { id: 'cant-stop' } = {
   description: 'Pair four dice to push runners up eleven columns. Stop to lock in progress before you bust.',
   minPlayers: 2,
   maxPlayers: 4,
-  estimatedMinutes: '15-30',
-  tags: ['dice', 'push-your-luck', 'family'],
+  minutes: { min: 15, max: 30 },
+  kind: 'dice',
+  weight: 'light',
+  format: 'individual',
+  tags: ['push-your-luck', 'family'],
   displayModes: ['peer'],
   supportsBots: true,
 };

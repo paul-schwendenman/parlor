@@ -7,8 +7,11 @@ export const nightMarketMeta: GameMeta & { id: 'night-market' } = {
   description: 'Draft goods, then sell for coins or display them to build a scoring stall.',
   minPlayers: 2,
   maxPlayers: 5,
-  estimatedMinutes: '10-20',
-  tags: ['cards', 'strategy'],
+  minutes: { min: 10, max: 20 },
+  kind: 'cards',
+  weight: 'medium',
+  format: 'individual',
+  tags: ['drafting', 'set collection'],
   displayModes: ['peer'],
   supportsBots: true,
 };

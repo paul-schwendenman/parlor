@@ -4,7 +4,7 @@ import { RACKS } from '../../../games/word-split/src/lexicon.js';
 test.use({ viewport: { width: 390, height: 844 } });
 
 test('two phones share a rack and reveal their words after finishing', async ({ page, browser }) => {
-  await page.goto('/');
+  await page.goto('/games');
   const game = page.getByRole('article').filter({
     has: page.getByRole('heading', { name: 'Word Split', exact: true }),
   });

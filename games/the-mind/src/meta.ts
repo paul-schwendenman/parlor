@@ -7,8 +7,11 @@ export const theMindMeta: GameMeta & { id: 'the-mind' } = {
   description: 'Play your numbers low to high together, without a word.',
   minPlayers: 2,
   maxPlayers: 4,
-  estimatedMinutes: '15-25',
-  tags: ['cards', 'cooperative', 'party'],
+  minutes: { min: 15, max: 25 },
+  kind: 'cards',
+  weight: 'light',
+  format: 'coop',
+  tags: ['sequencing'],
   displayModes: ['peer'],
   supportsBots: true,
 };

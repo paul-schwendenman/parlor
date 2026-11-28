@@ -7,8 +7,11 @@ export const boggleMeta: GameMeta & { id: 'boggle' } = {
   description: 'Race the timer to find words in a grid of letter cubes. Only words nobody else found score.',
   minPlayers: 2,
   maxPlayers: 8,
-  estimatedMinutes: '10-15',
-  tags: ['words', 'party'],
+  minutes: { min: 10, max: 15 },
+  kind: 'word',
+  weight: 'light',
+  format: 'individual',
+  tags: ['spelling', 'word grid'],
   displayModes: ['peer'],
   supportsBots: true,
 };
