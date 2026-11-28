@@ -7,7 +7,8 @@
   import { browser } from '$app/environment';
   import { getSocket, joinRoomAction, lookupRoomAction, spectateRoomAction } from '$lib/stores/socketClient.js';
   import { PLAYER_NAME_MAX_LENGTH, ROOM_CODE_LENGTH } from '@parlor/game-types';
-  import { catalog as games, findGame } from '$lib/games/catalog.js';
+  import { catalog, findGame } from '$lib/games/catalog.js';
+  import { pickShelfGames } from '$lib/games/shelf.js';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
   import GameCard from '$lib/components/games/GameCard.svelte';
   import CreateRoomDialog from '$lib/components/games/CreateRoomDialog.svelte';
@@ -27,6 +28,9 @@
   let loading = $state(false);
   let interactive = $state(false);
   let nameInput = $state<HTMLInputElement | null>(null);
+
+  // Every game while the catalogue is small; past that, a few and a link to /games.
+  const shelf = pickShelfGames(catalog);
 
   // For game card "create" flow
   let selectedGameForCreate = $state<string | undefined>();
@@ -249,13 +253,16 @@
     <!-- Game shelf -->
     <section class="shelf" aria-labelledby="shelf-title">
       <h2 id="shelf-title" class="shelf-title">Or start a new room</h2>
+      <p class="shelf-hint">Create a room and choose the game in the lobby, or start with one below.</p>
       <button type="button" class="btn btn-accent create-room" onclick={() => openCreateRoom()} disabled={!interactive || loading}>Create a room</button>
       <div class="game-grid">
-        {#each games as game (game.id)}
+        {#each shelf.shown as game (game.id)}
           <GameCard {game} disabled={!interactive} onrules={openRules} onstart={openCreateRoom} />
         {/each}
       </div>
-      <p class="browse-all"><a href={resolve('/games')}>Browse all {games.length} games</a></p>
+      {#if shelf.hidden > 0}
+        <p class="browse-all"><a href={resolve('/games')}>Browse all {shelf.total} {shelf.total === 1 ? 'game' : 'games'}</a></p>
+      {/if}
     </section>
 
     <RulesModal
@@ -568,6 +575,15 @@
     line-height: 1.05;
     letter-spacing: -0.02em;
     color: var(--color-espresso);
+  }
+
+  .shelf-hint {
+    margin: -6px 0 14px;
+    max-width: 36rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.45;
+    color: var(--color-ink-muted);
   }
 
   .game-grid {
