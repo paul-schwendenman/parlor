@@ -5,6 +5,7 @@ import {
   activeFilterCount,
   emptyFilters,
   facetCounts,
+  filterSummary,
   filterGames,
   filtersFromParams,
   filtersToParams,
@@ -199,5 +200,15 @@ describe('at scale', () => {
     const r = filterGames(big, f({ query: 'bluff', kinds: ['cards'] }));
     expect(r.every((g) => g.kind === 'cards' && g.tags.includes('bluffing'))).toBe(true);
     expect(r.length).toBeGreaterThan(0);
+  });
+});
+
+describe('filterSummary', () => {
+  it('reads like the answers', () => {
+    expect(filterSummary(f())).toBe('');
+    expect(filterSummary(f({ players: 4, length: 'medium', kinds: ['cards', 'dice'], format: 'teams' }))).toBe(
+      '4 players · 20–30 min · cards or dice · teams',
+    );
+    expect(filterSummary(f({ query: ' pirates ', weight: 'light' }))).toBe('“pirates” · easy to learn');
   });
 });

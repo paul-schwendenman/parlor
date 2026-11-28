@@ -313,3 +313,18 @@ export function filtersToParams(filters: GameFilters, sort: GameSort = 'shelf'):
   if (sort !== 'shelf') p.set('sort', sort);
   return p;
 }
+
+/**
+ * The table's answers in a few words, for the sticky summary bar:
+ * "4 players · 20–30 min · cards or dice · teams". Empty when nothing is set.
+ */
+export function filterSummary(f: GameFilters): string {
+  const parts: string[] = [];
+  if (f.query.trim()) parts.push(`“${f.query.trim()}”`);
+  if (f.players !== null) parts.push(`${f.players} ${f.players === 1 ? 'player' : 'players'}`);
+  if (f.length) parts.push(lengthLabels[f.length]);
+  if (f.kinds.length) parts.push(f.kinds.map((k) => kindLabels[k].toLowerCase()).join(' or '));
+  if (f.weight) parts.push(weightLabels[f.weight].toLowerCase());
+  if (f.format) parts.push(formatChipLabels[f.format].toLowerCase());
+  return parts.join(' · ');
+}

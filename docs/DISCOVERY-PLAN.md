@@ -32,21 +32,17 @@ Same as LOBBY-PLAN: one PR-sized phase at a time, agents never commit, UI phases
 - [x] Home card's tag line now reads from the structured fields ("Cards · Some strategy · Teams").
 - [x] `docs/ADDING_GAMES.md` meta section updated.
 
-## Phase 2: Filter controls component
+## Phases 2 + 3: "Ask the table" filters and the browse page (`/games`) ✅
 
-- [ ] `lib/components/discovery/GameFilters.svelte`: search field + chip groups, driven by a `GameFilters` value and `facetCounts`. Props choose which groups show (`players`, `kinds`, `length`, `weight`, `format`) and a `compact` mode (search + one scrolling chip row) for home and lobby.
-- [ ] Chips are real toggle buttons (`aria-pressed`), single-select groups behave like radios (tap again to clear), counts shown as "Cards 6"; zero-count chips dimmed with `aria-disabled`, still focusable.
-- [ ] "Clear (n)" appears only when something is active. Result count in a polite live region ("4 games"), debounced for typing.
-- [ ] Chip styling: outline pill (button-outline), pressed = espresso fill with cream text (the lobby's voted-pill treatment). No new colours. Touch targets ≥ 44px; hover fills gated behind `(hover: hover)`.
-- [ ] Empty state component: "No games match" + one button per active filter to drop just that one ("Remove 30+ min"), then "Clear all".
+Direction chosen 2026-11-28 from an impeccable decision round (three layouts sketched, desktop and phone): **Ask the table**. The filters are the host's questions, not a facet sidebar. Contract: `apps/parlor/.impeccable/surfaces/src-routes-games-page-svelte.md`. User picks: labelled rows on phones (every option visible), no counts on chips (empty options dimmed instead).
 
-## Phase 3: Browse page (`/games`)
-
-- [ ] New route with its own lid ("All games", count). Full `GameFilters` (every group) + sort select (`sortLabels`). Desktop: filters in a left column; phone: search + "Filters (n)" button opening a bottom sheet (native `<dialog>`, as RulesModal).
-- [ ] With no query and shelf sort, results are grouped by kind (`kindHeadings`); with a query or another sort, a single list.
-- [ ] Cards reuse the home shelf card (extract `GameCard.svelte`): spine colour, name, "4 · 25–40m", tagline/description, kind · weight · format line, How to play / Start game. Start game opens the same create-room dialog (extract it from `+page.svelte`).
-- [ ] URL-synced with `replaceState` while typing, `pushState` on chip changes; restores on back.
-- [ ] E2E: filter by players + type, search, clear, deep link with params, back button.
+- [x] `lib/components/discovery/GameFilters.svelte`: the question sheet. "How many of you?" as mustard room-code tiles + Any; "How long have you got?"; "Cards or dice?" (becomes "What kind of game?" once there are 3+ kinds); "More: strategy, teams" disclosure for "How much to learn?" and "Teams or free-for-all?". Questions and options only appear when some game uses them. Toggle buttons with `aria-pressed`; tapping the current answer clears it; options that would empty the list are dimmed (opacity, "(none fit)" for screen readers) but still tappable. "Start over" when anything is set. Controlled: `filters` + `onchange`.
+- [x] Search lives in the page's lid, not the component (the lobby will want its own placement).
+- [x] `/games`: lid (wordmark → home, "Find a game", search), the sheet overlapping the lid, "N games fit" (polite live region) + sort select, home shelf blocks two-up (one on phones). URL is the state via `replaceState` (no history entry per tap; a deliberate change from the original pushState idea). Phone and desktop: once the sheet scrolls away a sticky bar shows "5 games fit · 4 players · 20–30 min" with Change (scrolls back, focuses the sheet).
+- [x] Empty state: dashed linen box, "Try loosening one answer" with one pill per answer that would bring games back, and their count ("Any number of players · 2 games"), then Start over.
+- [x] Extracted `GameCard.svelte` and `CreateRoomDialog.svelte` from the home page (home now uses both; behaviour unchanged, smoke e2e passes). Home shelf links to `/games` ("Browse all 9 games").
+- [x] `filterSummary()` in `discovery.ts` (+ test). E2E `e2e/browseGames.test.ts`: link from home, answers narrow + URL, tap-to-clear, search, Start over, deep link + empty state, Start game → dialog.
+- Not done from the old phase 3 list: grouping results under kind headings (the shelf order already clusters them and the sketch didn't group; revisit past ~15 games).
 
 ## Phase 4: Home shelf
 
@@ -76,7 +72,8 @@ Same as LOBBY-PLAN: one PR-sized phase at a time, agents never commit, UI phases
 
 | Date | Phase | Summary | Commit |
 |------|-------|---------|--------|
-| 2026-11-27 | 1 | Structured meta (`kind`, `weight`, `format`, `minutes`), nine games migrated, `discovery.ts` + 23 tests, home tag line, ADDING_GAMES | phase 1 commit |
+| 2026-11-27 | 1 | Structured meta (`kind`, `weight`, `format`, `minutes`), nine games migrated, `discovery.ts` + 23 tests, home tag line, ADDING_GAMES | b8915ec |
+| 2026-11-28 | 2+3 | Ask the table: GameFilters sheet, `/games` with URL state, sticky answers bar, empty state; GameCard + CreateRoomDialog extracted; e2e | phase 2+3 commit |
 
 ## Notes
 
