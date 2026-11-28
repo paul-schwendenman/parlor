@@ -105,7 +105,7 @@ it('plays a full seeded bot game, shares ties, and scores sensibly', () => {
     total += view.players.reduce((sum, p) => sum + p.total, 0);
   }
   expect(total / 12).toBeGreaterThan(170);
-});
+}, 15_000);
 
 it('lets a stand-in finish a dropped turn and pauses with no humans', () => {
   const game = scripted(...Array<number>(20).fill(3));

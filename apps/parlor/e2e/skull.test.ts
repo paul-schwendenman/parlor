@@ -19,19 +19,20 @@ test('a Skull player places a disc and opens the bidding', async ({ page }) => {
   await hand.getByRole('button', { name: 'Place a flower' }).click();
   await expect(page.getByRole('region', { name: 'Your discs' }).getByText('Your mat (only you see this)')).toBeVisible();
   // Bots go in turn; wait for our placing turn, or follow along if a bot opened.
-  const start = page.getByRole('button', { name: 'Start a bid' });
-  const pass = page.getByRole('button', { name: 'Pass', exact: true });
-  await expect(start.or(pass).first()).toBeVisible({ timeout: 20_000 });
+  const start = page.getByRole('button', { name: 'Start a bid', disabled: false });
+  const pass = page.getByRole('button', { name: 'Pass', exact: true, disabled: false });
+  const reveal = page.getByText(/ of \d+ flowers?\b|Skull!|turned over/).first();
+  await expect(start.or(pass).or(reveal).first()).toBeVisible({ timeout: 20_000 });
   if (await start.isVisible()) {
     await start.click();
     await page.getByRole('group', { name: 'Bids' }).getByRole('button', { name: '1', exact: true }).click();
     await page.getByRole('button', { name: 'Bid 1' }).click();
   }
   // Pass whenever the bidding comes back round, until someone turns discs over.
-  const reveal = page.getByText(/ of \d+ flowers|Skull!|turned over/).first();
-  for (let turn = 0; turn < 10 && !(await reveal.isVisible()); turn++) {
-    await expect(reveal.or(pass)).toBeVisible({ timeout: 20_000 });
-    if (await pass.isVisible()) await pass.click();
+  for (let turn = 0; turn < 10; turn++) {
+    await expect(reveal.or(pass).first()).toBeVisible({ timeout: 20_000 });
+    if (await reveal.isVisible()) break;
+    await pass.click();
   }
   await expect(reveal).toBeVisible({ timeout: 20_000 });
   await page.screenshot({ path: test.info().outputPath('board.png'), fullPage: true });

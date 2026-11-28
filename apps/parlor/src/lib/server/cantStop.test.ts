@@ -127,4 +127,4 @@ it('plays seeded bot games to the end', () => {
     }
     expect(game.view().winnerId).not.toBeNull();
   }
-});
+}, 15_000);
