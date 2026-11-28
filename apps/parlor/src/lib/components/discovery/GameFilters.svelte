@@ -23,6 +23,7 @@
     filters: GameFilters;
     games: readonly DiscoverableGame[];
     onchange: (filters: GameFilters) => void;
+    disabled?: boolean;
     /** Id for the sheet, so a "Change" button elsewhere can bring it back. */
     id?: string;
     /** "5 games fit": shown at the sheet's foot on phones, where the results sit below the fold. */
@@ -31,7 +32,7 @@
     resultsId?: string;
   }
 
-  let { filters, games, onchange, id = 'table-questions', countLine, resultsId }: Props = $props();
+  let { filters, games, onchange, disabled = false, id = 'table-questions', countLine, resultsId }: Props = $props();
 
   // Offer only what some game has: no "Trivia" chip on a shelf of cards and dice.
   let players = $derived(playerOptions(games));
@@ -109,7 +110,7 @@
 </script>
 
 {#snippet chip(label: string, pressed: boolean, empty: boolean, onclick: () => void, stop = pressed, check = false)}
-  <button type="button" class="chip" class:empty={empty && !pressed} class:check aria-pressed={pressed} tabindex={stop ? 0 : -1} {onclick}>
+  <button type="button" class="chip" class:empty={empty && !pressed} class:check aria-pressed={pressed} tabindex={stop ? 0 : -1} {disabled} {onclick}>
     {#if check && pressed}<svg class="tick" aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>{/if}{label}{#if empty && !pressed}<span class="sr-only"> (none fit)</span>{/if}
   </button>
 {/snippet}
@@ -121,11 +122,11 @@
       <div class="answers tiles" use:roving>
         {#each players as n (n)}
           {@const empty = counts.players[n] === 0 && filters.players !== n}
-          <button type="button" class="tile" class:empty aria-pressed={filters.players === n} tabindex={filters.players === n ? 0 : -1} onclick={() => pick('players', n)}>
+          <button type="button" class="tile" class:empty aria-pressed={filters.players === n} tabindex={filters.players === n ? 0 : -1} {disabled} onclick={() => pick('players', n)}>
             {#if n >= PLAYERS_OR_MORE}<span aria-hidden="true">{playersLabel(n)}</span><span class="sr-only">{n} or more</span>{:else}{n}{/if}{#if empty}<span class="sr-only"> (none fit)</span>{/if}
           </button>
         {/each}
-        <button type="button" class="tile tile-any" aria-pressed={filters.players === null} tabindex={filters.players === null ? 0 : -1} onclick={() => set({ players: null })}>Any</button>
+        <button type="button" class="tile tile-any" aria-pressed={filters.players === null} tabindex={filters.players === null ? 0 : -1} {disabled} onclick={() => set({ players: null })}>Any</button>
       </div>
     </div>
   {/if}
@@ -162,13 +163,13 @@
   {#if moreQuestions.length || anything}
     <div class="foot">
       {#if moreQuestions.length}
-        <button type="button" class="more-toggle" aria-expanded={moreOpen} aria-controls="{id}-more" onclick={() => (moreOpen = !moreOpen)}>
+        <button type="button" class="more-toggle" aria-expanded={moreOpen} aria-controls="{id}-more" {disabled} onclick={() => (moreOpen = !moreOpen)}>
           <svg class="chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
           More questions{#if moreAnswered && !moreOpen}&nbsp;({moreAnswered} answered){/if}
         </button>
       {/if}
       {#if anything}
-        <button type="button" class="start-over" onclick={startOver}>Start over</button>
+        <button type="button" class="start-over" {disabled} onclick={startOver}>Start over</button>
       {/if}
     </div>
   {/if}

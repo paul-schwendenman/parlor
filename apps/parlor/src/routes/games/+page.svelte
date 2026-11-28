@@ -58,6 +58,8 @@
       .filter((o) => o.count > 0);
   });
 
+  let mounted = $state(false);
+
   $effect(() => {
     const search = filtersToParams(filters, sort).toString();
     if (!browser || search === page.url.searchParams.toString()) return;
@@ -69,6 +71,7 @@
   // Sticky summary: once the questions scroll off the top, keep the answers in view.
   let sheetGone = $state(false);
   onMount(() => {
+    mounted = true;
     getSocket();
     const sheet = document.getElementById('table-questions');
     if (!sheet) return;
@@ -135,6 +138,7 @@
       <input
         bind:this={searchInput}
         type="search"
+        disabled={!mounted}
         value={filters.query}
         oninput={(e) => (filters = { ...filters, query: e.currentTarget.value })}
         placeholder="Search, like “pirates” or “trick-taking”"
@@ -148,7 +152,7 @@
         <span class="search-count" aria-hidden="true">{results.length} {results.length === 1 ? 'game' : 'games'}</span>
       {/if}
       {#if filters.query}
-        <button type="button" class="search-clear" aria-label="Clear the search" onclick={clearSearch}>
+        <button type="button" class="search-clear" aria-label="Clear the search" disabled={!mounted} onclick={clearSearch}>
           <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
       {:else}
@@ -169,14 +173,14 @@
 </div>
 
 <main class="page">
-  <GameFilters {filters} games={catalog} onchange={(next) => (filters = next)} {countLine} resultsId="results" />
+  <GameFilters {filters} games={catalog} disabled={!mounted} onchange={(next) => (filters = next)} {countLine} resultsId="results" />
 
   <section class="results" id="results" tabindex="-1" aria-labelledby="results-title">
     <div class="results-head">
       <h2 id="results-title" class="results-title" aria-live="polite" aria-atomic="true">{countLine}</h2>
       {#if results.length}<label class="sort">
         <span class="sr-only">Sort games</span>
-        <select bind:value={sort}>
+        <select bind:value={sort} disabled={!mounted}>
           {#each GAME_SORTS as s (s)}
             <option value={s}>{sortLabels[s]}</option>
           {/each}
@@ -187,7 +191,7 @@
     {#if results.length}
       <div class="game-grid">
         {#each results as game (game.id)}
-          <GameCard {game} onrules={(id) => (rulesGameId = id)} onstart={openCreate} />
+          <GameCard {game} disabled={!mounted} onrules={(id) => (rulesGameId = id)} onstart={openCreate} />
         {/each}
       </div>
     {:else}
@@ -198,7 +202,7 @@
           <ul class="loosen">
             {#each loosen as option (option.label)}
               <li>
-                <button type="button" class="pill" onclick={() => (filters = { ...filters, ...option.patch })}>
+                <button type="button" class="pill" disabled={!mounted} onclick={() => (filters = { ...filters, ...option.patch })}>
                   {option.label}
                   <span class="loosen-count">{option.count} {option.count === 1 ? 'game' : 'games'}</span>
                 </button>
@@ -208,7 +212,7 @@
         {/if}
         {#if !loosen.length}
           <!-- Nothing to loosen one answer at a time: the sheet's Start over is the way out, said here too. -->
-          <button type="button" class="link" onclick={() => (filters = { ...emptyFilters, kinds: [] })}>Start over</button>
+          <button type="button" class="link" disabled={!mounted} onclick={() => (filters = { ...emptyFilters, kinds: [] })}>Start over</button>
         {/if}
       </div>
     {/if}
