@@ -85,12 +85,17 @@ export const myGameMeta: GameMeta & { id: '<id>' } = {
   description: 'One sentence for the shelf card.',
   minPlayers: 3,
   maxPlayers: 6,
-  estimatedMinutes: '15-30',
-  tags: ['cards', 'strategy'],
+  minutes: { min: 15, max: 30 },   // typical full game, shortest to longest
+  kind: 'cards',                   // GAME_KINDS: cards, dice, board, word, drawing, trivia, party
+  weight: 'medium',                // light (explain in a minute), medium, heavy
+  format: 'individual',            // individual, teams, coop
+  tags: ['trick-taking', 'bidding'], // search keywords: mechanisms and themes only
   displayModes: ['peer'],
   supportsBots: true,
 };
 ```
+
+`kind`, `weight`, `format` and `minutes` drive the shelf filters and the browse page (`apps/parlor/src/lib/games/discovery.ts`), so pick them for how a family would describe the game, not how a rulebook would. `tags` are only for search: don't repeat the kind ("cards"), the weight ("strategy", "quick") or the format ("teams"); the catalogue test rejects those.
 
 ## 4. Engine (`engine.ts`)
 

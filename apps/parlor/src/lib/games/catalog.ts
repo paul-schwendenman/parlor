@@ -64,7 +64,8 @@ export function playersNeeded(count: number): string {
   return `Needs ${count} more ${count === 1 ? 'player' : 'players'}`;
 }
 
-/** "15–20" from the meta's "15-20", with a real en dash. */
-export function minutesRange(game: Pick<GameMeta, 'estimatedMinutes'>): string {
-  return game.estimatedMinutes.replace('-', '–');
+/** "15–20", with a real en dash; "10" when the range is a single value. */
+export function minutesRange(game: Pick<GameMeta, 'minutes'>): string {
+  const { min, max } = game.minutes;
+  return min === max ? `${min}` : `${min}–${max}`;
 }

@@ -7,8 +7,11 @@ export const euchreMeta: GameMeta & { id: 'euchre' } = {
   description: 'Call trump with a partner, play the bowers, and take three tricks to make your hand.',
   minPlayers: 4,
   maxPlayers: 4,
-  estimatedMinutes: '20-35',
-  tags: ['cards', 'teams', 'strategy'],
+  minutes: { min: 20, max: 35 },
+  kind: 'cards',
+  weight: 'medium',
+  format: 'teams',
+  tags: ['trick-taking', 'trump', 'partners', 'classic'],
   displayModes: ['peer'],
   supportsBots: true,
 };

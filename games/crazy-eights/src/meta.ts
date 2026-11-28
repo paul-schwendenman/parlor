@@ -6,8 +6,11 @@ export const crazyEightsMeta: GameMeta & { id: 'crazy-eights' } = {
   description: 'Classic card game — match suits or ranks, play eights to change the suit.',
   minPlayers: 2,
   maxPlayers: 5,
-  estimatedMinutes: '10-15',
-  tags: ['cards', 'classic', 'quick'],
+  minutes: { min: 10, max: 15 },
+  kind: 'cards',
+  weight: 'light',
+  format: 'individual',
+  tags: ['shedding', 'classic'],
   displayModes: ['peer'],
   supportsBots: true,
 };

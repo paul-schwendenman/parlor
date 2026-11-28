@@ -6,8 +6,11 @@ export const liarsDiceMeta: GameMeta & { id: 'liars-dice' } = {
   description: 'Bluff, bid, and call out liars in this classic dice game.',
   minPlayers: 2,
   maxPlayers: 6,
-  estimatedMinutes: '15-25',
-  tags: ['dice', 'bluffing', 'classic'],
+  minutes: { min: 15, max: 25 },
+  kind: 'dice',
+  weight: 'light',
+  format: 'individual',
+  tags: ['bluffing', 'bidding', 'classic'],
   displayModes: ['peer'],
   supportsBots: true,
 };

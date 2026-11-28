@@ -8,6 +8,7 @@
   import { getSocket, createRoomAction, joinRoomAction, lookupRoomAction, spectateRoomAction } from '$lib/stores/socketClient.js';
   import { PLAYER_NAME_MAX_LENGTH, ROOM_CODE_LENGTH } from '@parlor/game-types';
   import { catalog as games, findGame, minutesRange, playerRange } from '$lib/games/catalog.js';
+  import { formatLabels, kindLabels, weightLabels } from '$lib/games/discovery.js';
   import RulesModal from '$lib/components/lobby/RulesModal.svelte';
 
   let prefillCode = $derived(($page.url.searchParams.get('join') ?? '').trim().toUpperCase());
@@ -275,7 +276,7 @@
               <span class="game-meta">{playerRange(game)} · {minutesRange(game)}m</span>
             </div>
             <p class="game-desc">{game.description}</p>
-            <p class="game-tags">{game.tags.join(' · ')}</p>
+            <p class="game-tags">{[kindLabels[game.kind], weightLabels[game.weight], ...(game.format === 'individual' ? [] : [formatLabels[game.format]])].join(' · ')}</p>
             <div class="game-actions">
               <button type="button" class="spine-ghost" onclick={() => openRules(game.id)} disabled={!interactive}>How to play</button>
               <button type="button" class="spine-solid" onclick={() => openCreateRoom(game.id)} disabled={!interactive}>Start game</button>
