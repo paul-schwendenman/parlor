@@ -3,6 +3,8 @@
   import FarkleScreen from '@parlor/farkle/shared-screen';
   import WordSplitScreen from './WordSplitScreen.svelte';
 
+  import LiarsDiceScreen from './LiarsDiceScreen.svelte';
+
   let { state }: { state: GameStateEnvelope } = $props();
 </script>
 
@@ -10,4 +12,6 @@
   <FarkleScreen view={state.view} />
 {:else if state.gameId === 'word-split'}
   <WordSplitScreen view={state.view} />
+{:else if state.gameId === 'liars-dice'}
+  <LiarsDiceScreen view={state.view} />
 {/if}

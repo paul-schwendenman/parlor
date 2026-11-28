@@ -8,6 +8,6 @@ export const liarsDiceMeta: GameMeta & { id: 'liars-dice' } = {
   maxPlayers: 6,
   estimatedMinutes: '15-25',
   tags: ['dice', 'bluffing', 'classic'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };
