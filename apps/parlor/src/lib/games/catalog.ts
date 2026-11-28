@@ -16,6 +16,14 @@ import { faultLineMeta } from '@parlor/fault-line/meta';
 import { signalRelayMeta } from '@parlor/signal-relay/meta';
 import { nightMarketMeta } from '@parlor/night-market/meta';
 import { ridgeRunMeta } from '@parlor/ridge-run/meta';
+import { boggleMeta } from '@parlor/boggle/meta';
+import { coupMeta } from '@parlor/coup/meta';
+import { theMindMeta } from '@parlor/the-mind/meta';
+import { sushiGoMeta } from '@parlor/sushi-go/meta';
+import { loveLetterMeta } from '@parlor/love-letter/meta';
+import { skullMeta } from '@parlor/skull/meta';
+import { yahtzeeMeta } from '@parlor/yahtzee/meta';
+import { cantStopMeta } from '@parlor/cant-stop/meta';
 import { harborDiceMeta } from '@parlor/harbor-dice/meta';
 import { farkleMeta } from '@parlor/farkle/meta';
 import { wordSplitMeta } from '@parlor/word-split/meta';
@@ -65,6 +73,14 @@ export const catalog: readonly CatalogGame[] = [
   { ...cipherPostMeta, shelf: 'clay', tagline: 'Pass a seal, then guess what they kept' },
   { ...councilLedgerMeta, shelf: 'linen', tagline: 'Claim a permit or call a bluff' },
   { ...wordSplitMeta, shelf: 'ink', tagline: 'Find words only you thought of' },
+  { ...yahtzeeMeta, shelf: 'mustard', tagline: 'Roll five dice, fill the scorecard' },
+  { ...cantStopMeta, shelf: 'clay', tagline: 'Push your luck up eleven columns' },
+  { ...skullMeta, shelf: 'linen', tagline: 'Bluff, bid, and dodge the skull' },
+  { ...loveLetterMeta, shelf: 'felt', tagline: 'Hold one card. Be the last one in.' },
+  { ...coupMeta, shelf: 'ink', tagline: 'Claim characters and call out bluffs' },
+  { ...sushiGoMeta, shelf: 'mustard', tagline: 'Pick a sushi, pass the rest' },
+  { ...theMindMeta, shelf: 'clay', tagline: 'Play low to high, without a word' },
+  { ...boggleMeta, shelf: 'linen', tagline: 'Find words before the timer ends' },
 ];
 
 export function findGame(id: string | null | undefined): CatalogGame | undefined {

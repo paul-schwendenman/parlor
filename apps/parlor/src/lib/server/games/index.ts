@@ -21,6 +21,14 @@ import { faultLineDefinition } from '@parlor/fault-line/server-definition';
 import { signalRelayDefinition } from '@parlor/signal-relay/server-definition';
 import { nightMarketDefinition } from '@parlor/night-market/server-definition';
 import { ridgeRunDefinition } from '@parlor/ridge-run/server-definition';
+import { boggleDefinition } from '@parlor/boggle/server-definition';
+import { coupDefinition } from '@parlor/coup/server-definition';
+import { theMindDefinition } from '@parlor/the-mind/server-definition';
+import { sushiGoDefinition } from '@parlor/sushi-go/server-definition';
+import { loveLetterDefinition } from '@parlor/love-letter/server-definition';
+import { skullDefinition } from '@parlor/skull/server-definition';
+import { yahtzeeDefinition } from '@parlor/yahtzee/server-definition';
+import { cantStopDefinition } from '@parlor/cant-stop/server-definition';
 import { harborDiceDefinition } from '@parlor/harbor-dice/server-definition';
 import { farkleDefinition } from '@parlor/farkle/server-definition';
 import { wordSplitDefinition } from '@parlor/word-split/server-definition';
@@ -47,4 +55,12 @@ export function registerAllGames(): void {
 	registerGame(ginRummyDefinition);
 	registerGame(presidentDefinition);
 	registerGame(wordSplitDefinition);
+	registerGame(boggleDefinition);
+	registerGame(coupDefinition);
+	registerGame(theMindDefinition);
+	registerGame(sushiGoDefinition);
+	registerGame(loveLetterDefinition);
+	registerGame(skullDefinition);
+	registerGame(yahtzeeDefinition);
+	registerGame(cantStopDefinition);
 }

@@ -198,6 +198,121 @@
         <p>Sell a good for its coin value, or display it for one point. Each lantern and silk pair and each tea and pottery pair earns five extra points. A spice earns one extra point for each distinct other kind you display.</p>
         <p>Score and reset the stalls after each season. The highest total after three seasons wins.</p>
       </section>
+    {:else if gameId === 'cant-stop'}
+      <section>
+        <h3>Pair the dice</h3>
+        <p>Roll four dice and split them into two pairs. Each pair's total names a column from 2 to 12. Move a white runner up each of those columns. You have three runners a turn. A new runner starts one space above your own marker in that column.</p>
+        <p>If both totals of your pairing can be used, you must use both. If only one fits, use that one.</p>
+      </section>
+      <section>
+        <h3>Roll again or stop</h3>
+        <p>After moving, roll again to push higher, or stop to swap your runners for your own markers. If a roll gives you no usable pairing, you bust and lose this turn's climbing.</p>
+        <p>Stop with a runner on the top space to claim that column. Everyone else's markers leave it and nobody can use it again. Claim three columns to win.</p>
+      </section>
+    {:else if gameId === 'yahtzee'}
+      <section>
+        <h3>Roll and hold</h3>
+        <p>On your turn, roll all five dice. You may then set aside any dice you like and reroll the others, up to three rolls in total. You can change which dice you keep between rolls.</p>
+      </section>
+      <section>
+        <h3>Fill one box</h3>
+        <p>After any roll, write a score in one empty box on your card. Every turn fills a box, so you may have to put a zero somewhere. The top half scores the dice of one face. Reach 63 there for a 35 point bonus.</p>
+        <p>The bottom half pays for patterns: three or four of a kind score all five dice, a full house is 25, four in a row is 30, five in a row is 40, and five of a kind (a Yahtzee) is 50. Chance takes any roll.</p>
+      </section>
+      <section>
+        <h3>Extra Yahtzees</h3>
+        <p>If you roll five of a kind after scoring 50 in the Yahtzee box, you get 100 bonus points. You must then use the matching top box if it is open. Otherwise you can use any open bottom box at full value, even a straight or full house.</p>
+        <p>After thirteen rounds, the highest total wins.</p>
+      </section>
+    {:else if gameId === 'skull'}
+      <section>
+        <h3>Setting up</h3>
+        <p>Everyone has four discs: three flowers and one skull. Each round, every player first puts one disc face down on their own mat at the same time.</p>
+      </section>
+      <section>
+        <h3>Placing</h3>
+        <p>Going around the table, either add another disc face down to your mat or start the bidding. If your hand is empty, you have to start the bidding.</p>
+      </section>
+      <section>
+        <h3>Bidding</h3>
+        <p>A bid says how many discs you think you can turn over without finding a skull. Each player in turn raises the bid or passes for the rest of the round. Bidding ends when everyone else has passed or someone bids every disc on the mats.</p>
+      </section>
+      <section>
+        <h3>Turning over</h3>
+        <p>The highest bidder turns over all their own discs first, from the top. Then they choose other mats and turn over their top discs one at a time. Reach your number in flowers to score a point. Two points wins.</p>
+      </section>
+      <section>
+        <h3>Losing a disc</h3>
+        <p>If you turn over a skull, you fail. The skull's owner picks one of your discs without seeing it, and it is gone for good. If it was your own skull, you choose which disc to lose. Nobody else learns what it was. Lose all your discs and you are out. The last player left also wins.</p>
+      </section>
+    {:else if gameId === 'love-letter'}
+      <section>
+        <h3>One card in hand</h3>
+        <p>You always hold one secret card. On your turn, draw a second card, then play one of the two face up and do what it says. Cards that pick another player can't pick anyone protected by a Handmaid or already out.</p>
+      </section>
+      <section>
+        <h3>The cards</h3>
+        <p><strong>0 Spy</strong> (2): does nothing when played. <strong>1 Guard</strong> (6): name a card other than Guard; if the player you pick holds it, they are out. <strong>2 Priest</strong> (2): look at someone's card. <strong>3 Baron</strong> (2): compare cards in secret; the lower card is out. <strong>4 Handmaid</strong> (2): nobody can pick you until your next turn.</p>
+        <p><strong>5 Prince</strong> (2): pick anyone, even yourself, to discard their card and draw a new one. <strong>6 Chancellor</strong> (2): draw two, keep one of your three, and put the others under the deck. <strong>7 King</strong> (1): swap cards with someone. <strong>8 Countess</strong> (1): you must play her if your other card is the King or a Prince. <strong>9 Princess</strong> (1): if she is played or discarded, you are out.</p>
+      </section>
+      <section>
+        <h3>Winning a round</h3>
+        <p>The round ends when only one player is left, or after the turn that empties the deck. Then the highest card still in hand wins a token, and ties all win. If exactly one player still in has played or discarded a Spy, they get a bonus token.</p>
+        <p>Collect enough tokens to win: 6 with two players, 5 with three, 4 with four, and 3 with five or six.</p>
+      </section>
+    {:else if gameId === 'sushi-go'}
+      <section>
+        <h3>Pick and pass</h3>
+        <p>Everyone gets a hand of cards. At the same time, each player picks one card to keep and puts it on their plate. Then everyone passes the rest of their hand to the player on their left. Keep going until the hands run out. Play three rounds.</p>
+      </section>
+      <section>
+        <h3>Scoring</h3>
+        <p><strong>Tempura</strong>: 5 for each pair. <strong>Sashimi</strong>: 10 for each set of three. <strong>Dumplings</strong>: 1, 3, 6, 10 or 15 for one to five or more. <strong>Nigiri</strong>: egg 1, salmon 2, squid 3. <strong>Wasabi</strong> triples the next nigiri you put on your plate.</p>
+        <p><strong>Maki rolls</strong>: the most roll icons scores 6 and the next most scores 3. Ties split the points. <strong>Puddings</strong> stay on your plate until the end. The most puddings scores 6 and the fewest loses 6 (no loss with two players).</p>
+      </section>
+      <section>
+        <h3>Chopsticks</h3>
+        <p>On a later turn, you can use chopsticks from your plate to take two cards at once. The chopsticks then go back into the hand you pass on.</p>
+      </section>
+    {:else if gameId === 'the-mind'}
+      <section>
+        <h3>Low to high, together</h3>
+        <p>The cards run from 1 to 100. On level 1 everyone gets one card, on level 2 two cards, and so on. As a team, play every card onto one pile in rising order. There are no turns and no talking about your cards: play your lowest card whenever it feels like the right moment.</p>
+      </section>
+      <section>
+        <h3>Focus and stop</h3>
+        <p>Before play starts, everyone taps Ready. Anyone can call Stop to pause, and then everyone gets ready again.</p>
+      </section>
+      <section>
+        <h3>Mistakes, lives and stars</h3>
+        <p>If a card is played while someone still holds a lower one, the team loses a life and everyone throws away their cards below it. Then the level carries on. A throwing star needs everyone to agree: each player throws away their lowest card.</p>
+        <p>Clearing some levels earns a life or a throwing star. Clear every level (12 with two players, 10 with three, 8 with four) to win. Lose your last life and the game ends. When two plays arrive almost together, the lower card is given a moment to land first.</p>
+      </section>
+    {:else if gameId === 'coup'}
+      <section>
+        <h3>Your court</h3>
+        <p>Everyone starts with two face-down characters and two coins. Lose a challenge or get hit by a Coup or an Assassin and you turn one character face up. Lose both and you are out. The last player with a hidden character wins.</p>
+      </section>
+      <section>
+        <h3>Actions</h3>
+        <p>On your turn take one action. Anyone can take <strong>Income</strong> (1 coin), <strong>Foreign Aid</strong> (2 coins) or a <strong>Coup</strong> (pay 7 and pick a player to lose a character). With 10 coins at the start of your turn you must Coup.</p>
+        <p>The rest need you to claim a character, whether or not you hold it. <strong>Duke</strong>: take 3 coins. <strong>Assassin</strong>: pay 3 and pick a player to lose a character. <strong>Captain</strong>: take up to 2 coins from a player. <strong>Ambassador</strong>: draw 2 cards from the deck, keep what you want, and return the rest.</p>
+      </section>
+      <section>
+        <h3>Challenges and blocks</h3>
+        <p>Anyone can challenge a claim. If the claimant shows the card, the challenger loses a character and the shown card is swapped for a new one. If not, the claimant loses a character and the action fails.</p>
+        <p>A Duke blocks Foreign Aid. The target of an Assassin can block with a Contessa. The target of a Captain can block with a Captain or an Ambassador. Blocks are claims too, so they can be challenged. Each moment to respond lasts 15 seconds.</p>
+      </section>
+    {:else if gameId === 'boggle'}
+      <section>
+        <h3>Find words</h3>
+        <p>Sixteen letter cubes make a 4 by 4 grid. Before the three minutes run out, find as many words as you can. Each word chains letters that touch, including diagonally, and uses each cube at most once. Words need at least three letters. The Qu cube counts as two letters.</p>
+      </section>
+      <section>
+        <h3>Only your own words score</h3>
+        <p>When time is up, every list is revealed. A word that more than one player found scores nothing. Unique words score by length: 3 or 4 letters 1 point, 5 letters 2, 6 letters 3, 7 letters 5, and 8 or more 11.</p>
+        <p>Play three grids. The highest total wins.</p>
+      </section>
     {:else if gameId === 'ridge-run'}
       <section>
         <h3>Climb a route</h3>

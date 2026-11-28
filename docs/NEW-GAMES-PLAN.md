@@ -52,3 +52,24 @@ All eleven slots are implemented, including seven original Parlor adaptations.
 - **Dice:** `DiceTray` supports selections and blank pre-roll slots. `PipDie` supplies the roll animation. `RollStopBar` supplies the two turn actions. Farkle, Harbor Dice, and Ridge Run use this kit.
 - **Standard deck:** Golf and Gin Rummy share `DiscardPile`. Golf adds `CardGrid`, and Gin Rummy adds `MeldSpread`.
 - **Timed play:** `Countdown` and an absolute server deadline are shared by Signal Relay and Council Ledger.
+
+## Faithful versions (2026-11-28)
+
+The commercial games behind the Parlor adaptations, built from their briefs in `docs/games/` under their real names with Parlor's own wording and art.
+
+| Brief | Game (id) | Built on | Notes |
+|---|---|---|---|
+| CANT_STOP.md | Can't Stop (`cant-stop`) | Ridge Run's board, the dice kit | Four dice, three runners, claim three columns. Rule-of-28 bot. |
+| YAHTZEE.md | Yahtzee (`yahtzee`) | Harbor Dice's scorecard | Forced Joker and Yahtzee bonus. Expected-value bot. |
+| SKULL.md | Skull (`skull`) | Fault Line's hidden-cache flow | Simultaneous ante, blind and own-skull penalties, starter choice. |
+| LOVE_LETTER.md | Love Letter (`love-letter`) | Cipher Post | 2019 deck (classic as an engine option), private Priest/Baron reveals, hints. |
+| SUSHI_GO.md | Sushi Go (`sushi-go`) | Night Market's simultaneous draft | Chopsticks, Wasabi, maki splits, puddings. Absent players pick last. |
+| THE_MIND.md | The Mind (`the-mind`) | Signal Relay's real-time loop | Focus/breath, 150ms settle window for near-ties, stars by vote. Blind encore not built. |
+| COUP.md | Coup (`coup`) | Council Ledger's timed windows | Sequential challenge/block windows with window ids and deadlines. |
+| BOGGLE.md | Boggle (`boggle`) | Word Split's word list | 4x4 classic cubes, tap-to-trace or type, only unique words score. |
+
+Shared additions: `CharacterCard` in `@parlor/ui` (named or numbered cards with the PlayingCard stock and back), used by Love Letter, Coup, Sushi Go and The Mind.
+
+Host options (variants, timers, edition) are engine constructor options only; they need the shared "House rules" path above.
+
+Still to build, with no Parlor sibling to start from: Codenames, Telestrations, Welcome To, Bang! Dice.

@@ -10,6 +10,7 @@ import { defineGame, RoomManager } from '@parlor/multiplayer';
 import { quixxGame } from '@parlor/quixx/server-definition';
 import { QuixxEngine } from '../../../../../games/quixx/src/lib/server/game/QuixxEngine.js';
 import { registerGame } from './gameRegistry.js';
+import { solve as solveBoggle } from '../../../../../games/boggle/src/lexicon.js';
 import { setupParlorSocketHandlers } from './socketServer.js';
 
 function seededInt(seed: number) {
@@ -164,7 +165,7 @@ function nextMove(views: SeededFrame[], select: Select, engine: unknown): Move |
 			if (active?.gameId !== first.gameId) throw new Error('Missing active Liar’s Dice view');
 			const { canChallenge, canSpotOn, currentBid, totalDiceInPlay } = active.view;
 			if (canChallenge && select(3) !== 0) {
-				return { player, action: { type: canSpotOn && select(4) === 0 ? 'spot-on' : 'challenge' } };
+				return { player, action: canSpotOn && select(4) === 0 ? { type: 'spot-on' } : { type: 'challenge' } };
 			}
 			const rules = engine as LiarEngine;
 			const playerId = active.view.players[player].id;
@@ -646,6 +647,217 @@ it('Ridge Run keeps climbed steps temporary until camping and then passes the tu
 		expect(view.players[0].progress).toEqual({ 2: 2 });
 	}
 	await vi.waitFor(async () => expect((await views())[0].activePlayerId).toBe(guest.id), { timeout: 2500 });
+	game.reset();
+});
+
+it("Can't Stop shows the same roll to everyone and passes the turn after a stop", async () => {
+	engineInt = () => 0;
+	const game = await table('cant-stop');
+	const [host, guest] = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'cant-stop') throw new Error("Expected a Can't Stop view");
+			return frame.view;
+		});
+	}
+	expect((await views()).map(({ canAct }) => canAct)).toEqual([true, false, false, false]);
+	expect(await guest.socket.timeout(1000).emitWithAck('game:action', { type: 'roll' })).toMatchObject({ ok: false });
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'roll' })).toEqual({ ok: true });
+	for (const view of await views()) expect(view.pairings?.flatMap(({ moves }) => moves)).toEqual([[2, 2], [2, 2], [2, 2]]);
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'place', columns: [2, 2] })).toEqual({ ok: true });
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'stop' })).toEqual({ ok: true });
+	for (const view of await views()) {
+		expect(view).toMatchObject({ phase: 'first-roll', activePlayerId: guest.id, runners: {} });
+		expect(view.players[0].markers).toEqual({ 2: 2 });
+	}
+	game.reset();
+});
+
+it('Yahtzee shows holds to the table and scores one box per turn', async () => {
+	engineInt = () => 0;
+	const game = await table('yahtzee');
+	const [host, guest] = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'yahtzee') throw new Error('Expected a Yahtzee view');
+			return frame.view;
+		});
+	}
+	expect((await views()).map(({ canRoll }) => canRoll)).toEqual([true, false, false, false]);
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'roll' })).toEqual({ ok: true });
+	const held = [true, true, false, false, false];
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'hold', held })).toEqual({ ok: true });
+	for (const view of await views()) expect(view).toMatchObject({ dice: [1, 1, 1, 1, 1], held, rollsLeft: 2 });
+	expect(await guest.socket.timeout(1000).emitWithAck('game:action', { type: 'score', category: 'ones' })).toMatchObject({ ok: false });
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'score', category: 'yahtzee' })).toEqual({ ok: true });
+	for (const view of await views()) expect(view.players[0]).toMatchObject({ total: 50, card: { yahtzee: 50 } });
+	await vi.waitFor(async () => expect((await views())[0].activePlayerId).toBe(guest.id), { timeout: 3500 });
+	game.reset();
+});
+
+it('Skull keeps each stack private until it is turned over', async () => {
+	engineInt = () => 0;
+	const game = await table('skull');
+	const players = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'skull') throw new Error('Expected a Skull view');
+			return frame.view;
+		});
+	}
+	await views();
+	const discs = ['skull', 'flower', 'flower'] as const;
+	for (const [index, player] of players.entries()) {
+		expect(await player.socket.timeout(1000).emitWithAck('game:action', { type: 'ante', disc: discs[index] })).toEqual({ ok: true });
+	}
+	const placed = await views();
+	expect(placed.map(({ myStack }) => myStack)).toEqual([['skull'], ['flower'], ['flower'], []]);
+	expect(placed.at(-1)).toMatchObject({ myHand: [], canAnte: false, legalBids: [] });
+	expect(placed[1].players[0]).toMatchObject({ stackCount: 1, handCount: 3 });
+	expect(await players[0].socket.timeout(1000).emitWithAck('game:action', { type: 'open', amount: 1 })).toEqual({ ok: true });
+	for (const player of players.slice(1)) {
+		expect(await player.socket.timeout(1000).emitWithAck('game:action', { type: 'pass' })).toEqual({ ok: true });
+	}
+	expect((await views())[0].flipTargets).toEqual([players[0].id]);
+	expect(await players[0].socket.timeout(1000).emitWithAck('game:action', { type: 'flip', targetId: players[0].id })).toEqual({ ok: true });
+	for (const view of await views()) {
+		expect(view.flips).toEqual([{ ownerId: players[0].id, disc: 'skull' }]);
+		expect(view.phase).toBe('penalty');
+	}
+	game.reset();
+});
+
+it('Love Letter sends each player only their own hand and plays a legal card', async () => {
+	engineInt = () => 0;
+	const game = await table('love-letter');
+	const [host] = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'love-letter') throw new Error('Expected a Love Letter view');
+			return frame.view;
+		});
+	}
+	const dealt = await views();
+	expect(dealt.map(({ myHand }) => myHand.length)).toEqual([2, 1, 1, 0]);
+	expect(dealt.map(({ moves }) => moves.length > 0)).toEqual([true, false, false, false]);
+	expect(dealt.at(-1)).toMatchObject({ known: [], moves: [] });
+	const [move] = dealt[0].moves;
+	const action = {
+		type: 'play' as const, card: move.card,
+		...(move.targets.length ? { target: move.targets[0] } : {}),
+		...(move.guesses.length ? { guess: move.guesses[0] } : {}),
+	};
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', action)).toEqual({ ok: true });
+	const played = await views();
+	for (const view of played) expect(view.players[0].trail[0]).toEqual({ value: move.card, how: 'played' });
+	game.reset();
+});
+
+it('Sushi Go hides locked picks until everyone has picked', async () => {
+	engineInt = () => 0;
+	const game = await table('sushi-go');
+	const players = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'sushi-go') throw new Error('Expected a Sushi Go view');
+			return frame.view;
+		});
+	}
+	const dealt = await views();
+	expect(dealt.map(({ myHand }) => myHand.length)).toEqual([9, 9, 9, 0]);
+	const picks = dealt.slice(0, 3).map(({ myHand }) => myHand[0].id);
+	expect(await players[0].socket.timeout(1000).emitWithAck('game:action', { type: 'pick', cardIds: [picks[0]] })).toEqual({ ok: true });
+	const locked = await views();
+	expect(locked.map(({ myPick }) => myPick)).toEqual([[picks[0]], null, null, null]);
+	for (const view of locked) expect(view.players[0]).toMatchObject({ locked: true, plate: [] });
+	for (const [index, player] of players.slice(1).entries()) {
+		expect(await player.socket.timeout(1000).emitWithAck('game:action', { type: 'pick', cardIds: [picks[index + 1]] })).toEqual({ ok: true });
+	}
+	for (const view of await views()) {
+		expect(view.phase).toBe('reveal');
+		expect(view.players.map(({ plate }) => plate[0].card.id)).toEqual(picks);
+	}
+	game.reset();
+});
+
+it('The Mind deals private hands and starts play once everyone is ready', async () => {
+	engineInt = seededInt(12);
+	const game = await table('the-mind');
+	const players = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'the-mind') throw new Error('Expected a The Mind view');
+			return frame.view;
+		});
+	}
+	const dealt = await views();
+	expect(dealt.map(({ myHand }) => myHand.length)).toEqual([1, 1, 1, 0]);
+	expect(dealt.at(-1)).toMatchObject({ canReady: false, nextCard: null });
+	for (const player of players) {
+		expect(await player.socket.timeout(1000).emitWithAck('game:action', { type: 'ready', ready: true })).toEqual({ ok: true });
+	}
+	expect((await views()).every(({ phase }) => phase === 'breath')).toBe(true);
+	await vi.waitFor(async () => expect((await views())[0].phase).toBe('playing'), { timeout: 2500 });
+	game.reset();
+});
+
+it('Coup hides each hand and opens a challenge window for a claim', async () => {
+	engineInt = () => 0;
+	const game = await table('coup');
+	const [host, guest] = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'coup') throw new Error('Expected a Coup view');
+			return frame.view;
+		});
+	}
+	const dealt = await views();
+	expect(dealt.map(({ me }) => me?.hand.length ?? null)).toEqual([2, 2, 2, null]);
+	for (const view of dealt) expect(JSON.stringify(view.players)).not.toContain('"character"');
+	expect(dealt[0].me!.actions.map(({ action }) => action)).toContain('tax');
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'declare', action: 'tax' })).toEqual({ ok: true });
+	const open = await views();
+	expect(open.map(({ me }) => me?.respond?.challenge ?? null)).toEqual([null, true, true, null]);
+	const windowId = open[1].window!.id;
+	expect(await guest.socket.timeout(1000).emitWithAck('game:action', { type: 'pass', windowId })).toEqual({ ok: true });
+	expect(await guest.socket.timeout(1000).emitWithAck('game:action', { type: 'pass', windowId })).toMatchObject({ ok: false });
+	expect((await views())[0].window!.passedIds).toEqual([guest.id]);
+	game.reset();
+});
+
+it('Boggle keeps word lists private until the round is scored', async () => {
+	engineInt = seededInt(5);
+	const game = await table('boggle');
+	const [host, guest] = game.players;
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'boggle') throw new Error('Expected a Boggle view');
+			return frame.view;
+		});
+	}
+	const [first] = await views();
+	const [word] = solveBoggle(first.grid);
+	expect(word).toBeDefined();
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'submit', round: 1, word })).toEqual({ ok: true });
+	const listed = await views();
+	expect(listed.map(({ myWords }) => myWords)).toEqual([[word], [], [], []]);
+	for (const view of listed) expect(view.players[0].wordCount).toBe(1);
+	for (const player of game.players) {
+		expect(await player.socket.timeout(1000).emitWithAck('game:action', { type: 'done', round: 1, done: true })).toEqual({ ok: true });
+	}
+	for (const view of await views()) {
+		expect(view.phase).toBe('reveal');
+		expect(view.results.find((result) => result.word === word)).toMatchObject({ playerIds: [host.id] });
+	}
+	expect(guest.id).not.toBe(host.id);
 	game.reset();
 });
 

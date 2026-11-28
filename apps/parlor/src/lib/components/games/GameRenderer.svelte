@@ -19,6 +19,14 @@
   import SignalRelayGame from '@parlor/signal-relay/game-view';
   import NightMarketGame from '@parlor/night-market/game-view';
   import RidgeRunGame from '@parlor/ridge-run/game-view';
+  import BoggleGame from '@parlor/boggle/game-view';
+  import CoupGame from '@parlor/coup/game-view';
+  import TheMindGame from '@parlor/the-mind/game-view';
+  import SushiGoGame from '@parlor/sushi-go/game-view';
+  import LoveLetterGame from '@parlor/love-letter/game-view';
+  import SkullGame from '@parlor/skull/game-view';
+  import YahtzeeGame from '@parlor/yahtzee/game-view';
+  import CantStopGame from '@parlor/cant-stop/game-view';
   import HarborDiceGame from '@parlor/harbor-dice/game-view';
   import FarkleGame from '@parlor/farkle/game-view';
   import WordSplitGame from '@parlor/word-split/game-view';
@@ -64,6 +72,22 @@
   <SignalRelayGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'night-market'}
   <NightMarketGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
+{:else if state.gameId === 'cant-stop'}
+  <CantStopGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
+{:else if state.gameId === 'yahtzee'}
+  <YahtzeeGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
+{:else if state.gameId === 'skull'}
+  <SkullGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
+{:else if state.gameId === 'love-letter'}
+  <LoveLetterGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
+{:else if state.gameId === 'sushi-go'}
+  <SushiGoGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
+{:else if state.gameId === 'the-mind'}
+  <TheMindGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
+{:else if state.gameId === 'coup'}
+  <CoupGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
+{:else if state.gameId === 'boggle'}
+  <BoggleGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'ridge-run'}
   <RidgeRunGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'harbor-dice'}
