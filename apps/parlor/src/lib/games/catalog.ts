@@ -10,6 +10,7 @@ import { golfMeta } from '@parlor/golf/meta';
 import { heartsMeta } from '@parlor/hearts/meta';
 import { spadesMeta } from '@parlor/spades/meta';
 import { euchreMeta } from '@parlor/euchre/meta';
+import { faultLineMeta } from '@parlor/fault-line/meta';
 import { signalRelayMeta } from '@parlor/signal-relay/meta';
 import { nightMarketMeta } from '@parlor/night-market/meta';
 import { ridgeRunMeta } from '@parlor/ridge-run/meta';
@@ -58,6 +59,7 @@ export const catalog: readonly CatalogGame[] = [
   { ...ridgeRunMeta, shelf: 'clay', tagline: 'Climb another step or make camp' },
   { ...nightMarketMeta, shelf: 'linen', tagline: 'Draft goods to sell or display' },
   { ...signalRelayMeta, shelf: 'felt', tagline: 'Route signals together before time runs out' },
+  { ...faultLineMeta, shelf: 'mustard', tagline: 'Hide a cache and bluff the table' },
   { ...wordSplitMeta, shelf: 'ink', tagline: 'Find words only you thought of' },
 ];
 

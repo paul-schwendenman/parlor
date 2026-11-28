@@ -14,7 +14,7 @@ open questions, sources). Traditional games use their established names. Commerc
 | GIN_RUMMY.md | Gin Rummy (`gin-rummy`) | 2 | Auto meld arrangement; meld logic reusable for Rummy 500 |
 | LOVE_LETTER.md | Love Letter (`love-letter`) | 2–6 | 2019 21-card deck default; classic 16-card option |
 | NIGHT_MARKET.md | Night Market (`night-market`) | 2–5 | Simultaneous draft with sell-or-display picks |
-| SKULL.md | Skull (`skull`) | 3–6 | Lost-disc identity must never leak |
+| FAULT_LINE.md | Fault Line (`fault-line`) | 3–6 | Hidden caches, public bounties, and secret openings |
 | COUP.md | Coup (`coup`) | 2–6 | Timed challenge/block windows; 3 FAQ rulings unverified |
 | SIGNAL_RELAY.md | Signal Relay (`signal-relay`) | 2–4 | Cooperative timed antenna routing |
 
@@ -30,7 +30,7 @@ Pinochle, Old Maid, Blackjack.
 - [ ] Love Letter
 - [x] Night Market — Parlor's simultaneous drafting adaptation. Sell goods for coins or display them for stall points.
 - [x] President — fixed seats, private card exchanges, and a shared bot and reveal scheduler. Verified engine, seven-seat socket play, and phone browser flow.
-- [ ] Skull
+- [x] Fault Line — Parlor's hidden-cache bluffing adaptation. Bounties create a public signal before opening choices are locked.
 - [x] Gin Rummy — standard rules, bot play, automatic melds and layoffs, and final bonuses. Verified engine, socket redaction, and phone browser flow.
 - [ ] Coup
 - [x] Signal Relay — Parlor's real-time cooperative adaptation. Clear four relays using two antennas and a shared reroute.
@@ -73,7 +73,7 @@ Easiest/highest-reuse first; each game introduces the kit pieces the later ones 
 5. **Love Letter**: builds `CardFrame` / `CardHand<T>` / `CharacterCard`.
 6. **Night Market**: implemented. Locks private simultaneous picks and reveals them together.
 7. **President**: reuses multi-select hand; 7-player layout.
-8. **Skull**: hidden penalty choice; token stack.
+8. **Fault Line**: implemented. Keeps caches and opening choices private until the reveal.
 9. **Gin Rummy**: meld/layoff solver is the main work.
 10. **Coup**: hardest turn flow (response windows, timers); after #5 for `CharacterCard`.
 11. **Signal Relay**: implemented. Uses server deadlines and rejects stale antenna plays.

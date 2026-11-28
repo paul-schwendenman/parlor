@@ -705,3 +705,33 @@ it('Signal Relay keeps signals private and rejects a transmission to a stale ant
 	expect((await views()).at(-1)?.players.map(({ remaining }) => remaining)).toEqual([1, 1, 2]);
 	game.reset();
 });
+
+it('Fault Line redacts planted caches and private opening choices before the reveal', async () => {
+	engineInt = () => 0;
+	const game = await table('fault-line');
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'fault-line') throw new Error('Expected a Fault Line view');
+			return frame.view;
+		});
+	}
+	await views();
+	const [host, guest, other] = game.players;
+	expect(await host.socket.timeout(1000).emitWithAck('game:action', { type: 'plant', round: 1, cache: 0, bounty: 2 })).toEqual({ ok: true });
+	const planted = await views();
+	expect(planted.map(({ myCache }) => myCache)).toEqual([0, null, null, null]);
+	expect(planted.at(-1)?.players[0]).toMatchObject({ ready: true, bounty: null, chips: 4, history: [] });
+	for (const { socket } of [guest, other]) {
+		expect(await socket.timeout(1000).emitWithAck('game:action', { type: 'plant', round: 1, cache: 2, bounty: 0 })).toEqual({ ok: true });
+	}
+	expect((await views()).at(-1)?.players[0]).toMatchObject({ bounty: 2, chips: 2 });
+	expect(await guest.socket.timeout(1000).emitWithAck('game:action', { type: 'open', round: 1, target: host.id })).toEqual({ ok: true });
+	const opening = await views();
+	expect(opening.map(({ myTarget }) => myTarget)).toEqual([null, host.id, null, null]);
+	for (const { socket } of [host, other]) {
+		expect(await socket.timeout(1000).emitWithAck('game:action', { type: 'open', round: 1, target: null })).toEqual({ ok: true });
+	}
+	expect((await views()).at(-1)?.last[0]).toEqual({ id: host.id, cache: 0, target: null, points: 2 });
+	game.reset();
+});

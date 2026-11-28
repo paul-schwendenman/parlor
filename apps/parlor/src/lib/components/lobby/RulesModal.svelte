@@ -148,6 +148,16 @@
         <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
       </section>
 
+    {:else if gameId === 'fault-line'}
+      <section>
+        <h3>Plant a hidden cache</h3>
+        <p>Each player starts with two faults, two silver caches, and two gold caches. Plant one each round and offer up to two of your four bounty chips. The offer is public once all caches are planted.</p>
+      </section>
+      <section>
+        <h3>Open a rival cache or pass</h3>
+        <p>Silver pays one point and gold pays two, plus the posted bounty. A fault costs the opener one point. Owners earn two points per opener on a fault and one per opener on a safe cache. An unopened cache scores its printed value for its owner.</p>
+        <p>Reveal everyone's choices together. After six rounds the highest score wins. Ties share the win.</p>
+      </section>
     {:else if gameId === 'signal-relay'}
       <section>
         <h3>Send signals together</h3>

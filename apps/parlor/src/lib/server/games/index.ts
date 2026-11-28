@@ -15,6 +15,7 @@ import { golfDefinition } from '@parlor/golf/server-definition';
 import { heartsDefinition } from '@parlor/hearts/server-definition';
 import { kingsCornerDefinition } from '@parlor/kings-corner/server-definition';
 
+import { faultLineDefinition } from '@parlor/fault-line/server-definition';
 import { signalRelayDefinition } from '@parlor/signal-relay/server-definition';
 import { nightMarketDefinition } from '@parlor/night-market/server-definition';
 import { ridgeRunDefinition } from '@parlor/ridge-run/server-definition';
@@ -37,6 +38,7 @@ export function registerAllGames(): void {
 	registerGame(ridgeRunDefinition);
 	registerGame(nightMarketDefinition);
 	registerGame(signalRelayDefinition);
+	registerGame(faultLineDefinition);
 	registerGame(golfDefinition);
 	registerGame(ginRummyDefinition);
 	registerGame(presidentDefinition);
