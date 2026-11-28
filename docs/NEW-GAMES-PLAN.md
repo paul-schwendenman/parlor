@@ -30,7 +30,7 @@ Pinochle, Old Maid, Blackjack.
 - [ ] Can't Stop
 - [ ] Love Letter
 - [ ] Sushi Go
-- [ ] President
+- [x] President — fixed seats, private card exchanges, and a shared bot and reveal scheduler. Verified engine and seven-seat socket play.
 - [ ] Skull
 - [ ] Gin Rummy
 - [ ] Coup

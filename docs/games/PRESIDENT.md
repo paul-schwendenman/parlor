@@ -1,6 +1,6 @@
 # President
 
-> Implementation brief, 2026-11-27. Rules verified against Pagat (primary). Nothing here is shipped yet.
+> Implementation brief, 2026-11-27. Rules verified against Pagat (primary). Parlor ships the fixed-seat, 11-point default. The engine supports variants, and the lobby currently uses the defaults.
 
 ## 1. Overview
 

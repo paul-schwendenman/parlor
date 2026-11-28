@@ -1,25 +1,13 @@
 import {
-  defineGame, hasExactKeys, invalid, RoomManager, valid, validateByType,
-  type GameContext, type PlayerContext, type TypedGameDefinition,
+  createTurnDriver, defineGame, hasExactKeys, invalid, RoomManager, valid, validateByType,
+  type PlayerContext, type TypedGameDefinition,
 } from '@parlor/multiplayer';
 import { GolfEngine } from './engine.js';
 import { golfMeta } from './meta.js';
 import { SLOT_COUNT } from './rules.js';
 import type { GolfAction } from './types.js';
 
-const STEP = 'golf-step';
-
-function drive(game: GameContext<GolfEngine>) {
-  const { state, instance } = game;
-  instance.cancel(STEP);
-  if (!state.revealing && !state.automaticMove()) return;
-  instance.schedule(() => {
-    if (state.revealing) state.advanceReveal();
-    else state.automaticMove()?.();
-    game.broadcast();
-    drive(game);
-  }, state.revealing ? 6000 : 700, STEP);
-}
+const drive = createTurnDriver<GolfEngine>('golf-step', 700, (state) => state.revealing ? 6000 : undefined);
 
 function act(game: PlayerContext<GolfEngine>, action: GolfAction) {
   game.state.act(game.playerId, action);

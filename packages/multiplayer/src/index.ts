@@ -84,3 +84,4 @@ export { scheduleAbsentTurn, ABSENT_TURN_SLOT, type AbsentTurnPolicy } from './a
 
 export { allowSocketRequest, RATE_LIMIT_MESSAGE } from './rateLimit.js';
 export { setupFatalProcessHandlers } from './processSafety.js';
+export { createTurnDriver } from './turnDriver.js';

@@ -9,6 +9,7 @@
   import EuchreGame from '@parlor/euchre/game-view';
   import OhHellGame from '@parlor/oh-hell/game-view';
   import SpadesGame from '@parlor/spades/game-view';
+  import PresidentGame from '@parlor/president/game-view';
   import GolfGame from '@parlor/golf/game-view';
   import HeartsGame from '@parlor/hearts/game-view';
   import FarkleGame from '@parlor/farkle/game-view';
@@ -47,6 +48,8 @@
   <KingsCornerGame view={state.view} {socket} {playerId} />
 {:else if state.gameId === 'farkle'}
   <FarkleGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
+{:else if state.gameId === 'president'}
+  <PresidentGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'golf'}
   <GolfGame view={state.view} {socket} {playerId} isHost={!!playerId && lobbyState.hostId === playerId} />
 {:else if state.gameId === 'word-split'}

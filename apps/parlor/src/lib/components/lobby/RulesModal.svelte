@@ -166,6 +166,17 @@
         <h3>Final turns</h3>
         <p>When someone banks 10,000 points or more, everyone else gets one last turn. The highest score wins, with ties shared.</p>
       </section>
+    {:else if gameId === 'president'}
+      <section>
+        <h3>Beat the standing set</h3>
+        <p>Lead with a single card or several of the same rank. On your turn, play the same number of cards at a higher rank or pass. Twos are highest, followed by aces and kings. You may play later in the trick if someone beats the standing set.</p>
+        <p>When everyone else still in the hand passes, the last player to play leads next. If they have emptied their hand, the lead moves clockwise to the next player with cards.</p>
+      </section>
+      <section>
+        <h3>Empty your hand first</h3>
+        <p>The first player out becomes President and earns two points. The second earns one point. In the next hand, the last-place player gives the President their highest card. The President returns any card and leads.</p>
+        <p>Finish the hand in which someone reaches 11 points. The highest score wins. Final-hand placement breaks ties.</p>
+      </section>
     {:else if gameId === 'golf'}
       <section>
         <h3>Set up your grid</h3>

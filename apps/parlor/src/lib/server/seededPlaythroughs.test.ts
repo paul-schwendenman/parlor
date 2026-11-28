@@ -63,7 +63,7 @@ async function table(gameId: GameId) {
 	if (!address || typeof address === 'string') throw new Error('Expected TCP address');
 
 	const recipients: Recipient[] = [];
-	for (let index = 0; index < (gameId === 'golf' ? 7 : gameId === 'hearts' ? 6 : 5); index++) {
+	for (let index = 0; index < (gameId === 'president' ? 9 : gameId === 'golf' ? 7 : gameId === 'hearts' ? 6 : 5); index++) {
 		const socket: Client = io(`http://127.0.0.1:${address.port}`, {
 			transports: ['websocket'], autoConnect: false, reconnection: false, timeout: 1000,
 		});
@@ -539,5 +539,34 @@ it('Golf redacts every hidden slot through a five-seat hole over the socket', as
 	}
 	expect(current.at(-1)?.phase).toBe('hole-scoring');
 	expect(current.at(-1)?.players.every(({ grid }) => grid.every(Boolean))).toBe(true);
+	game.reset();
+});
+
+it('President sends seven private hands and a public play, then clears after all other seats pass', async () => {
+	engineInt = seededInt(420);
+	const game = await table('president');
+	async function views() {
+		return (await game.collect()).map(({ frames }) => {
+			const frame = frames.at(-1);
+			if (frame?.gameId !== 'president') throw new Error('Expected a President view');
+			return frame.view;
+		});
+	}
+	const dealt = await views();
+	const spectator = dealt.at(-1)!;
+	expect(spectator).toMatchObject({ myHand: [], legalPlays: [], received: [], mustReturn: 0 });
+	const hands = dealt.slice(0, -1).flatMap(({ myHand }) => myHand);
+	expect(new Set(hands.map(({ rank, suit }) => rank + suit)).size).toBe(52);
+	const first = game.players.findIndex(({ id }) => id === spectator.activePlayerId);
+	const card = dealt[first].myHand[0];
+	expect(await game.players[first].socket.timeout(1000).emitWithAck('game:action', { type: 'play', cards: [card] }))
+		.toEqual({ ok: true });
+	const played = await views();
+	expect(played.every(({ trick }) => trick[0].cards[0].rank === card.rank && trick[0].cards[0].suit === card.suit)).toBe(true);
+	for (let offset = 1; offset < 7; offset++) {
+		const { socket } = game.players[(first + offset) % 7];
+		expect(await socket.timeout(1000).emitWithAck('game:action', { type: 'pass' })).toEqual({ ok: true });
+	}
+	expect((await views()).at(-1)?.phase).toBe('trick-cleared');
 	game.reset();
 });
