@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ParlorMark from '$lib/components/ui/ParlorMark.svelte';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/stores';
@@ -175,7 +176,7 @@
 
 <header class="lid">
   <div class="lid-inner">
-    <h1 class="wordmark">Parlor</h1>
+    <h1 class="wordmark"><ParlorMark />Parlor</h1>
     <p class="tagline">Game night, anywhere</p>
   </div>
 </header>
@@ -380,6 +381,9 @@
 
   .wordmark {
     margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.2em;
     font-family: var(--font-heading);
     font-weight: 900;
     font-size: clamp(3.5rem, 14vw, 4.75rem);

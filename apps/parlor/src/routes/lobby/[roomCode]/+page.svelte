@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ParlorMark from '$lib/components/ui/ParlorMark.svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
@@ -556,7 +557,7 @@
   <header class="lid">
     <div class="lid-inner">
       <div class="lid-bar">
-        <a href={resolve('/')} class="wordmark">PARLOR</a>
+        <a href={resolve('/')} class="wordmark"><ParlorMark />PARLOR</a>
       </div>
     </div>
   </header>
@@ -594,7 +595,7 @@
   <header class="lid" class:wide={!!selectedGame || !!ballot}>
     <div class="lid-inner">
       <div class="lid-bar">
-        <a href={resolve('/')} class="wordmark">PARLOR</a>
+        <a href={resolve('/')} class="wordmark"><ParlorMark />PARLOR</a>
         {#if playerState.roomCode === roomCode}<LeaveRoomButton />{/if}
       </div>
 
@@ -1058,6 +1059,7 @@
     /* 44px hit area without a heavier lid: the text stays the same size. */
     display: inline-flex;
     align-items: center;
+    gap: 0.3em;
     min-height: 44px;
   }
 
@@ -2390,6 +2392,7 @@
     align-self: center;
     display: inline-flex;
     align-items: center;
+    gap: 0.3em;
     min-height: 44px;
     font-weight: 700;
     color: var(--color-espresso);

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ParlorMark from '$lib/components/ui/ParlorMark.svelte';
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
@@ -68,7 +69,7 @@
 
 <header class="lid">
   <div class="lid-inner">
-    <span class="wordmark">PARLOR</span>
+    <span class="wordmark"><ParlorMark />PARLOR</span>
     {#if playerState.roomCode === roomCode}
       <span class="code">
         <span class="sr-only">Room code {roomCode}</span>
@@ -138,6 +139,9 @@
     line-height: 1;
     letter-spacing: -0.02em;
     color: var(--color-cream);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
   }
 
   /* The room code as letter tiles, scaled down for the slim lid. */
