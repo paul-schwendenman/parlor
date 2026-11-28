@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./meta": "./src/meta.ts",
+    "./scoring": "./src/lib/game/scoring.ts",
     "./server-definition": "./src/lib/server/definition.ts",
     "./game-view": "./src/lib/components/game/GameView.svelte"
   },

@@ -7,6 +7,8 @@ import { kingsCornerMeta } from '@parlor/kings-corner/meta';
 import { heartsMeta } from '@parlor/hearts/meta';
 import { spadesMeta } from '@parlor/spades/meta';
 import { euchreMeta } from '@parlor/euchre/meta';
+import { farkleMeta } from '@parlor/farkle/meta';
+import { wordSplitMeta } from '@parlor/word-split/meta';
 import { ohHellMeta } from '@parlor/oh-hell/meta';
 
 /**
@@ -41,6 +43,8 @@ export const catalog: readonly CatalogGame[] = [
   { ...spadesMeta, shelf: 'ink', tagline: 'Team up and win the tricks you bid' },
   { ...euchreMeta, shelf: 'felt', tagline: 'Team up, call trump, take 3 tricks' },
   { ...ohHellMeta, shelf: 'mustard', tagline: 'Bid your tricks, then hit it exactly' },
+  { ...farkleMeta, shelf: 'linen', tagline: 'Bank your dice points or roll again' },
+  { ...wordSplitMeta, shelf: 'ink', tagline: 'Find words only you thought of' },
 ];
 
 export function findGame(id: string | null | undefined): CatalogGame | undefined {

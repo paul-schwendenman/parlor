@@ -46,7 +46,8 @@
   });
 
   let view = $derived(inRoom ? gameState.state : null);
-  let gameName = $derived(findGame(view?.gameId)?.name ?? '');
+  let game = $derived(findGame(view?.gameId));
+  let gameName = $derived(game?.name ?? '');
   let rulesOpen = $state(false);
   let hadView = false;
 
@@ -84,6 +85,9 @@
           <button type="button" class="rules-btn" onclick={() => (rulesOpen = true)} aria-label="How to play {gameName}" title="How to play">
             <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
           </button>
+        {/if}
+        {#if game?.displayModes.includes('jackbox') && playerState.id}
+          <a class="shared-screen" href={resolve('/watch/[roomCode]', { roomCode })} target="_blank" rel="noopener">Shared screen</a>
         {/if}
         <LeaveRoomButton />
       </div>
@@ -207,6 +211,8 @@
     white-space: nowrap;
     border: 0;
   }
+
+  .shared-screen { color: var(--color-espresso); background: var(--color-cream); border: 2px solid currentColor; border-radius: 999px; padding: 0 12px; min-height: 44px; display: inline-flex; align-items: center; font-weight: 800; text-decoration: none; }
 
   .spectating {
     padding: 4px 10px;

@@ -9,6 +9,6 @@ export const heartsMeta: GameMeta & { id: 'hearts' } = {
   maxPlayers: 4,
   estimatedMinutes: '25-40',
   tags: ['cards', 'classic', 'strategy'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

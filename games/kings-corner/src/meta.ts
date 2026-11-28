@@ -8,6 +8,6 @@ export const kingsCornerMeta: GameMeta & { id: 'kings-corner' } = {
   maxPlayers: 4,
   estimatedMinutes: '15-25',
   tags: ['cards', 'classic', 'strategy'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

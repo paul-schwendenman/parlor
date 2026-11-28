@@ -9,6 +9,6 @@ export const spadesMeta: GameMeta & { id: 'spades' } = {
   maxPlayers: 4,
   estimatedMinutes: '30-45',
   tags: ['cards', 'teams', 'strategy'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };

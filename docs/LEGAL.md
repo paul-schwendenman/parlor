@@ -6,6 +6,12 @@ This document is not legal advice. It summarizes general principles around intel
 
 ---
 
+## Current Policy (2026-11-27)
+
+Parlor is private and invite-only, so games ship under their **real names with their original card and character names** (Quixx ships as "Quixx"). What we do *not* reuse: rulebook wording (always paraphrase rules in our own words), artwork, and graphic design/layout. The renaming guidance below is the plan for **before any public or monetized launch**; it is not a requirement for new games today.
+
+---
+
 ## The Short Version
 
 - **Game mechanics and rules cannot be copyrighted** (in the US and most jurisdictions)
