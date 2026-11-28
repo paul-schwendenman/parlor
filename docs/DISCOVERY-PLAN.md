@@ -36,12 +36,13 @@ Same as LOBBY-PLAN: one PR-sized phase at a time, agents never commit, UI phases
 
 Direction chosen 2026-11-28 from an impeccable decision round (three layouts sketched, desktop and phone): **Ask the table**. The filters are the host's questions, not a facet sidebar. Contract: `apps/parlor/.impeccable/surfaces/src-routes-games-page-svelte.md`. User picks: labelled rows on phones (every option visible), no counts on chips (empty options dimmed instead).
 
-- [x] `lib/components/discovery/GameFilters.svelte`: the question sheet. "How many of you?" as mustard room-code tiles + Any; "How long have you got?"; "Cards or dice?" (becomes "What kind of game?" once there are 3+ kinds); "More: strategy, teams" disclosure for "How much to learn?" and "Teams or free-for-all?". Questions and options only appear when some game uses them. Toggle buttons with `aria-pressed`; tapping the current answer clears it; options that would empty the list are dimmed (opacity, "(none fit)" for screen readers) but still tappable. "Start over" when anything is set. Controlled: `filters` + `onchange`.
+- [x] `lib/components/discovery/GameFilters.svelte`: the question sheet. "How many of you?" as mustard room-code tiles + Any; "How long have you got?"; "Cards or dice?" (becomes "What kind of game?" once there are 3+ kinds); "More: strategy, teams" disclosure for "How much to learn?" and "Teams or free-for-all?". Questions and options only appear when some game uses them. Toggle buttons with `aria-pressed`; tapping the current answer clears it; options that would empty the list get a dashed Faded Ink outline and text ("(none fit)" for screen readers) but still tappable. "Start over" when anything is set. Controlled: `filters` + `onchange`.
 - [x] Search lives in the page's lid, not the component (the lobby will want its own placement).
 - [x] `/games`: lid (wordmark → home, "Find a game", search), the sheet overlapping the lid, "N games fit" (polite live region) + sort select, home shelf blocks two-up (one on phones). URL is the state via `replaceState` (no history entry per tap; a deliberate change from the original pushState idea). Phone and desktop: once the sheet scrolls away a sticky bar shows "5 games fit · 4 players · 20–30 min" with Change (scrolls back, focuses the sheet).
 - [x] Empty state: dashed linen box, "Try loosening one answer" with one pill per answer that would bring games back, and their count ("Any number of players · 2 games"), then Start over.
 - [x] Extracted `GameCard.svelte` and `CreateRoomDialog.svelte` from the home page (home now uses both; behaviour unchanged, smoke e2e passes). Home shelf links to `/games` ("Browse all 9 games").
 - [x] `filterSummary()` in `discovery.ts` (+ test). E2E `e2e/browseGames.test.ts`: link from home, answers narrow + URL, tap-to-clear, search, Start over, deep link + empty state, Start game → dialog.
+- Open from the finish review (not material): no motion when answers narrow the results (e.g. `animate:flip`), and the count isn't staged against the tiles.
 - Not done from the old phase 3 list: grouping results under kind headings (the shelf order already clusters them and the sketch didn't group; revisit past ~15 games).
 
 ## Phase 4: Home shelf
@@ -73,9 +74,12 @@ Direction chosen 2026-11-28 from an impeccable decision round (three layouts ske
 | Date | Phase | Summary | Commit |
 |------|-------|---------|--------|
 | 2026-11-27 | 1 | Structured meta (`kind`, `weight`, `format`, `minutes`), nine games migrated, `discovery.ts` + 23 tests, home tag line, ADDING_GAMES | b8915ec |
-| 2026-11-28 | 2+3 | Ask the table: GameFilters sheet, `/games` with URL state, sticky answers bar, empty state; GameCard + CreateRoomDialog extracted; e2e | phase 2+3 commit |
+| 2026-11-28 | 2+3 | Ask the table: GameFilters sheet, `/games` with URL state, sticky answers bar, empty state; GameCard + CreateRoomDialog extracted; e2e | bc02de4 |
+| 2026-11-28 | merge | Merged main (Farkle, Word Split, shared TV screens). Kept structured meta + main's `['peer', 'jackbox']`; ported Farkle (dice) and Word Split (word, 2–8 players); new-game briefs in `docs/games/` now specify the new fields | b67e7ad |
+| 2026-11-28 | 2+3 review | Impeccable finish review: dimmed options now dashed Faded Ink (opacity failed contrast), lid baseline, "More questions", Start over closes the sheet, no sort on an empty result; 2–8 player tiles fit (980px page, even phone grid). Verdict: ship | review commit |
 
 ## Notes
 
 - Category judgement calls (review): weights — Quixx, Crazy Eights, Kings Corner, Liar's Dice, Booty Dice light; Hearts, Spades, Euchre, Oh Hell medium. Nothing is heavy yet, so `weightsInUse` hides that chip until a game uses it (the same goes for unused kinds and the Co-op format).
+- Word Split made the shelf three kinds, so the third question reads "What kind of game?" (Cards / Dice / Word / Any), and seats 2–8, so the tiles run to 8.
 - `PRODUCT.md` rules out *public room* discovery; this plan is about finding games, not strangers' rooms, so it's compatible.

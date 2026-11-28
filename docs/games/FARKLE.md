@@ -256,7 +256,7 @@ class FarkleEngine {
 
 **Package:** `@parlor/farkle`, id `farkle`, folder `games/farkle/` (a draft already exists, untracked). Layout per docs/ADDING_GAMES.md §1: `package.json` (no `@parlor/cards`), `tsconfig.json`, `turbo.json`, `src/{types,meta,rules,engine,definition}.ts`, `src/GameView.svelte`.
 
-**Meta:** as in the draft (`minPlayers 2`, `maxPlayers 6`, `estimatedMinutes '15-30'`, `tags ['dice','classic']`, `displayModes ['peer']`, `supportsBots true`). Description: "Roll six dice, keep the scorers, and bank before a bust wipes your turn." Catalog tagline: "Push your luck to 10,000 points".
+**Meta:** as in the draft (`minPlayers 2`, `maxPlayers 6`, `minutes { min: 15, max: 30 }`, `kind 'dice'`, `weight 'light'`, `format 'individual'`, `tags ['push your luck','classic']`, `displayModes ['peer']`, `supportsBots true`). Description: "Roll six dice, keep the scorers, and bank before a bust wipes your turn." Catalog tagline: "Push your luck to 10,000 points".
 
 **rules.ts (pure, imported by the board for the live preview):**
 ```ts

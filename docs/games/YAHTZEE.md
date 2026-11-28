@@ -4,7 +4,7 @@ Status: implementation-ready brief, 2026-11-27. Replaces the pre-platform draft.
 
 ## 1. Overview
 
-Five dice, up to three rolls a turn, and a 13-box scorecard. On each turn a player rolls, holds any dice, re-rolls the rest up to twice, then must write a score in one empty box. After 13 rounds every box is full and the highest total wins. **2–6 players** (bots can fill seats), about **3–5 minutes per player** (13 turns of ~20 s), so `estimatedMinutes: '15-35'`. **Peer mode** only (every player on their own phone; the platform has no Jackbox mode yet). No hidden information: every die, hold and scorecard is public.
+Five dice, up to three rolls a turn, and a 13-box scorecard. On each turn a player rolls, holds any dice, re-rolls the rest up to twice, then must write a score in one empty box. After 13 rounds every box is full and the highest total wins. **2–6 players** (bots can fill seats), about **3–5 minutes per player** (13 turns of ~20 s), so `minutes: { min: 15, max: 35 }`. **Peer mode** only (every player on their own phone; the platform has no Jackbox mode yet). No hidden information: every die, hold and scorecard is public.
 
 Why it fits Parlor: everyone already knows it (grandparents and 8-year-olds alike), turns are short and readable while you wait, the luck/choice balance suits mixed-age tables, and it is the classic of the roll-and-write shelf next to Quixx. Its only hard part (the scorecard on a phone) is solved below the same way Quixx solved its sheet.
 
@@ -244,7 +244,7 @@ Copy `games/hearts` (new-style package) per docs/ADDING_GAMES.md.
 | `games/yahtzee/package.json` | `@parlor/yahtzee`; exports `./meta`, `./server-definition`, `./game-view`. No `@parlor/cards`. |
 | `tsconfig.json`, `turbo.json` | copy from `games/hearts` unchanged |
 | `src/types.ts` | §5 view/actions + module registration |
-| `src/meta.ts` | `{ id:'yahtzee', name:'Yahtzee', description:'Roll five dice up to three times and fill a 13-box scorecard. Most points wins.', minPlayers:2, maxPlayers:6, estimatedMinutes:'15-35', tags:['dice','classic','family'], displayModes:['peer'], supportsBots:true }` |
+| `src/meta.ts` | `{ id:'yahtzee', name:'Yahtzee', description:'Roll five dice up to three times and fill a 13-box scorecard. Most points wins.', minPlayers:2, maxPlayers:6, minutes:{ min:15, max:35 }, kind:'dice', weight:'light', format:'individual', tags:['classic', 'roll and write'], displayModes:['peer'], supportsBots:true }` |
 | `src/rules.ts` | `baseScore`, `scoreOptions`, `totals` (pure; GameView imports `totals`, labels) |
 | `src/bot.ts` | §9 strategy, pure function `(card, dice, held, rollsUsed, options) => BotStep` |
 | `src/engine.ts` | class per §5, `secureRandomInt` default, `GameRuleError` |

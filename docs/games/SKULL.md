@@ -272,7 +272,7 @@ All actions are **turn-based** except `ante`, which every live player does at on
 |---|---|---|
 | `package.json`, `tsconfig.json`, `turbo.json` | standard | `games/hearts/` |
 | `src/types.ts` | Section 5 types + `declare module '@parlor/game-types'` | `games/hearts/src/types.ts` |
-| `src/meta.ts` | `name: 'Skull'`, `minPlayers: 3`, `maxPlayers: 6`, `estimatedMinutes: '15-30'`, `tags: ['bluffing', 'party']`, `displayModes: ['peer']`, `supportsBots: true` | `games/hearts/src/meta.ts` |
+| `src/meta.ts` | `name: 'Skull'`, `minPlayers: 3`, `maxPlayers: 6`, `minutes: { min: 15, max: 30 }`, `kind: 'party'`, `weight: 'light'`, `format: 'individual'`, `tags: ['bluffing']`, `displayModes: ['peer']`, `supportsBots: true` | `games/hearts/src/meta.ts` |
 | `src/rules.ts` | Pure helpers: `totalOnMats`, `legalBids`, `flipTargets`, `nextLiveSeat`, `nextStarter(result)` | `games/hearts/src/rules.ts` |
 | `src/bot.ts` (or inside engine) | Section 9 | `automaticMove` in `games/hearts/src/engine.ts` |
 | `src/engine.ts` | `SkullEngine(players, randomInt = secureRandomInt, options = DEFAULTS)`: `ante/place/open/raise/pass/flip/loseDisc/chooseStarter`, `advanceReveal`, `automaticMove`, `setConnected`, `view` | `games/hearts/src/engine.ts` |

@@ -44,7 +44,7 @@
       ? 'Teams or free-for-all?'
       : 'How do you want to play?',
   );
-  let moreQuestions = $derived([weights.length > 1 ? 'strategy' : null, formats.length > 1 ? 'teams' : null].filter(Boolean));
+  let moreQuestions = $derived([weights.length > 1 ? 'how much to learn' : null, formats.length > 1 ? 'teams' : null].filter(Boolean));
   let moreAnswered = $derived((filters.weight ? 1 : 0) + (filters.format ? 1 : 0));
   // Open the fold when a link arrives with one of its answers set; after
   // that it's the visitor's to open and close.
@@ -81,7 +81,7 @@
   {#if players.length > 1}
     <div class="question" role="group" aria-labelledby="{id}-players">
       <span class="q" id="{id}-players">How many of you?</span>
-      <div class="answers">
+      <div class="answers tiles">
         {#each players as n (n)}
           {@const empty = counts.players[n] === 0 && filters.players !== n}
           <button type="button" class="tile" class:empty aria-pressed={filters.players === n} onclick={() => pick('players', n)}>
@@ -122,10 +122,10 @@
       {#if moreQuestions.length}
         <button type="button" class="more-toggle" aria-expanded={moreOpen} aria-controls="{id}-more" onclick={() => (moreOpen = !moreOpen)}>
           <svg class="chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
-          More: {moreQuestions.join(', ')}{#if moreAnswered && !moreOpen}&nbsp;({moreAnswered}){/if}
+          More questions{#if moreAnswered && !moreOpen}&nbsp;({moreAnswered} answered){/if}
         </button>
       {/if}
-      {#if anything}
+      {#if anything && !moreOpen}
         <button type="button" class="start-over" onclick={startOver}>Start over</button>
       {/if}
     </div>
@@ -156,6 +156,9 @@
         </div>
       {/if}
     </div>
+  {/if}
+  {#if anything && moreOpen}
+    <button type="button" class="start-over start-over-last" onclick={startOver}>Start over</button>
   {/if}
 </section>
 
@@ -207,8 +210,8 @@
 
   /* Player count: the room code's mustard letter tiles. */
   .tile {
-    width: 58px;
-    height: 58px;
+    width: 54px;
+    height: 56px;
     border: 2px solid var(--color-espresso);
     border-radius: 10px;
     background: var(--color-mustard-tint);
@@ -255,9 +258,18 @@
     color: var(--color-cream);
   }
 
-  /* Would leave no games with the other answers: still tappable, just quiet. */
-  .empty {
-    opacity: 0.4;
+  /* Would leave no games with the other answers: still tappable, just quiet.
+     A dashed Faded Ink outline, as for seats that aren't a real person, keeps
+     the label at 4.5:1 instead of fading the whole control. */
+  .chip.empty,
+  .tile.empty {
+    border-style: dashed;
+    border-color: var(--color-ink-muted);
+    color: var(--color-ink-muted);
+  }
+
+  .tile.empty {
+    background: var(--color-paper);
   }
 
   @media (hover: hover) {
@@ -300,11 +312,13 @@
   }
 
   .start-over {
+    align-self: flex-end;
     margin-left: auto;
     margin-right: -6px;
     text-decoration: underline;
     text-decoration-thickness: 2px;
     text-underline-offset: 0.25em;
+    white-space: nowrap;
   }
 
   .more-toggle:active,
@@ -369,8 +383,14 @@
       gap: 6px;
     }
 
+    /* Tiles share an even grid, so a second row (7, 8, Any) lines up. */
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+    }
+
     .tile {
-      width: 46px;
+      width: auto;
       height: 50px;
       font-size: 1.5rem;
     }

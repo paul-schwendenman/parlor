@@ -139,14 +139,14 @@
   <section class="results" aria-labelledby="results-title">
     <div class="results-head">
       <h2 id="results-title" class="results-title" aria-live="polite" aria-atomic="true">{countLine}</h2>
-      <label class="sort">
+      {#if results.length}<label class="sort">
         <span class="sr-only">Sort games</span>
         <select bind:value={sort}>
           {#each GAME_SORTS as s (s)}
             <option value={s}>{sortLabels[s]}</option>
           {/each}
         </select>
-      </label>
+      </label>{/if}
     </div>
 
     {#if results.length}
@@ -171,7 +171,10 @@
             {/each}
           </ul>
         {/if}
-        <button type="button" class="link" onclick={() => (filters = { ...emptyFilters, kinds: [] })}>Start over</button>
+        {#if !loosen.length}
+          <!-- Nothing to loosen one answer at a time: the sheet's Start over is the way out, said here too. -->
+          <button type="button" class="link" onclick={() => (filters = { ...emptyFilters, kinds: [] })}>Start over</button>
+        {/if}
       </div>
     {/if}
   </section>
@@ -197,7 +200,7 @@
   }
 
   .lid-inner {
-    max-width: 900px;
+    max-width: 980px;
     margin: 0 auto;
     padding: 24px 20px 92px;
     box-sizing: border-box;
@@ -215,7 +218,6 @@
 
   .wordmark {
     display: flex;
-    align-items: center;
     gap: 0.2em;
     font-family: var(--font-heading);
     font-weight: 900;
@@ -225,7 +227,14 @@
     text-transform: uppercase;
     color: var(--color-cream);
     text-decoration: none;
-    min-height: 44px;
+    /* 44px target without a min-height, so the mark centres on the word. */
+    padding-block: 7px;
+    /* Baseline-align on the word so "Find a game" sits on the same line. */
+    align-items: baseline;
+  }
+
+  .wordmark :global(.parlor-mark) {
+    align-self: center;
   }
 
   .wordmark:focus-visible {
@@ -280,7 +289,7 @@
   }
 
   .page {
-    max-width: 900px;
+    max-width: 980px;
     margin: -70px auto 0;
     padding: 0 20px 48px;
     box-sizing: border-box;
@@ -346,7 +355,7 @@
   }
 
   .sticky-inner {
-    max-width: 900px;
+    max-width: 980px;
     margin: 0 auto;
     padding: 10px 20px;
     box-sizing: border-box;
