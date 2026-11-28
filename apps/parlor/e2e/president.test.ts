@@ -28,8 +28,8 @@ test('a President player selects and confirms a play on a phone', async ({ page 
     await expect(page.getByText('Your turn', { exact: true })).toBeVisible({ timeout: 20_000 });
   }
   const before = await hand.getByRole('button').count();
-  // Select a card near the top of the stack so overlapping neighbours stay reachable.
-  await playable.last().click();
+  // Tap the exposed rank strip of a card in the overlapping hand.
+  await playable.last().click({ position: { x: 8, y: 20 } });
   await page.getByRole('button', { name: /^Play (?!cards)/ }).click();
   await expect.poll(async () => await hand.getByRole('button').count() + await hand.getByRole('img').count())
     .toBeLessThan(before);

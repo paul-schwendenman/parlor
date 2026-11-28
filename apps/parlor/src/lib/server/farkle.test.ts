@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FarkleEngine } from '../../../../../games/farkle/src/engine.js';
-import { scoreDice } from '../../../../../games/farkle/src/rules.js';
+import { DEFAULT_RULES, scoreDice } from '../../../../../games/farkle/src/rules.js';
 
 const seats = [
   { id: 'a', name: 'Alex', bot: false },
@@ -37,7 +37,7 @@ describe('Farkle', () => {
     expect(() => engine.act('a', { type: 'bank' })).toThrow(/500/);
     engine.act('a', { type: 'roll' });
     expect(engine.view()).toMatchObject({ phase: 'bust', turnScore: 100 });
-    engine.advanceTurn();
+    engine.advanceReveal();
     expect(engine.view()).toMatchObject({ phase: 'ready', turnScore: 0, activePlayerId: 'b' });
     expect(engine.view().players.map(({ score }) => score)).toEqual([0, 0]);
   });
@@ -52,11 +52,11 @@ describe('Farkle', () => {
     for (let roll = 0; roll < 4; roll++) keepSix('a');
     engine.act('a', { type: 'bank' });
     expect(engine.view()).toMatchObject({ finalRound: true, nextPlayerId: 'b' });
-    engine.advanceTurn();
+    engine.advanceReveal();
     expect(engine.view()).toMatchObject({ activePlayerId: 'b', nextPlayerId: null });
     for (let roll = 0; roll < 5; roll++) keepSix('b');
     engine.act('b', { type: 'bank' });
-    engine.advanceTurn();
+    engine.advanceReveal();
     expect(engine.gameOver).toBe(true);
     expect(engine.view().players.map(({ score }) => score)).toEqual([12000, 15000]);
   });
@@ -76,5 +76,44 @@ describe('Farkle', () => {
     expect(engine.automaticAction()).toBeNull();
     engine.setConnected('a', true);
     expect(engine.automaticAction()).toBeNull();
+  });
+});
+
+describe('Farkle variants', () => {
+  it('scores the best partition with custom multiples and whole-roll bonuses', () => {
+    expect(scoreDice([1, 1, 1, 1, 1], { ...DEFAULT_RULES, multiples: 'doubling' })).toBe(4000);
+    expect(scoreDice([1, 1, 1, 1, 2, 2], { ...DEFAULT_RULES, multiples: 'doubling', fourAndPair: 0 })).toBe(0);
+    expect(scoreDice([2, 2, 3, 3, 6, 6], { ...DEFAULT_RULES, threePairs: 0, sixDiceNothing: 500 })).toBe(500);
+    expect(scoreDice([1, 1, 1], { ...DEFAULT_RULES, threeOnes: 300 })).toBe(300);
+  });
+
+  it('enforces hot-dice rerolls and ends immediately with first-to-target', () => {
+    const game = new FarkleEngine(seats, () => 0, { target: 5000, ending: 'first-to-target', hotDice: 'must-roll' });
+    game.act('a', { type: 'roll' });
+    game.act('a', { type: 'keep', indices: [0, 1, 2, 3, 4, 5] });
+    expect(() => game.act('a', { type: 'bank' })).toThrow(/hot dice/);
+    game.act('a', { type: 'roll' });
+    game.act('a', { type: 'keep', indices: [0, 1, 2, 3, 4] });
+    game.act('a', { type: 'bank' });
+    game.advanceReveal();
+    expect(game.view()).toMatchObject({ phase: 'game-over', winnerIds: ['a'], finalRound: false });
+  });
+
+  it('applies a three-farkle penalty without losing opening-bank eligibility', () => {
+    const rolls = [1, 2, 2, 3, 3, 4];
+    const game = new FarkleEngine(seats, (max) => max === 6 ? rolls.shift()! - 1 : 0,
+      { opening: 0, threeFarkles: 500 });
+    game.act('a', { type: 'roll' });
+    game.act('a', { type: 'keep', indices: [0] });
+    game.act('a', { type: 'bank' });
+    game.advanceReveal();
+    for (let turn = 0; turn < 6; turn++) {
+      rolls.push(2, 2, 3, 3, 4, 6);
+      const id = game.view().activePlayerId;
+      game.act(id, { type: 'roll' });
+      if (id === 'a' && turn === 5) expect(game.view().penalty).toBe(100);
+      game.advanceReveal();
+    }
+    expect(game.view().players[0]).toMatchObject({ score: 0, onBoard: true, farkles: 0 });
   });
 });

@@ -24,7 +24,7 @@ Pinochle, Old Maid, Blackjack.
 
 ## Implementation checklist
 
-- [x] Farkle — already implemented on the starting branch.
+- [x] Farkle — playable on the starting branch. Added engine variants and a shared dice tray and roll/bank controls.
 - [x] Golf — nine-hole default, bots, shared card grid and discard pile. Verified engine, five-seat socket play, and phone browser flow.
 - [ ] Yahtzee
 - [ ] Can't Stop
@@ -35,6 +35,8 @@ Pinochle, Old Maid, Blackjack.
 - [x] Gin Rummy — standard rules, bot play, automatic melds and layoffs, and final bonuses. Verified engine, socket redaction, and phone browser flow.
 - [ ] Coup
 - [ ] The Mind
+
+The seven open briefs specify existing commercial games. Original designs with distinct rules and identities are needed before these entries can move into implementation.
 
 ## Cross-cutting issues (decide/build before or alongside the games)
 
@@ -47,27 +49,25 @@ Pinochle, Old Maid, Blackjack.
 3. **Bot seat colours.** `SeatChip`/`GameOver` render all bots in one dark colour; Can't Stop (and any game
    colouring pieces by seat) needs bots in their own seat colours.
 4. **`docs/ADDING_GAMES.md` is stale on wiring.** Home shelf and lobby picker now read from
-   `apps/parlor/src/lib/games/catalog.ts`, not the page files listed in §7.
+   `apps/parlor/src/lib/games/catalog.ts`. The wiring guide was updated with Golf.
 5. **Dead-connection detection.** Socket.io heartbeat (~45s to notice) stalls The Mind's ready-check and
    Coup's windows. Tighten before those two.
 6. **Previous winner starts** on Play again (Coup brief asks for `createState` to receive it).
 
 ## Board-kit additions (build once, in `@parlor/ui`)
 
-- **Dice:** `DiceTray` (hold toggles, rolls-left, blank pre-roll), `rolling` prop on `PipDie`,
-  `RollStopBar`. Used by Farkle, Yahtzee, Can't Stop.
+- **Dice:** `DiceTray` supports selections and blank pre-roll slots. `PipDie` supplies the roll animation. `RollStopBar` supplies the two turn actions. Farkle uses this kit.
 - **Generic cards:** `CardFrame` (refactor `PlayingCard` onto it), generic `CardHand<T>`,
   `CharacterCard` (named + numbered), number face for The Mind. Used by Love Letter, Coup,
   Sushi Go, The Mind, Skull.
-- **Standard deck:** `DiscardPile` (extract from Crazy Eights `Table.svelte`), `CardGrid` (Golf),
-  `MeldSpread` (Gin Rummy).
+- **Standard deck:** Golf and Gin Rummy share `DiscardPile`. Golf adds `CardGrid`, and Gin Rummy adds `MeldSpread`.
 - **Misc:** `CountdownBar` (Coup), `GameLog` (move from Booty Dice).
 
 ## Suggested build order
 
 Easiest/highest-reuse first; each game introduces the kit pieces the later ones lean on.
 
-1. **Farkle**: draft exists; builds the dice kit.
+1. **Farkle**: implemented. Uses the shared dice kit.
 2. **Yahtzee**: reuses the dice kit; scorecard pattern from Quixx.
 3. **Golf**: simple standard-deck game; extracts `DiscardPile`, adds `CardGrid`.
 4. **Can't Stop**: dice kit + new column board; needs bot seat colours (#3).

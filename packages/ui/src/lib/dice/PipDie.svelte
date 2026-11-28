@@ -12,13 +12,14 @@
     /** Accessible name; defaults to "Die showing 4". */
     label?: string;
     picked?: boolean;
+    rolling?: boolean;
     /** Faded out of play. */
     dimmed?: boolean;
     onclick?: () => void;
     disabled?: boolean;
   }
 
-  let { value, label, picked = false, dimmed = false, onclick, disabled = false }: Props = $props();
+  let { value, label, picked = false, dimmed = false, rolling = false, onclick, disabled = false }: Props = $props();
 
   // Pip centres on a 3×3 grid (0 = left/top, 1 = middle, 2 = right/bottom).
   const PIPS: Record<number, [number, number][]> = {
@@ -42,11 +43,11 @@
 {/snippet}
 
 {#if onclick}
-  <button type="button" class="die" class:picked class:dimmed aria-label={name} aria-pressed={picked} {disabled} {onclick}>
+  <button type="button" class="die" class:picked class:dimmed class:rolling aria-label={name} aria-pressed={picked} {disabled} {onclick}>
     {@render pips()}
   </button>
 {:else}
-  <span class="die" class:picked class:dimmed role="img" aria-label={name}>{@render pips()}</span>
+  <span class="die" class:picked class:dimmed class:rolling role="img" aria-label={name}>{@render pips()}</span>
 {/if}
 
 <style>
@@ -65,6 +66,9 @@
     font: inherit;
     transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.18s ease, opacity 0.2s ease;
   }
+
+  .rolling { animation: arrive .28s ease-out; }
+  @keyframes arrive { from { opacity: .25; translate: 0 -8px; scale: .96; } }
 
   svg {
     display: block;
@@ -103,6 +107,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .rolling { animation: none; }
     .die {
       transition: none;
     }

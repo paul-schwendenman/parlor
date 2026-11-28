@@ -1,6 +1,6 @@
 # Farkle: implementation brief
 
-Parlor ships the standard scoring table below for 2–6 players with an optional shared screen, with bot seats and stand-ins. The board confirms the kept dice before the player banks or rolls again. The host options and shared dice animation described below are future work.
+Parlor ships the standard scoring table below for 2–6 players with an optional shared screen, with bot seats and stand-ins. The board confirms the kept dice before the player banks or rolls again. The engine supports the variants below and the board uses a shared dice tray. The lobby currently uses the defaults.
 
 ---
 
@@ -254,7 +254,7 @@ class FarkleEngine {
 
 ## 7. Mapping to this codebase
 
-**Package:** `@parlor/farkle`, id `farkle`, folder `games/farkle/` (a draft already exists, untracked). Layout per docs/ADDING_GAMES.md §1: `package.json` (no `@parlor/cards`), `tsconfig.json`, `turbo.json`, `src/{types,meta,rules,engine,definition}.ts`, `src/GameView.svelte`.
+**Package:** `@parlor/farkle`, id `farkle`, folder `games/farkle/` (implemented). Layout per docs/ADDING_GAMES.md §1: `package.json` (no `@parlor/cards`), `tsconfig.json`, `turbo.json`, `src/{types,meta,rules,engine,definition}.ts`, `src/GameView.svelte`.
 
 **Meta:** as in the draft (`minPlayers 2`, `maxPlayers 6`, `estimatedMinutes '15-30'`, `tags ['dice','classic']`, `displayModes ['peer']`, `supportsBots true`). Description: "Roll six dice, keep the scorers, and bank before a bust wipes your turn." Catalog tagline: "Push your luck to 10,000 points".
 

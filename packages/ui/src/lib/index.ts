@@ -18,3 +18,5 @@ export { default as TrickTable } from './cards/TrickTable.svelte';
 export { default as CardGrid } from './cards/CardGrid.svelte';
 export { default as DiscardPile } from './cards/DiscardPile.svelte';
 export { default as MeldSpread } from './cards/MeldSpread.svelte';
+export { default as DiceTray } from './dice/DiceTray.svelte';
+export { default as RollStopBar } from './dice/RollStopBar.svelte';
