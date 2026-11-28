@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const games = [
   { name: "Liar's Dice", bots: 1, sidebar: 'Dice remaining' },
+  { name: "Quixx", bots: 1, sidebar: "Standings" },
 ];
 
 for (const { name, bots, sidebar } of games) {

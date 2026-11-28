@@ -8,6 +8,6 @@ export const quixxMeta: GameMeta & { id: 'quixx' } = {
   maxPlayers: 5,
   estimatedMinutes: '15-20',
   tags: ['dice', 'strategy', 'quick'],
-  displayModes: ['peer'],
+  displayModes: ['peer', 'jackbox'],
   supportsBots: true,
 };
