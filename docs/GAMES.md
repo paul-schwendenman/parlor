@@ -11,14 +11,24 @@ Parlor aims to host a variety of multiplayer tabletop games. This document catal
 | Game | Type | Players | Display Mode | Hidden Info | State Model | IP Concern | Spec |
 |------|------|---------|-------------|-------------|-------------|------------|------|
 | **Quixx** | Roll-and-write dice | 2-5 | Peer or Jackbox | None | Consensus or Server | Rename | [QUIXX.md](games/QUIXX.md) |
-| **Can't Stop** | Push-your-luck dice | 2-4 | Jackbox (primary) | None | Consensus or Server | Rename | [CANT_STOP.md](games/CANT_STOP.md) |
-| **Yahtzee** | Dice categories | 1+ | Peer or Jackbox | None | Consensus or Server | Rename | [YAHTZEE.md](games/YAHTZEE.md) |
+| **Can't Stop** | Push-your-luck dice | 2-4 | Peer | None | Server | Real name, original art/wording | [CANT_STOP.md](games/CANT_STOP.md) |
+| **Yahtzee** | Dice categories | 2-6 | Peer | None | Server | Real name, original art/wording | [YAHTZEE.md](games/YAHTZEE.md) |
+| **Council Ledger** | Timed permit bluffing | 2–6 | Peer | Private permit and responses | Server | Original | [COUNCIL_LEDGER.md](games/COUNCIL_LEDGER.md) |
+| **Cipher Post** | Passing and deduction | 2–6 | Peer | Seals and guesses | Server | Original | [CIPHER_POST.md](games/CIPHER_POST.md) |
+| **Fault Line** | Hidden cache bluffing | 3–6 | Peer | Caches and opening choices | Server | Original | [FAULT_LINE.md](games/FAULT_LINE.md) |
+| **Signal Relay** | Timed cooperative routing | 2–4 | Peer | Private signals | Server | Original | [SIGNAL_RELAY.md](games/SIGNAL_RELAY.md) |
+| **Night Market** | Simultaneous drafting | 2–5 | Peer | Current hands and picks | Server | Original | [NIGHT_MARKET.md](games/NIGHT_MARKET.md) |
+| **Ridge Run** | Push-your-luck climbing dice | 2–4 | Peer | None | Server | Original | [RIDGE_RUN.md](games/RIDGE_RUN.md) |
+| **Harbor Dice** | Roll-and-hold scorecard | 2–6 | Peer | None | Server | Original | [HARBOR_DICE.md](games/HARBOR_DICE.md) |
 | **Farkle** | Push-your-luck dice | 2–6 | Peer or Jackbox | None | Server | None | [FARKLE.md](games/FARKLE.md) |
+| **President** | Climbing and shedding | 4–7 | Peer | Hands and exchanges | Server | None | [PRESIDENT.md](games/PRESIDENT.md) |
+| **Gin Rummy** | Meld building | 2 | Peer | Hands | Server | None | [GIN_RUMMY.md](games/GIN_RUMMY.md) |
+| **Golf** | Six-card tableau | 2–6 | Peer | Face-down cards | Server | None | [GOLF.md](games/GOLF.md) |
 | **Word Split** | Shared-letter word game | 2–8 | Peer or Jackbox | Words private until reveal | Server | Original | [WORD_SPLIT.md](games/WORD_SPLIT.md) |
-| **Boggle** | Word-finding | 2+ | Peer or Jackbox | Words hidden during play | Server | Rename | [BOGGLE.md](games/BOGGLE.md) |
-| **Coup** | Bluffing/deduction | 2-6 | Peer or Jackbox | Hidden roles | Server | Rename + re-theme | [COUP.md](games/COUP.md) |
-| **Love Letter** | Deduction cards | 2-6 | Peer or Jackbox | Hidden hand (1 card) | Server | Rename + re-theme | [LOVE_LETTER.md](games/LOVE_LETTER.md) |
-| **Sushi Go** | Card drafting | 2-5 | Peer | Hidden hands | Server | Rename + re-theme | [SUSHI_GO.md](games/SUSHI_GO.md) |
+| **Boggle** | Word-finding | 2-8 | Peer | Words hidden during play | Server | Real name, original art/wording | [BOGGLE.md](games/BOGGLE.md) |
+| **Coup** | Bluffing/deduction | 2-6 | Peer | Hidden roles | Server | Real names, original art/wording | [COUP.md](games/COUP.md) |
+| **Love Letter** | Deduction cards | 2-6 | Peer | Hidden hand (1 card) | Server | Real names, original art/wording | [LOVE_LETTER.md](games/LOVE_LETTER.md) |
+| **Sushi Go** | Card drafting | 2-5 | Peer | Hidden hands | Server | Real names, original art/wording | [SUSHI_GO.md](games/SUSHI_GO.md) |
 | **Bang! Dice** | Hidden roles, dice | 3-8 | Peer or Jackbox | Hidden roles | Server | Rename + re-theme | [BANG_DICE.md](games/BANG_DICE.md) |
 | **Kings Corner** | Solitaire-style cards | 2-4 | Peer | Hidden hands | Server | None | [KINGS_CORNER.md](games/KINGS_CORNER.md) |
 | **Hearts** | Trick-taking | 4 | Peer | Hidden hands | Server | None | [HEARTS.md](games/HEARTS.md) |
@@ -28,8 +38,8 @@ Parlor aims to host a variety of multiplayer tabletop games. This document catal
 | **Spades** | Trick-taking (teams) | 4 | Peer | Hidden hands | Server | None | [SPADES.md](games/SPADES.md) |
 | **Welcome To** | Flip-and-write | 1-50+ | Jackbox (primary) | Sheets | Consensus or Server | Rename | [WELCOME_TO.md](games/WELCOME_TO.md) |
 | **Liar's Dice** | Bluffing dice | 2-6 | Peer or Jackbox | Hidden dice | Server | None | [LIARS_DICE.md](games/LIARS_DICE.md) |
-| **Skull** | Pure bluffing | 3-6 | Peer or Jackbox | Hidden coasters | Server | Rename | [SKULL.md](games/SKULL.md) |
-| **The Mind** | Cooperative, real-time | 2-4 | Peer | Hidden hands | Server | Rename | [THE_MIND.md](games/THE_MIND.md) |
+| **Skull** | Pure bluffing | 3-6 | Peer | Hidden discs | Server | Real name, original art/wording | [SKULL.md](games/SKULL.md) |
+| **The Mind** | Cooperative, real-time | 2-4 | Peer | Hidden hands | Server | Real name, original art/wording | [THE_MIND.md](games/THE_MIND.md) |
 
 ---
 

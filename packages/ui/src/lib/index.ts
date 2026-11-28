@@ -15,3 +15,10 @@ export { SEAT_TONES, seatTone, initial, type SeatTone, type Standing } from './s
 export { SUIT_NAMES, isRedSuit, cardName, type CardSuit } from './cards/suits.js';
 export { default as TeamScore } from './TeamScore.svelte';
 export { default as TrickTable } from './cards/TrickTable.svelte';
+export { default as CardGrid } from './cards/CardGrid.svelte';
+export { default as DiscardPile } from './cards/DiscardPile.svelte';
+export { default as MeldSpread } from './cards/MeldSpread.svelte';
+export { default as DiceTray } from './dice/DiceTray.svelte';
+export { default as RollStopBar } from './dice/RollStopBar.svelte';
+export { default as Countdown } from './Countdown.svelte';
+export { default as CharacterCard } from './cards/CharacterCard.svelte';

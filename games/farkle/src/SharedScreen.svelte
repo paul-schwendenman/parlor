@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Felt, PipDie } from '@parlor/ui';
-  import { TARGET_SCORE, scoringSelections } from './rules.js';
+  import { DiceTray, Felt, PipDie } from '@parlor/ui';
+  import { scoringSelections } from './rules.js';
   import type { FarkleView } from './types.js';
 
   let { view }: { view: FarkleView } = $props();
@@ -9,7 +9,7 @@
   let scores = $derived([...view.players].sort((a, b) => Number(a.out) - Number(b.out) || b.score - a.score));
   let over = $derived(view.phase === 'game-over');
   let winners = $derived(scores.filter(({ out, score }) => !out && score === scores[0].score));
-  let scoringDice = $derived(new Set(scoringSelections(view.dice).flatMap(({ indices }) => indices)));
+  let scoringDice = $derived(new Set(scoringSelections(view.dice, view.rules).flatMap(({ indices }) => indices)));
 
   let headline = $derived(
     over ? winners.length > 1 ? 'Shared win!' : winners.length ? `${winners[0].name} wins!` : 'Game over'
@@ -35,17 +35,10 @@
         <p>{instruction}</p>
       </div>
       {#if !over}
-        {#key view.rollNumber}
-          <div class="dice" class:rolled={view.dice.length > 0}>
-            {#each view.dice as die, index (index)}
-              <PipDie value={die} dimmed={view.phase === 'selecting' && !scoringDice.has(index)} />
-            {:else}
-              {#each Array(view.diceToRoll) as _, index (index)}
-                <span class="die-slot" aria-hidden="true"></span>
-              {/each}
-            {/each}
-          </div>
-        {/key}
+        <div class="dice">
+          <DiceTray dice={view.dice} count={view.diceToRoll} rollId={view.rollNumber}
+            eligible={view.phase === 'selecting' ? scoringDice : undefined} />
+        </div>
         <div class="turn-total">
           <strong>{view.turnScore.toLocaleString()}</strong>
           <span>{view.phase === 'bust' ? 'points lost' : view.phase === 'banked' ? 'points banked' : 'unbanked points'}</span>
@@ -68,7 +61,7 @@
   <section class="scoreboard" aria-labelledby="farkle-standings">
     <div class="score-heading">
       <h2 id="farkle-standings">Standings</h2>
-      <span>{view.finalRound ? 'Final turns' : `Play to ${TARGET_SCORE.toLocaleString()}`}</span>
+      <span>{view.finalRound ? 'Final turns' : `Play to ${view.rules.target.toLocaleString()}`}</span>
     </div>
     <ol>
       {#each scores as player (player.id)}
@@ -95,10 +88,7 @@
   h2, p { margin: 0; }
   .turn h2 { font: 900 clamp(2.2rem, 4vw, 5rem)/1 var(--font-heading); overflow-wrap: anywhere; }
   .turn p { font-size: clamp(1rem, 1.65vw, 1.5rem); margin-top: .5em; }
-  .dice { --die-size: clamp(39px, 6vw, 104px); display: flex; justify-content: center; flex-wrap: wrap; gap: clamp(5px, 0.85vw, 14px); }
-  .die-slot { box-sizing: border-box; width: var(--die-size); aspect-ratio: 1; border: 2px dashed currentColor; border-radius: 24%; opacity: .4; }
-  .rolled { animation: arrive .28s ease-out both; }
-  @keyframes arrive { from { opacity: .25; transform: translateY(-8px) scale(.96); } }
+  .dice { --die-size: clamp(39px, 6vw, 104px); --dice-gap: clamp(5px, 0.85vw, 14px); }
   .turn-total { display: grid; gap: 2px; }
   .turn-total strong { font: 900 clamp(3rem, 6vw, 7rem)/.9 var(--font-heading); font-variant-numeric: tabular-nums; }
   .turn-total span { font-size: clamp(1rem, 1.5vw, 1.5rem); }
@@ -118,5 +108,4 @@
   .seat small { font-size: .65em; font-weight: 700; }
   .next { margin-top: auto; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: clamp(1rem, 1.35vw, 1.4rem); }
   @media (max-width: 760px) { .table { grid-template-columns: minmax(0, 1fr); } .stage { min-height: 280px; } }
-  @media (prefers-reduced-motion: reduce) { .rolled { animation: none; } }
 </style>

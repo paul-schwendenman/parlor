@@ -35,9 +35,24 @@ importers:
 
   apps/parlor:
     dependencies:
+      '@parlor/boggle':
+        specifier: workspace:*
+        version: link:../../games/boggle
       '@parlor/booty-dice':
         specifier: workspace:*
         version: link:../../games/booty-dice
+      '@parlor/cant-stop':
+        specifier: workspace:*
+        version: link:../../games/cant-stop
+      '@parlor/cipher-post':
+        specifier: workspace:*
+        version: link:../../games/cipher-post
+      '@parlor/council-ledger':
+        specifier: workspace:*
+        version: link:../../games/council-ledger
+      '@parlor/coup':
+        specifier: workspace:*
+        version: link:../../games/coup
       '@parlor/crazy-eights':
         specifier: workspace:*
         version: link:../../games/crazy-eights
@@ -47,9 +62,21 @@ importers:
       '@parlor/farkle':
         specifier: workspace:*
         version: link:../../games/farkle
+      '@parlor/fault-line':
+        specifier: workspace:*
+        version: link:../../games/fault-line
       '@parlor/game-types':
         specifier: workspace:*
         version: link:../../packages/game-types
+      '@parlor/gin-rummy':
+        specifier: workspace:*
+        version: link:../../games/gin-rummy
+      '@parlor/golf':
+        specifier: workspace:*
+        version: link:../../games/golf
+      '@parlor/harbor-dice':
+        specifier: workspace:*
+        version: link:../../games/harbor-dice
       '@parlor/hearts':
         specifier: workspace:*
         version: link:../../games/hearts
@@ -59,24 +86,51 @@ importers:
       '@parlor/liars-dice':
         specifier: workspace:*
         version: link:../../games/liars-dice
+      '@parlor/love-letter':
+        specifier: workspace:*
+        version: link:../../games/love-letter
       '@parlor/multiplayer':
         specifier: workspace:*
         version: link:../../packages/multiplayer
+      '@parlor/night-market':
+        specifier: workspace:*
+        version: link:../../games/night-market
       '@parlor/oh-hell':
         specifier: workspace:*
         version: link:../../games/oh-hell
+      '@parlor/president':
+        specifier: workspace:*
+        version: link:../../games/president
       '@parlor/quixx':
         specifier: workspace:*
         version: link:../../games/quixx
+      '@parlor/ridge-run':
+        specifier: workspace:*
+        version: link:../../games/ridge-run
+      '@parlor/signal-relay':
+        specifier: workspace:*
+        version: link:../../games/signal-relay
+      '@parlor/skull':
+        specifier: workspace:*
+        version: link:../../games/skull
       '@parlor/spades':
         specifier: workspace:*
         version: link:../../games/spades
+      '@parlor/sushi-go':
+        specifier: workspace:*
+        version: link:../../games/sushi-go
+      '@parlor/the-mind':
+        specifier: workspace:*
+        version: link:../../games/the-mind
       '@parlor/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@parlor/word-split':
         specifier: workspace:*
         version: link:../../games/word-split
+      '@parlor/yahtzee':
+        specifier: workspace:*
+        version: link:../../games/yahtzee
       express:
         specifier: ^4.21.0
         version: 4.22.1
@@ -129,6 +183,31 @@ importers:
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@22.19.15)(tsx@4.21.0)
+
+  games/boggle:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+      word-list:
+        specifier: ^4.1.0
+        version: 4.1.0
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
 
   games/booty-dice:
     dependencies:
@@ -187,6 +266,94 @@ importers:
       vitest:
         specifier: ^4.0.0
         version: 4.0.18(@types/node@22.19.15)(tsx@4.21.0)
+
+  games/cant-stop:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/cipher-post:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/council-ledger:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/coup:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
 
   games/crazy-eights:
     dependencies:
@@ -275,6 +442,100 @@ importers:
         version: 5.9.3
 
   games/farkle:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/fault-line:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/gin-rummy:
+    dependencies:
+      '@parlor/cards':
+        specifier: workspace:*
+        version: link:../../packages/cards
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/golf:
+    dependencies:
+      '@parlor/cards':
+        specifier: workspace:*
+        version: link:../../packages/cards
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/harbor-dice:
     dependencies:
       '@parlor/game-types':
         specifier: workspace:*
@@ -440,7 +701,76 @@ importers:
         specifier: ^4.0.0
         version: 4.0.18(@types/node@22.19.15)(tsx@4.21.0)
 
+  games/love-letter:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/night-market:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
   games/oh-hell:
+    dependencies:
+      '@parlor/cards':
+        specifier: workspace:*
+        version: link:../../packages/cards
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/president:
     dependencies:
       '@parlor/cards':
         specifier: workspace:*
@@ -523,11 +853,121 @@ importers:
         specifier: ^4.0.0
         version: 4.0.18(@types/node@22.19.15)(tsx@4.21.0)
 
+  games/ridge-run:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/signal-relay:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/skull:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
   games/spades:
     dependencies:
       '@parlor/cards':
         specifier: workspace:*
         version: link:../../packages/cards
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/sushi-go:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/the-mind:
+    dependencies:
       '@parlor/game-types':
         specifier: workspace:*
         version: link:../../packages/game-types
@@ -565,6 +1005,28 @@ importers:
       word-list:
         specifier: ^4.1.0
         version: 4.1.0
+    devDependencies:
+      svelte-check:
+        specifier: ^4.1.4
+        version: 4.4.4(picomatch@4.0.3)(svelte@5.53.7)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  games/yahtzee:
+    dependencies:
+      '@parlor/game-types':
+        specifier: workspace:*
+        version: link:../../packages/game-types
+      '@parlor/multiplayer':
+        specifier: workspace:*
+        version: link:../../packages/multiplayer
+      '@parlor/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      svelte:
+        specifier: ^5.0.0
+        version: 5.53.7
     devDependencies:
       svelte-check:
         specifier: ^4.1.4

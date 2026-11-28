@@ -148,6 +148,191 @@
         <p>The first player to empty their hand wins. If the draw pile runs out and everyone passes, the <strong>lowest penalty</strong> wins: Kings in hand count 10 points, every other card 1.</p>
       </section>
 
+    {:else if gameId === 'council-ledger'}
+      <section>
+        <h3>Make a proposal</h3>
+        <p>Each turn you get a private permit. Claim any permit to earn coins or standing, or do public service for one coin and one standing. Public service needs no permit.</p>
+      </section>
+      <section>
+        <h3>Challenge a claim</h3>
+        <p>Rivals with a coin have eight seconds to challenge or stand. An unchallenged claim goes through. A challenge reveals the permit. If it matches, the claim goes through and each challenger loses one coin. If it differs, the claim fails, each challenger gains one standing, and the proposer loses up to one coin.</p>
+        <p>Finish when someone reaches 12 standing or after eight rounds. The highest standing wins. Ties share the win.</p>
+      </section>
+    {:else if gameId === 'cipher-post'}
+      <section>
+        <h3>Pass a seal and reveal a clue</h3>
+        <p>Everyone starts with two private seals numbered one through six. Pass one to your neighbour. After receiving a seal, expose one of your two seals and keep the other hidden.</p>
+      </section>
+      <section>
+        <h3>Guess what stayed sealed</h3>
+        <p>Secretly guess one rival's sealed value. A correct guess earns four points. Your own seal earns its value if nobody guesses it. Use the seal you sent as a clue.</p>
+        <p>Pass in the opposite direction each round. The highest total after four rounds wins. Ties share the win.</p>
+      </section>
+    {:else if gameId === 'fault-line'}
+      <section>
+        <h3>Plant a hidden cache</h3>
+        <p>Each player starts with two faults, two silver caches, and two gold caches. Plant one each round and offer up to two of your four bounty chips. The offer is public once all caches are planted.</p>
+      </section>
+      <section>
+        <h3>Open a rival cache or pass</h3>
+        <p>Silver pays one point and gold pays two, plus the posted bounty. A fault costs the opener one point. Owners earn two points per opener on a fault and one per opener on a safe cache. An unopened cache scores its printed value for its owner.</p>
+        <p>Reveal everyone's choices together. After six rounds the highest score wins. Ties share the win.</p>
+      </section>
+    {:else if gameId === 'signal-relay'}
+      <section>
+        <h3>Send signals together</h3>
+        <p>Send a signal to either antenna if the channel matches or the strength differs by exactly one. The new signal becomes the antenna's signal. Everyone can act at once.</p>
+      </section>
+      <section>
+        <h3>Beat the clock</h3>
+        <p>Each relay lasts 55 seconds. Once per relay, your team can reroute a signal to either antenna regardless of its channel or strength.</p>
+        <p>Clear every player's signals in four relays to win together. If time runs out, the team loses.</p>
+      </section>
+    {:else if gameId === 'night-market'}
+      <section>
+        <h3>Draft, then pass</h3>
+        <p>Everyone chooses a good in secret and decides whether to sell it or display it. Once all picks are locked, reveal them and pass the remaining goods. Each season has four picks. The last good is discarded.</p>
+      </section>
+      <section>
+        <h3>Collect coins and build your stall</h3>
+        <p>Sell a good for its coin value, or display it for one point. Each lantern and silk pair and each tea and pottery pair earns five extra points. A spice earns one extra point for each distinct other kind you display.</p>
+        <p>Score and reset the stalls after each season. The highest total after three seasons wins.</p>
+      </section>
+    {:else if gameId === 'cant-stop'}
+      <section>
+        <h3>Pair the dice</h3>
+        <p>Roll four dice and split them into two pairs. Each pair's total names a column from 2 to 12. Move a white runner up each of those columns. You have three runners a turn. A new runner starts one space above your own marker in that column.</p>
+        <p>If both totals of your pairing can be used, you must use both. If only one fits, use that one.</p>
+      </section>
+      <section>
+        <h3>Roll again or stop</h3>
+        <p>After moving, roll again to push higher, or stop to swap your runners for your own markers. If a roll gives you no usable pairing, you bust and lose this turn's climbing.</p>
+        <p>Stop with a runner on the top space to claim that column. Everyone else's markers leave it and nobody can use it again. Claim three columns to win.</p>
+      </section>
+    {:else if gameId === 'yahtzee'}
+      <section>
+        <h3>Roll and hold</h3>
+        <p>On your turn, roll all five dice. You may then set aside any dice you like and reroll the others, up to three rolls in total. You can change which dice you keep between rolls.</p>
+      </section>
+      <section>
+        <h3>Fill one box</h3>
+        <p>After any roll, write a score in one empty box on your card. Every turn fills a box, so you may have to put a zero somewhere. The top half scores the dice of one face. Reach 63 there for a 35 point bonus.</p>
+        <p>The bottom half pays for patterns: three or four of a kind score all five dice, a full house is 25, four in a row is 30, five in a row is 40, and five of a kind (a Yahtzee) is 50. Chance takes any roll.</p>
+      </section>
+      <section>
+        <h3>Extra Yahtzees</h3>
+        <p>If you roll five of a kind after scoring 50 in the Yahtzee box, you get 100 bonus points. You must then use the matching top box if it is open. Otherwise you can use any open bottom box at full value, even a straight or full house.</p>
+        <p>After thirteen rounds, the highest total wins.</p>
+      </section>
+    {:else if gameId === 'skull'}
+      <section>
+        <h3>Setting up</h3>
+        <p>Everyone has four discs: three flowers and one skull. Each round, every player first puts one disc face down on their own mat at the same time.</p>
+      </section>
+      <section>
+        <h3>Placing</h3>
+        <p>Going around the table, either add another disc face down to your mat or start the bidding. If your hand is empty, you have to start the bidding.</p>
+      </section>
+      <section>
+        <h3>Bidding</h3>
+        <p>A bid says how many discs you think you can turn over without finding a skull. Each player in turn raises the bid or passes for the rest of the round. Bidding ends when everyone else has passed or someone bids every disc on the mats.</p>
+      </section>
+      <section>
+        <h3>Turning over</h3>
+        <p>The highest bidder turns over all their own discs first, from the top. Then they choose other mats and turn over their top discs one at a time. Reach your number in flowers to score a point. Two points wins.</p>
+      </section>
+      <section>
+        <h3>Losing a disc</h3>
+        <p>If you turn over a skull, you fail. The skull's owner picks one of your discs without seeing it, and it is gone for good. If it was your own skull, you choose which disc to lose. Nobody else learns what it was. Lose all your discs and you are out. The last player left also wins.</p>
+      </section>
+    {:else if gameId === 'love-letter'}
+      <section>
+        <h3>One card in hand</h3>
+        <p>You always hold one secret card. On your turn, draw a second card, then play one of the two face up and do what it says. Cards that pick another player can't pick anyone protected by a Handmaid or already out.</p>
+      </section>
+      <section>
+        <h3>The cards</h3>
+        <p><strong>0 Spy</strong> (2): does nothing when played. <strong>1 Guard</strong> (6): name a card other than Guard; if the player you pick holds it, they are out. <strong>2 Priest</strong> (2): look at someone's card. <strong>3 Baron</strong> (2): compare cards in secret; the lower card is out. <strong>4 Handmaid</strong> (2): nobody can pick you until your next turn.</p>
+        <p><strong>5 Prince</strong> (2): pick anyone, even yourself, to discard their card and draw a new one. <strong>6 Chancellor</strong> (2): draw two, keep one of your three, and put the others under the deck. <strong>7 King</strong> (1): swap cards with someone. <strong>8 Countess</strong> (1): you must play her if your other card is the King or a Prince. <strong>9 Princess</strong> (1): if she is played or discarded, you are out.</p>
+      </section>
+      <section>
+        <h3>Winning a round</h3>
+        <p>The round ends when only one player is left, or after the turn that empties the deck. Then the highest card still in hand wins a token, and ties all win. If exactly one player still in has played or discarded a Spy, they get a bonus token.</p>
+        <p>Collect enough tokens to win: 6 with two players, 5 with three, 4 with four, and 3 with five or six.</p>
+      </section>
+    {:else if gameId === 'sushi-go'}
+      <section>
+        <h3>Pick and pass</h3>
+        <p>Everyone gets a hand of cards. At the same time, each player picks one card to keep and puts it on their plate. Then everyone passes the rest of their hand to the player on their left. Keep going until the hands run out. Play three rounds.</p>
+      </section>
+      <section>
+        <h3>Scoring</h3>
+        <p><strong>Tempura</strong>: 5 for each pair. <strong>Sashimi</strong>: 10 for each set of three. <strong>Dumplings</strong>: 1, 3, 6, 10 or 15 for one to five or more. <strong>Nigiri</strong>: egg 1, salmon 2, squid 3. <strong>Wasabi</strong> triples the next nigiri you put on your plate.</p>
+        <p><strong>Maki rolls</strong>: the most roll icons scores 6 and the next most scores 3. Ties split the points. <strong>Puddings</strong> stay on your plate until the end. The most puddings scores 6 and the fewest loses 6 (no loss with two players).</p>
+      </section>
+      <section>
+        <h3>Chopsticks</h3>
+        <p>On a later turn, you can use chopsticks from your plate to take two cards at once. The chopsticks then go back into the hand you pass on.</p>
+      </section>
+    {:else if gameId === 'the-mind'}
+      <section>
+        <h3>Low to high, together</h3>
+        <p>The cards run from 1 to 100. On level 1 everyone gets one card, on level 2 two cards, and so on. As a team, play every card onto one pile in rising order. There are no turns and no talking about your cards: play your lowest card whenever it feels like the right moment.</p>
+      </section>
+      <section>
+        <h3>Focus and stop</h3>
+        <p>Before play starts, everyone taps Ready. Anyone can call Stop to pause, and then everyone gets ready again.</p>
+      </section>
+      <section>
+        <h3>Mistakes, lives and stars</h3>
+        <p>If a card is played while someone still holds a lower one, the team loses a life and everyone throws away their cards below it. Then the level carries on. A throwing star needs everyone to agree: each player throws away their lowest card.</p>
+        <p>Clearing some levels earns a life or a throwing star. Clear every level (12 with two players, 10 with three, 8 with four) to win. Lose your last life and the game ends. When two plays arrive almost together, the lower card is given a moment to land first.</p>
+      </section>
+    {:else if gameId === 'coup'}
+      <section>
+        <h3>Your court</h3>
+        <p>Everyone starts with two face-down characters and two coins. Lose a challenge or get hit by a Coup or an Assassin and you turn one character face up. Lose both and you are out. The last player with a hidden character wins.</p>
+      </section>
+      <section>
+        <h3>Actions</h3>
+        <p>On your turn take one action. Anyone can take <strong>Income</strong> (1 coin), <strong>Foreign Aid</strong> (2 coins) or a <strong>Coup</strong> (pay 7 and pick a player to lose a character). With 10 coins at the start of your turn you must Coup.</p>
+        <p>The rest need you to claim a character, whether or not you hold it. <strong>Duke</strong>: take 3 coins. <strong>Assassin</strong>: pay 3 and pick a player to lose a character. <strong>Captain</strong>: take up to 2 coins from a player. <strong>Ambassador</strong>: draw 2 cards from the deck, keep what you want, and return the rest.</p>
+      </section>
+      <section>
+        <h3>Challenges and blocks</h3>
+        <p>Anyone can challenge a claim. If the claimant shows the card, the challenger loses a character and the shown card is swapped for a new one. If not, the claimant loses a character and the action fails.</p>
+        <p>A Duke blocks Foreign Aid. The target of an Assassin can block with a Contessa. The target of a Captain can block with a Captain or an Ambassador. Blocks are claims too, so they can be challenged. Each moment to respond lasts 15 seconds.</p>
+      </section>
+    {:else if gameId === 'boggle'}
+      <section>
+        <h3>Find words</h3>
+        <p>Sixteen letter cubes make a 4 by 4 grid. Before the three minutes run out, find as many words as you can. Each word chains letters that touch, including diagonally, and uses each cube at most once. Words need at least three letters. The Qu cube counts as two letters.</p>
+      </section>
+      <section>
+        <h3>Only your own words score</h3>
+        <p>When time is up, every list is revealed. A word that more than one player found scores nothing. Unique words score by length: 3 or 4 letters 1 point, 5 letters 2, 6 letters 3, 7 letters 5, and 8 or more 11.</p>
+        <p>Play three grids. The highest total wins.</p>
+      </section>
+    {:else if gameId === 'ridge-run'}
+      <section>
+        <h3>Climb a route</h3>
+        <p>Roll three dice. Choose one route that matches the sum of any two dice. Move one step, or two with a matching pair. You can climb at most two different routes each turn.</p>
+      </section>
+      <section>
+        <h3>Roll again or make camp</h3>
+        <p>Camp to bank every step you climbed. If you roll and have no available route, your turn ends and you lose your unbanked steps.</p>
+        <p>The first player to bank a summit earns three points. Anyone who summits that route later earns two. You can score each route once. First to seven points wins.</p>
+      </section>
+    {:else if gameId === 'harbor-dice'}
+      <section>
+        <h3>Roll and hold</h3>
+        <p>Roll five dice. You can hold any dice and reroll the rest up to twice. Change your holds between rolls.</p>
+      </section>
+      <section>
+        <h3>Fill your scorecard</h3>
+        <p>After any roll, choose one open category. A category can score zero and you can only fill it once. Face categories add up dice of that face. Twin docks uses two different pairs, Lighthouse needs a one and a six, Channel rewards consecutive faces, and Fleet rewards matching dice.</p>
+        <p>Play ten rounds. The highest total wins, and ties share the win.</p>
+      </section>
     {:else if gameId === 'farkle'}
       <section>
         <h3>Roll, keep, or bank</h3>
@@ -165,6 +350,44 @@
       <section>
         <h3>Final turns</h3>
         <p>When someone banks 10,000 points or more, everyone else gets one last turn. The highest score wins, with ties shared.</p>
+      </section>
+    {:else if gameId === 'president'}
+      <section>
+        <h3>Beat the standing set</h3>
+        <p>Lead with a single card or several of the same rank. On your turn, play the same number of cards at a higher rank or pass. Twos are highest, followed by aces and kings. You may play later in the trick if someone beats the standing set.</p>
+        <p>When everyone else still in the hand passes, the last player to play leads next. If they have emptied their hand, the lead moves clockwise to the next player with cards.</p>
+      </section>
+      <section>
+        <h3>Empty your hand first</h3>
+        <p>The first player out becomes President and earns two points. The second earns one point. In the next hand, the last-place player gives the President their highest card. The President returns any card and leads.</p>
+        <p>Finish the hand in which someone reaches 11 points. The highest score wins. Final-hand placement breaks ties.</p>
+      </section>
+    {:else if gameId === 'gin-rummy'}
+      <section>
+        <h3>Make sets and runs</h3>
+        <p>Build groups of three or four cards of a rank or sequences of three or more in one suit. Aces are low. Cards outside your groups are deadwood. Aces count one, face cards count ten, and other cards count their number.</p>
+      </section>
+      <section>
+        <h3>Draw and discard</h3>
+        <p>Both players get a chance to take the opening upcard. On later turns, draw from the stock or take the top discard, then discard a card. You must keep the card you took from the discard pile for that turn.</p>
+      </section>
+      <section>
+        <h3>Knock or go gin</h3>
+        <p>You may knock if your chosen discard leaves at most ten deadwood. The other player can lay off onto your groups and scores an undercut if they finish even or lower. Going gin leaves zero deadwood, scores a bonus, and prevents layoffs. Reach 100 points to end the game.</p>
+      </section>
+    {:else if gameId === 'golf'}
+      <section>
+        <h3>Set up your grid</h3>
+        <p>Each hole starts with six face-down cards in two rows. Turn any two face up.</p>
+      </section>
+      <section>
+        <h3>Draw and swap</h3>
+        <p>On your turn, draw from the stock and swap that card into any slot or discard it. If you take the top discard, you must swap it into your grid. The replaced card goes on the discard pile. The hole ends when any player turns their sixth card face up.</p>
+      </section>
+      <section>
+        <h3>Aim low</h3>
+        <p>Matching ranks in a column cancel out. Kings are worth zero, twos are worth minus two, aces are worth one, and jacks and queens are worth ten. All other cards are worth their number.</p>
+        <p>Reveal and score every grid at the end of each hole. The lowest total after nine holes wins. Ties share the win.</p>
       </section>
     {:else if gameId === 'word-split'}
       <section>

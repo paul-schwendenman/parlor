@@ -15,14 +15,14 @@
   let { count, canDraw, ondraw }: Props = $props();
 </script>
 
-{#if count > 0}
+{#if count > 0 || canDraw}
   <button
     type="button"
     class="stack"
     class:ready={canDraw}
     disabled={!canDraw}
     onclick={ondraw}
-    aria-label={canDraw ? `Draw a card, ${count} left` : `Draw pile, ${count} left`}
+    aria-label={canDraw ? (count ? `Draw a card, ${count} left` : 'Recycle discards and draw a card') : `Draw pile, ${count} left`}
   >
     {#if count > 2}<span class="under two"><PlayingCard faceDown /></span>{/if}
     {#if count > 1}<span class="under one"><PlayingCard faceDown /></span>{/if}
